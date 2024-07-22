@@ -1,0 +1,14 @@
+#ifndef _STRINGS_H
+#define _STRINGS_H
+
+#include <bits/utils.h>
+#include <stddef.h>
+
+__begin
+
+int strcasecmp(const char* __s1, const char* __s2);
+int strncasecmp(const char* __s1, const char* __s2, size_t __count);
+
+__end
+
+#endif

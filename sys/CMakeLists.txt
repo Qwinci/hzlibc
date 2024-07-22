@@ -1,0 +1,5 @@
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+	add_subdirectory(linux)
+else()
+	message(FATAL_ERROR "Unsupported system ${CMAKE_SYSTEM_NAME}")
+endif()
