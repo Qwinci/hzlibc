@@ -106,6 +106,7 @@ typedef struct {
 #define PT_INTERP 3
 #define PT_PHDR 6
 #define PT_TLS 7
+#define PT_GNU_EH_FRAME 0x6474E550
 
 #define PF_X 1
 #define PF_W 2

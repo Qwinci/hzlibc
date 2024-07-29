@@ -10,6 +10,6 @@ EXPORT int __freading(FILE* file) {
 	return file->last_was_read;
 }
 
-EXPORT void __fpurge([[maybe_unused]] FILE* file) {
+EXPORT void __fpurge(FILE* file) {
 
 }

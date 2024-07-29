@@ -11,7 +11,7 @@ syscall:
 	mov %r9, %r8
 	mov 8(%rsp), %r9
 	syscall
-	cmp -4096, %rax
+	cmp $-4096, %rax
 	ja 1f
 	ret
 

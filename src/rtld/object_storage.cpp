@@ -9,7 +9,7 @@
 
 // todo unhardcode this
 namespace {
-	constinit hz::string_view SYSTEM_LIBRARY_PATHS[4] {};
+	constinit hz::string_view SYSTEM_LIBRARY_PATHS[6] {};
 
 	void init_system_paths() {
 		SYSTEM_LIBRARY_PATHS[0] =
@@ -26,6 +26,8 @@ namespace {
 		"/usr/lib32";
 #endif
 		SYSTEM_LIBRARY_PATHS[3] = "/usr/lib";
+		SYSTEM_LIBRARY_PATHS[4] = "/usr/lib/llvm/18/lib64";
+		SYSTEM_LIBRARY_PATHS[5] = "/usr/lib/gcc/x86_64-pc-linux-gnu/13";
 	}
 }
 
@@ -33,8 +35,11 @@ ObjectStorage::ObjectStorage() {
 	init_system_paths();
 }
 
+void add_object_to_debug_list(SharedObject* object);
+
 void ObjectStorage::add_object(SharedObject* object) {
 	objects.push_back(object);
+	add_object_to_debug_list(object);
 }
 
 namespace {
@@ -83,7 +88,7 @@ namespace {
 	};
 }
 
-static void* rtld_memset(void* __restrict dest, int ch, size_t size) {
+void* rtld_memset(void* __restrict dest, int ch, size_t size) {
 	auto* ptr = static_cast<unsigned char*>(dest);
 	for (; size; --size) {
 		*ptr++ = static_cast<unsigned char>(ch);
@@ -91,7 +96,7 @@ static void* rtld_memset(void* __restrict dest, int ch, size_t size) {
 	return dest;
 }
 
-static void* rtld_memcpy(void* __restrict dest, const void* __restrict src, size_t size) {
+void* rtld_memcpy(void* __restrict dest, const void* __restrict src, size_t size) {
 	auto* dest_ptr = static_cast<unsigned char*>(dest);
 	auto* src_ptr = static_cast<const unsigned char*>(src);
 	for (; size; --size) {
@@ -191,7 +196,7 @@ hz::result<SharedObject*, LoadError> ObjectStorage::load_object(
 		hz::string<Allocator> {Allocator {}},
 		std::move(path),
 		load_base,
-		reinterpret_cast<const Elf_Dyn*>(load_base + dynamic_offset),
+		reinterpret_cast<Elf_Dyn*>(load_base + dynamic_offset),
 		reinterpret_cast<const Elf_Phdr*>(phdrs.data()),
 		ehdr.e_phentsize,
 		ehdr.e_phnum
@@ -272,6 +277,8 @@ namespace {
 	bool LIBC_INITIALIZED = false;
 }
 
+void remove_object_from_debug_list(SharedObject* object);
+
 LoadError ObjectStorage::load_dependencies(SharedObject* object, bool global) {
 	hz::vector<SharedObject*, Allocator> load_list {Allocator {}};
 	load_list.push_back(object);
@@ -282,6 +289,7 @@ LoadError ObjectStorage::load_dependencies(SharedObject* object, bool global) {
 	}
 
 	auto tls_size_at_start = initial_tls_size;
+	auto objects_at_start = objects.size();
 
 	while (!load_list.empty()) {
 		object = load_list.back();
@@ -289,41 +297,50 @@ LoadError ObjectStorage::load_dependencies(SharedObject* object, bool global) {
 
 		init_list.push_back(object);
 
-		if (object->tls_size && object->initial_tls_model) {
-			auto offset = (initial_tls_size + object->tls_size + object->tls_align - 1)
-			              & ~(object->tls_align - 1);
-			if (total_initial_tls_size && offset > total_initial_tls_size) {
-				println("rtld: failed to load object ", object->name, " (ran out of initial tls space)");
+		if (object->tls_size) {
+			if (object->initial_tls_model) {
+				auto offset = (initial_tls_size + object->tls_size + object->tls_align - 1)
+				              & ~(object->tls_align - 1);
+				if (total_initial_tls_size && offset > total_initial_tls_size) {
+					println("rtld: failed to load object ", object->name, " (ran out of initial tls space)");
 
-				for (auto obj : init_list) {
-					auto base = obj->base;
-					auto size = obj->end - obj->base;
-					bool rtld_loaded = obj->rtld_loaded;
-					obj->~SharedObject();
-					if (rtld_loaded) {
-						__ensure(sys_munmap(reinterpret_cast<void*>(base), size) == 0);
-						Allocator::deallocate(obj);
-					}
-				}
-
-				if (global) {
-					while (!global_scope.empty()) {
-						if (global_scope.back() == start) {
-							global_scope.pop_back();
-							break;
-						}
-						else {
-							global_scope.pop_back();
+					for (auto obj : init_list) {
+						auto base = obj->base;
+						auto size = obj->end - obj->base;
+						bool rtld_loaded = obj->rtld_loaded;
+						remove_object_from_debug_list(obj);
+						obj->~SharedObject();
+						if (rtld_loaded) {
+							__ensure(sys_munmap(reinterpret_cast<void*>(base), size) == 0);
+							Allocator::deallocate(obj);
 						}
 					}
+
+					if (global) {
+						while (!global_scope.empty()) {
+							if (global_scope.back() == start) {
+								global_scope.pop_back();
+								break;
+							}
+							else {
+								global_scope.pop_back();
+							}
+						}
+					}
+
+					objects.resize(objects_at_start);
+					initial_tls_size = tls_size_at_start;
+					return LoadError::NoMemory;
 				}
 
-				initial_tls_size = tls_size_at_start;
-				return LoadError::NoMemory;
+				object->tls_offset = offset;
+				initial_tls_size = offset;
 			}
-
-			object->tls_offset = offset;
-			initial_tls_size = offset;
+			else {
+				auto tls_guard = runtime_tls_map.lock();
+				object->tls_module_index = tls_guard->size();
+				tls_guard->push_back(object);
+			}
 		}
 
 		for (auto* dyn = object->dynamic; dyn->d_tag != DT_NULL; ++dyn) {
@@ -338,6 +355,7 @@ LoadError ObjectStorage::load_dependencies(SharedObject* object, bool global) {
 				bool already_loaded = false;
 				for (auto added_object : objects) {
 					if (added_object->path == name) {
+						object->dependencies.push_back(added_object);
 						already_loaded = true;
 						break;
 					}
@@ -357,6 +375,7 @@ LoadError ObjectStorage::load_dependencies(SharedObject* object, bool global) {
 				bool already_loaded = false;
 				for (auto added_object : objects) {
 					if (added_object->name == name) {
+						object->dependencies.push_back(added_object);
 						already_loaded = true;
 						break;
 					}
@@ -378,6 +397,7 @@ LoadError ObjectStorage::load_dependencies(SharedObject* object, bool global) {
 					auto base = obj->base;
 					auto size = obj->end - obj->base;
 					bool rtld_loaded = obj->rtld_loaded;
+					remove_object_from_debug_list(obj);
 					obj->~SharedObject();
 					if (rtld_loaded) {
 						__ensure(sys_munmap(reinterpret_cast<void*>(base), size) == 0);
@@ -397,8 +417,8 @@ LoadError ObjectStorage::load_dependencies(SharedObject* object, bool global) {
 					}
 				}
 
+				objects.resize(objects_at_start);
 				initial_tls_size = tls_size_at_start;
-
 				return result.error();
 			}
 			__ensure(result);
@@ -431,13 +451,6 @@ LoadError ObjectStorage::load_dependencies(SharedObject* object, bool global) {
 	if (!LIBC_INITIALIZED) {
 		destruct_list.push_back(objects[1]);
 		objects[1]->run_init();
-
-		if (objects[0]->preinit_array) {
-			for (auto* fn = objects[0]->preinit_array; fn != objects[0]->preinit_array_end; ++fn) {
-				(*fn)();
-			}
-		}
-		LIBC_INITIALIZED = true;
 	}
 
 	return LoadError::Success;
@@ -446,60 +459,12 @@ LoadError ObjectStorage::load_dependencies(SharedObject* object, bool global) {
 hz::optional<ObjectSymbol> ObjectStorage::lookup(SharedObject* local, const char* name, LookupPolicy policy) {
 	hz::optional<ObjectSymbol> res;
 
+	if (policy == LookupPolicy::LocalAndDeps) {
+		goto local_and_deps;
+	}
+
 	if (local) {
-		if (policy == LookupPolicy::LocalAndDeps) {
-			hz::vector<SharedObject*, Allocator> stack {Allocator {}};
-			struct Marker {};
-			hz::unordered_map<SharedObject*, Marker, Allocator> visited {Allocator {}};
-
-			stack.push_back(local);
-			visited.insert(local, Marker {});
-			for (size_t i = 0; i < stack.size(); ++i) {
-				auto object = stack[i];
-
-				if (auto sym = object->lookup(name);
-					sym && sym->st_shndx != SHN_UNDEF && ELF_ST_BIND(sym->st_info) != STB_LOCAL) {
-					if (ELF_ST_BIND(sym->st_info) == STB_WEAK) {
-						res = ObjectSymbol {
-							.object = object,
-							.sym = sym
-						};
-					}
-					else if (ELF_ST_BIND(sym->st_info) == STB_GNU_UNIQUE) {
-						if (auto existing = unique_map.get(hz::string_view {name})) {
-							return *existing;
-						}
-						hz::string<Allocator> key {Allocator {}};
-						key = name;
-
-						ObjectSymbol obj_sym {
-							.object = object,
-							.sym = sym
-						};
-						unique_map.insert(std::move(key), obj_sym);
-						return obj_sym;
-					}
-					else {
-						return {ObjectSymbol {
-							.object = object,
-							.sym = sym
-						}};
-					}
-				}
-
-				for (auto dep : object->dependencies) {
-					if (visited.get(dep)) {
-						continue;
-					}
-					stack.push_back(dep);
-					visited.insert(dep, Marker {});
-				}
-			}
-
-			return res;
-		}
-
-		if (policy != LookupPolicy::IgnoreLocal) {
+		if (policy == LookupPolicy::Symbolic) {
 			if (auto sym = local->lookup(name);
 				sym && sym->st_shndx != SHN_UNDEF && ELF_ST_BIND(sym->st_info) != STB_LOCAL) {
 				if (ELF_ST_BIND(sym->st_info) == STB_WEAK) {
@@ -530,15 +495,114 @@ hz::optional<ObjectSymbol> ObjectStorage::lookup(SharedObject* local, const char
 				}
 			}
 		}
+	}
+
+	for (auto object : global_scope) {
+		if (object == local) {
+			continue;
+		}
+
+		if (auto sym = object->lookup(name);
+			sym && sym->st_shndx != SHN_UNDEF && ELF_ST_BIND(sym->st_info) != STB_LOCAL) {
+			if (ELF_ST_BIND(sym->st_info) == STB_WEAK) {
+				if (!res) {
+					res = ObjectSymbol {
+						.object = object,
+						.sym = sym
+
+					};
+				}
+			}
+			else if (ELF_ST_BIND(sym->st_info) == STB_GNU_UNIQUE) {
+				if (auto existing = unique_map.get(hz::string_view {name})) {
+					return *existing;
+				}
+				hz::string<Allocator> key {Allocator {}};
+				key = name;
+
+				ObjectSymbol obj_sym {
+					.object = object,
+					.sym = sym
+				};
+				unique_map.insert(std::move(key), obj_sym);
+				return obj_sym;
+			}
+			else {
+				return {ObjectSymbol {
+					.object = object,
+					.sym = sym
+				}};
+			}
+		}
+	}
+
+	local_and_deps:
+	if (local) {
+		hz::vector<SharedObject*, Allocator> stack {Allocator {}};
+		struct Marker {};
+		hz::unordered_map<SharedObject*, Marker, Allocator> visited {Allocator {}};
+
+		stack.push_back(local);
+		visited.insert(local, Marker {});
+		for (size_t i = 0; i < stack.size(); ++i) {
+			auto object = stack[i];
+
+			if (auto sym = object->lookup(name);
+				sym && sym->st_shndx != SHN_UNDEF && ELF_ST_BIND(sym->st_info) != STB_LOCAL) {
+				if (ELF_ST_BIND(sym->st_info) == STB_WEAK) {
+					if (!res) {
+						res = ObjectSymbol {
+							.object = object,
+							.sym = sym
+						};
+					}
+				}
+				else if (ELF_ST_BIND(sym->st_info) == STB_GNU_UNIQUE) {
+					if (auto existing = unique_map.get(hz::string_view {name})) {
+						return *existing;
+					}
+					hz::string<Allocator> key {Allocator {}};
+					key = name;
+
+					ObjectSymbol obj_sym {
+						.object = object,
+						.sym = sym
+					};
+					unique_map.insert(std::move(key), obj_sym);
+					return obj_sym;
+				}
+				else {
+					return {ObjectSymbol {
+						.object = object,
+						.sym = sym
+					}};
+				}
+			}
+
+			for (auto dep : object->dependencies) {
+				if (visited.get(dep)) {
+					continue;
+				}
+				stack.push_back(dep);
+				visited.insert(dep, Marker {});
+			}
+		}
+
+		if (policy == LookupPolicy::LocalAndDeps) {
+			return res;
+		}
 
 		for (auto& dep : local->local_scope) {
 			if (auto sym = dep->lookup(name);
 				sym && sym->st_shndx != SHN_UNDEF && ELF_ST_BIND(sym->st_info) != STB_LOCAL) {
 				if (ELF_ST_BIND(sym->st_info) == STB_WEAK) {
-					res = ObjectSymbol {
-						.object = dep,
-						.sym = sym
-					};
+					if (!res) {
+						res = ObjectSymbol{
+							.object = dep,
+							.sym = sym
+
+						};
+					}
 				}
 				else if (ELF_ST_BIND(sym->st_info) == STB_GNU_UNIQUE) {
 					if (auto existing = unique_map.get(hz::string_view {name})) {
@@ -564,46 +628,19 @@ hz::optional<ObjectSymbol> ObjectStorage::lookup(SharedObject* local, const char
 		}
 	}
 
-	for (auto object : global_scope) {
-		if (object == local) {
-			continue;
-		}
-
-		if (auto sym = object->lookup(name);
-			sym && sym->st_shndx != SHN_UNDEF && ELF_ST_BIND(sym->st_info) != STB_LOCAL) {
-			if (ELF_ST_BIND(sym->st_info) == STB_WEAK) {
-				res = ObjectSymbol {
-					.object = object,
-					.sym = sym
-				};
-			}
-			else if (ELF_ST_BIND(sym->st_info) == STB_GNU_UNIQUE) {
-				if (auto existing = unique_map.get(hz::string_view {name})) {
-					return *existing;
-				}
-				hz::string<Allocator> key {Allocator {}};
-				key = name;
-
-				ObjectSymbol obj_sym {
-					.object = object,
-					.sym = sym
-				};
-				unique_map.insert(std::move(key), obj_sym);
-				return obj_sym;
-			}
-			else {
-				return {ObjectSymbol {
-					.object = object,
-					.sym = sym
-				}};
-			}
-		}
-	}
-
 	return res;
 }
 
 void ObjectStorage::init_objects() {
+	if (!LIBC_INITIALIZED) {
+		if (objects[0]->preinit_array) {
+			for (auto* fn = objects[0]->preinit_array; fn != objects[0]->preinit_array_end; ++fn) {
+				(*fn)();
+			}
+		}
+		LIBC_INITIALIZED = true;
+	}
+
 	for (size_t i = init_list.size(); i > 0; --i) {
 		if (!init_list[i - 1]->initialized) {
 			destruct_list.push_back(init_list[i - 1]);
@@ -616,13 +653,14 @@ void ObjectStorage::init_objects() {
 
 void ObjectStorage::init_tls(void* tcb) {
 	for (auto object : objects) {
-		if (!object->initial_tls_model) {
+		if (!object->initial_tls_model || object->tls_initialized || !object->tls_size) {
 			continue;
 		}
 
 		char* ptr = static_cast<char*>(tcb) - object->tls_offset;
 		rtld_memcpy(ptr, object->tls_image, object->tls_image_size);
 		rtld_memset(ptr + object->tls_image_size, 0, object->tls_size - object->tls_image_size);
+		object->tls_initialized = true;
 	}
 }
 

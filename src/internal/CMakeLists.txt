@@ -1,5 +1,6 @@
 target_include_directories(c PRIVATE .)
 target_sources(c PRIVATE
+	dns.cpp
 	mutex.cpp
 	stack.cpp
 	thread.cpp

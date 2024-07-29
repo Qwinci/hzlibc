@@ -26,6 +26,7 @@ enum class LoadError {
 
 enum class LookupPolicy {
 	None,
+	Symbolic,
 	IgnoreLocal,
 	LocalAndDeps
 };
@@ -65,6 +66,8 @@ struct ObjectStorage {
 	hz::vector<SharedObject*, Allocator> destruct_list {Allocator {}};
 	uintptr_t initial_tls_size {};
 	uintptr_t total_initial_tls_size {};
+	hz::spinlock<hz::vector<SharedObject*, Allocator>> runtime_tls_map {
+		hz::vector<SharedObject*, Allocator> {Allocator {}}};
 };
 
 extern hz::spinlock<hz::manually_init<ObjectStorage>> OBJECT_STORAGE;

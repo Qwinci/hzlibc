@@ -433,6 +433,7 @@ enum {
 #define CRNCYSTR _NL_MONETARY_CRNCYSTR
 
 char* nl_langinfo(nl_item __item);
+char* nl_langinfo_l(nl_item __item, locale_t __locale);
 
 __end
 

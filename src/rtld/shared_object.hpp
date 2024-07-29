@@ -5,16 +5,45 @@
 #include <hz/string.hpp>
 #include <hz/vector.hpp>
 
+enum class RtState {
+	Consistent,
+	Add,
+	Delete
+};
+
+struct LinkMap {
+	uintptr_t base;
+	const char* name;
+	const Elf_Dyn* dynamic;
+	LinkMap* next;
+	LinkMap* prev;
+};
+
+struct DebugInterface {
+	int version;
+	LinkMap* head;
+	void (*brk)();
+	RtState state;
+	void* ld_base;
+};
+
+struct TlsdescData {
+	uintptr_t index;
+	uintptr_t addend;
+};
+
 struct SharedObject {
 	SharedObject(
 		SharedObject* origin,
 		hz::string<Allocator> name,
 		hz::string<Allocator> path,
 		uintptr_t base,
-		const Elf_Dyn* dynamic,
+		Elf_Dyn* dynamic,
 		const Elf_Phdr* phdrs,
 		uint16_t phent,
 		uint16_t phnum);
+
+	~SharedObject();
 
 	void relocate();
 	void late_relocate();
@@ -26,7 +55,6 @@ struct SharedObject {
 
 	uintptr_t tls_size {};
 	uintptr_t tls_align {};
-	uintptr_t tls_offset {};
 	void* tls_image {};
 	uintptr_t tls_image_size {};
 	uintptr_t num_symbols {};
@@ -36,6 +64,10 @@ struct SharedObject {
 	hz::vector<SharedObject*, Allocator> local_scope {Allocator {}};
 	hz::vector<SharedObject*, Allocator> dependencies {Allocator {}};
 	hz::vector<Elf_Phdr, Allocator> phdrs_vec;
+	hz::vector<TlsdescData*, Allocator> tls_descs {Allocator {}};
+
+	uintptr_t tls_offset {};
+	uintptr_t tls_module_index {};
 
 	const Elf_Sym* elf_lookup(const char* sym_name) const;
 	const Elf_Sym* gnu_lookup(const char* sym_name) const;
@@ -58,8 +90,11 @@ struct SharedObject {
 	InitFn* fini_array {};
 	InitFn* fini_array_end {};
 
+	LinkMap link_map {};
+
 	bool symbolic_resolution {};
 	bool initial_tls_model {};
+	bool tls_initialized {};
 	bool rtld_loaded {true};
 	bool initialized {};
 	bool destructed {};

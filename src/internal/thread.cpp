@@ -1,6 +1,10 @@
 #include "thread.hpp"
 #include "tcb.hpp"
 #include "sys.hpp"
+#include "rtld/rtld.hpp"
+
+void pthread_call_destructors();
+void call_cxx_tls_destructors();
 
 extern "C" [[noreturn]] void hzlibc_thread_entry(void* (*fn)(void* arg), void* arg) {
 	auto* tcb = get_current_tcb();
@@ -10,6 +14,14 @@ extern "C" [[noreturn]] void hzlibc_thread_entry(void* (*fn)(void* arg), void* a
 	}
 
 	auto ret = fn(arg);
+
+	call_cxx_tls_destructors();
+	pthread_call_destructors();
+
+	if (tcb->detached) {
+		__dlapi_destroy_tcb(tcb);
+	}
+
 	tcb->exit_status = ret;
 	tcb->exited.store(1, hz::memory_order::release);
 	sys_futex_wake(tcb->exited.data());

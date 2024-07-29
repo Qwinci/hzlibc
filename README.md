@@ -8,4 +8,6 @@ It also tries to be one-way binary compatible with glibc so binaries linked agai
 
 ## Acknowledgements
 - [Mlibc](https://github.com/managarm/mlibc), there is some stuff heavily inspired by it.
-
+- Rust Libstd, some pthread primitives are ported from it.
+- llvm libunwind (thirdparty/libunwind) used for `backtrace` function.
+- [libucontext](https://github.com/kaniini/libucontext), ucontext functions are based on it.

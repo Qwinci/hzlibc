@@ -1,11 +1,25 @@
 target_sources(c PRIVATE
+	backtrace.cpp
 	ctype.cpp
+	cxx.cpp
 	dev.cpp
+	dirent.cpp
+	dlfcn.cpp
 	errno.cpp
 	error.cpp
 	getopt.cpp
+	link.cpp
+	malloc.cpp
+	misc.cpp
+	nameser.cpp
+	pthread.cpp
+	resolv.cpp
+	sched.cpp
+	search.cpp
 	stdio.cpp
 	stdio_ext.cpp
 	stdlib.cpp
 	string.cpp
+	sysinfo.cpp
+	unistd.cpp
 )

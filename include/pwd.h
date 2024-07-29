@@ -21,6 +21,19 @@ struct passwd {
 struct passwd* getpwnam(const char* __name);
 struct passwd* getpwuid(uid_t __uid);
 
+int getpwnam_r(
+	const char* __name,
+	struct passwd* __restrict __pwd,
+	char* __restrict __buf,
+	size_t __buf_len,
+	struct passwd** __restrict __result);
+int getpwuid_r(
+	uid_t __uid,
+	struct passwd* __restrict __pwd,
+	char* __restrict __buf,
+	size_t __buf_len,
+	struct passwd** __restrict __result);
+
 void setpwent(void);
 struct passwd* getpwent(void);
 void endpwent(void);

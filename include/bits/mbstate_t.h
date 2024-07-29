@@ -1,5 +1,5 @@
-#ifndef _MBSTATE_T_H
-#define _MBSTATE_T_H
+#ifndef _BITS_MBSTATE_T_H
+#define _BITS_MBSTATE_T_H
 
 typedef struct {
 	int __count;

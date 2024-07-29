@@ -45,8 +45,23 @@ EXPORT char* bindtextdomain(const char* domain_name, const char* dir_name) {
 	return DOMAINS.back().dir_name.data();
 }
 
+EXPORT char* bind_textdomain_codeset(const char* domain_name, const char* code_set) {
+	println(
+		"bind_textdomain_codeset domain '",
+		domain_name,
+		"' set '",
+		code_set,
+		"' is not implemented");
+	return const_cast<char*>("UTF-8");
+}
+
 EXPORT char* gettext(const char* msg_id) {
 	println("gettext is not properly implemented");
+	return const_cast<char*>(msg_id);
+}
+
+EXPORT char* dgettext(const char* domain_name, const char* msg_id) {
+	println("dgettext is not properly implemented");
 	return const_cast<char*>(msg_id);
 }
 

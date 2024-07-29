@@ -35,7 +35,12 @@ EXPORT char* nl_langinfo(nl_item item) {
 	int category = _NL_ITEM_CATEGORY(item);
 	int index = _NL_ITEM_INDEX(item);
 
-	if (category == LC_TIME) {
+	if (category == LC_CTYPE) {
+		if (index == _NL_ITEM_INDEX(_NL_CTYPE_CODESET_NAME)) {
+			return const_cast<char*>("UTF-8");
+		}
+	}
+	else if (category == LC_TIME) {
 		if (index >= _NL_ITEM_INDEX(ABMON_1) && index <= _NL_ITEM_INDEX(ABMON_12)) {
 			return const_cast<char*>(MONTH_ABBREVS[index - _NL_ITEM_INDEX(ABMON_1)].data());
 		}
@@ -46,3 +51,10 @@ EXPORT char* nl_langinfo(nl_item item) {
 
 	__ensure(!"nl_langinfo is not implemented");
 }
+
+EXPORT char* nl_langinfo_l(nl_item item, locale_t locale) {
+	println("nl_langinfo_l ignores locale");
+	return nl_langinfo(item);
+}
+
+ALIAS(nl_langinfo_l, __nl_langinfo_l);

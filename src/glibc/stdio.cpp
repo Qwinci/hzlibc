@@ -85,7 +85,7 @@ EXPORT void clearerr_unlocked(FILE* file) {
 	file->flags &= ~FILE_ERR_FLAG;
 }
 
-EXPORT int fflush_unlocked([[maybe_unused]] FILE* file) {
+EXPORT int fflush_unlocked(FILE* file) {
 	return 0;
 }
 

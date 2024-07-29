@@ -3,6 +3,7 @@
 #include "stdio.h"
 #include "errno.h"
 #include "allocator.hpp"
+#include "string.h"
 #include <hz/string_utils.hpp>
 #include <hz/string.hpp>
 #include <hz/vector.hpp>
@@ -54,7 +55,7 @@ namespace {
 		}
 
 		size_t count;
-		auto gid = hz::to_integer<gid_t>(group_id, count);
+		auto gid = hz::to_integer<gid_t>(group_id, 10, &count);
 		if (count != group_id.size()) {
 			return false;
 		}
@@ -64,6 +65,74 @@ namespace {
 		view.gid = gid;
 		view.member_list = member_list;
 		return true;
+	}
+
+	int fill_group_in_area(group_view view, group& res, char* area, size_t area_size) {
+		size_t member_offset = 0;
+		size_t member_list_size = 0;
+		size_t member_count = 0;
+		while (true) {
+			auto end = view.member_list.find(',', member_offset);
+			auto user_name = view.member_list.substr_abs(member_offset, end);
+			member_list_size += user_name.size() + 1;
+			member_list_size += sizeof(char*);
+			++member_count;
+
+			if (end != hz::string_view::npos) {
+				member_offset = end + 1;
+			}
+			else {
+				break;
+			}
+		}
+
+		size_t total =
+			view.name.size() + 1 +
+			view.password.size() + 1 +
+			member_list_size + sizeof(char*);
+		if (area_size < total) {
+			return ERANGE;
+		}
+
+		auto* member_ptr_area = reinterpret_cast<char**>(area);
+
+		size_t offset = (member_count + 1) * sizeof(char*);
+		auto grp_name_offset = offset;
+		memcpy(area, view.name.data(), view.name.size());
+		offset += view.name.size() + 1;
+		area[offset - 1] = 0;
+
+		auto grp_passwd_offset = offset;
+		memcpy(area + offset, view.password.data(), view.password.size());
+		offset += view.password.size() + 1;
+		area[offset - 1] = 0;
+
+		member_offset = 0;
+		member_count = 0;
+		while (true) {
+			auto end = view.member_list.find(',', member_offset);
+			auto user_name = view.member_list.substr_abs(member_offset, end);
+
+			memcpy(area + offset, user_name.data(), user_name.size());
+			member_ptr_area[member_count++] = area + offset;
+			offset += user_name.size() + 1;
+			area[offset - 1] = 0;
+
+			if (end != hz::string_view::npos) {
+				member_offset = end + 1;
+			}
+			else {
+				break;
+			}
+		}
+
+		member_ptr_area[member_count] = nullptr;
+
+		res.gr_name = area + grp_name_offset;
+		res.gr_passwd = area + grp_passwd_offset;
+		res.gr_gid = view.gid;
+		res.gr_mem = reinterpret_cast<char**>(area);
+		return 0;
 	}
 
 	void fill_group(group_view view, group& res) {
@@ -182,6 +251,86 @@ EXPORT group* getgrgid(gid_t gid) {
 	return nullptr;
 }
 
+EXPORT int getgrnam_r(
+	const char* name,
+	struct group* grp,
+	char* buf,
+	size_t buf_len,
+	struct group** result) {
+	FILE* file = fopen("/etc/group", "r");
+	if (!file) {
+		*result = nullptr;
+		return EIO;
+	}
+
+	hz::string_view name_str {name};
+
+	char line_buf[NSS_BUFLEN_GROUP];
+	while (fgets(line_buf, NSS_BUFLEN_GROUP, file)) {
+		group_view view;
+		if (!parse_entry(line_buf, view)) {
+			continue;
+		}
+		if (view.name == name_str) {
+			if (auto err = fill_group_in_area(view, *grp, buf, buf_len)) {
+				fclose(file);
+				*result = nullptr;
+				return err;
+			}
+			*result = grp;
+			return 0;
+		}
+	}
+
+	*result = nullptr;
+
+	if (ferror(file)) {
+		fclose(file);
+		return EIO;
+	}
+	fclose(file);
+	return 0;
+}
+
+EXPORT int getgrgid_r(
+	gid_t gid,
+	struct group* grp,
+	char* buf,
+	size_t buf_len,
+	struct group** result) {
+	FILE* file = fopen("/etc/group", "r");
+	if (!file) {
+		*result = nullptr;
+		return EIO;
+	}
+
+	char line_buf[NSS_BUFLEN_GROUP];
+	while (fgets(line_buf, NSS_BUFLEN_GROUP, file)) {
+		group_view view;
+		if (!parse_entry(line_buf, view)) {
+			continue;
+		}
+		if (view.gid == gid) {
+			if (auto err = fill_group_in_area(view, *grp, buf, buf_len)) {
+				fclose(file);
+				*result = nullptr;
+				return err;
+			}
+			*result = grp;
+			return 0;
+		}
+	}
+
+	*result = nullptr;
+
+	if (ferror(file)) {
+		fclose(file);
+		return EIO;
+	}
+	fclose(file);
+	return 0;
+}
+
 EXPORT void setgrent() {
 	if (!open_global_file()) {
 		return;
@@ -217,4 +366,75 @@ EXPORT void endgrent() {
 		}
 		GLOBAL_FILE = nullptr;
 	}
+}
+
+// this is glibc, but it is here to avoid needing to make the group functions global
+EXPORT int getgrouplist(const char* user, gid_t group, gid_t* groups, int* num_groups) {
+	FILE* file = fopen("/etc/group", "r");
+	if (!file) {
+		errno = EIO;
+		return -1;
+	}
+
+	hz::string_view user_str {user};
+
+	int total_num_groups = 0;
+	int ret = 0;
+	int max_groups = *num_groups;
+	bool contained = false;
+	char line_buf[NSS_BUFLEN_GROUP];
+	while (fgets(line_buf, NSS_BUFLEN_GROUP, file)) {
+		group_view view;
+		if (!parse_entry(line_buf, view)) {
+			continue;
+		}
+
+		size_t offset = 0;
+		while (true) {
+			auto end = view.member_list.find(',', offset);
+			auto user_name = view.member_list.substr_abs(offset, end);
+
+			if (user_name == user_str) {
+				if (total_num_groups < max_groups) {
+					groups[total_num_groups] = view.gid;
+				}
+				else {
+					ret = -1;
+				}
+				if (view.gid == group) {
+					contained = true;
+				}
+				++total_num_groups;
+				break;
+			}
+
+			if (end != hz::string_view::npos) {
+				offset = end + 1;
+			}
+			else {
+				break;
+			}
+		}
+	}
+
+	if (ferror(file)) {
+		fclose(file);
+		errno = EIO;
+		return -1;
+	}
+
+	if (!contained) {
+		if (total_num_groups < max_groups) {
+			groups[total_num_groups] = group;
+		}
+		else {
+			ret = -1;
+		}
+		++total_num_groups;
+	}
+
+	*num_groups = total_num_groups;
+
+	fclose(file);
+	return ret;
 }

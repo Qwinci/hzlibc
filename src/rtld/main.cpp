@@ -4,6 +4,7 @@
 #include "tcb.hpp"
 #include "object_storage.hpp"
 #include "rtld.hpp"
+#include "sys/mman.h"
 #include <hz/manually_init.hpp>
 #include <stdint.h>
 
@@ -19,10 +20,7 @@ asm(R"(
 .hidden start
 _start:
 	mov %rsp, %rdi
-	push %rbp
-	mov %rsp, %rbp
 	call start
-	pop %rbp
 	jmp *%rax
 
 .globl get_dynamic
@@ -52,12 +50,9 @@ asm(R"(
 .hidden start
 _start:
 	mov %esp, %edi
-	push %ebp
-	mov %esp, %ebp
 	push %edi
 	call start
 	add $4, %esp
-	pop %ebp
 	jmp *%eax
 
 .globl get_dynamic
@@ -98,7 +93,49 @@ extern "C" [[gnu::visibility("hidden")]] Elf_Ehdr* get_ehdr();
 namespace {
 	hz::manually_init<SharedObject> LIBC_OBJECT;
 	hz::manually_init<SharedObject> EXE_OBJECT;
+
+	LinkMap* DEBUG_INTERFACE_END = nullptr;
 }
+
+DebugInterface DEBUG_INTERFACE {};
+EXPORT DebugInterface* _dl_debug_addr = nullptr;
+
+void add_object_to_debug_list(SharedObject* object) {
+	if (DEBUG_INTERFACE_END) {
+		object->link_map.prev = DEBUG_INTERFACE_END;
+		DEBUG_INTERFACE_END->next = &object->link_map;
+	}
+	else {
+		DEBUG_INTERFACE.head = &object->link_map;
+	}
+	DEBUG_INTERFACE_END = &object->link_map;
+}
+
+void remove_object_from_debug_list(SharedObject* object) {
+	if (object->link_map.prev) {
+		object->link_map.prev->next = object->link_map.next;
+	}
+	else {
+		DEBUG_INTERFACE.head = object->link_map.next;
+	}
+	if (object->link_map.next) {
+		object->link_map.next->prev = object->link_map.prev;
+	}
+}
+
+extern "C" void _dl_debug_state() {}
+
+void set_debug_state_to_load() {
+	DEBUG_INTERFACE.state = RtState::Add;
+	_dl_debug_state();
+}
+
+void set_debug_state_to_normal() {
+	DEBUG_INTERFACE.state = RtState::Consistent;
+	_dl_debug_state();
+}
+
+void hzlibc_env_init(char** env);
 
 extern "C" [[gnu::used]] uintptr_t start(uintptr_t* sp) {
 	auto argc = *sp;
@@ -140,6 +177,8 @@ extern "C" [[gnu::used]] uintptr_t start(uintptr_t* sp) {
 		}
 	}
 
+	DEBUG_INTERFACE.ld_base = reinterpret_cast<void*>(libc_base);
+
 	if (exe_path.empty()) {
 		exe_path = argv[0];
 	}
@@ -147,6 +186,7 @@ extern "C" [[gnu::used]] uintptr_t start(uintptr_t* sp) {
 	uintptr_t exe_base = 0;
 	uintptr_t exe_dynamic_offset = 0;
 	uintptr_t exe_interp_offset = 0;
+	uintptr_t exe_dynamic_size = 0;
 
 	for (int i = 0; i < exe_phnum; ++i) {
 		auto* phdr = reinterpret_cast<Elf_Phdr*>(reinterpret_cast<uintptr_t>(exe_phdr) + i * exe_phent);
@@ -156,6 +196,7 @@ extern "C" [[gnu::used]] uintptr_t start(uintptr_t* sp) {
 		}
 		else if (phdr->p_type == PT_INTERP) {
 			exe_interp_offset = phdr->p_vaddr;
+			exe_dynamic_size = phdr->p_memsz;
 		}
 		else if (phdr->p_type == PT_PHDR) {
 			exe_base = reinterpret_cast<uintptr_t>(exe_phdr) - phdr->p_vaddr;
@@ -168,6 +209,11 @@ extern "C" [[gnu::used]] uintptr_t start(uintptr_t* sp) {
 	auto* libc_phdr = reinterpret_cast<Elf_Phdr*>(libc_base + libc_ehdr->e_phoff);
 	hz::string<Allocator> libc_path {Allocator {}};
 	libc_path = reinterpret_cast<const char*>(exe_base + exe_interp_offset);
+
+	__ensure(sys_mprotect(
+		reinterpret_cast<void*>((exe_base + exe_dynamic_offset) & ~0xFFF),
+		(exe_dynamic_size + 0xFFF) & ~0xFFF,
+		PROT_READ | PROT_WRITE) == 0 && "failed to make executable dynamic section writable");
 
 	hz::string<Allocator> exe_name {Allocator {}};
 	exe_name = "<executable>";
@@ -202,6 +248,7 @@ extern "C" [[gnu::used]] uintptr_t start(uintptr_t* sp) {
 	OBJECT_STORAGE.get_unsafe()->global_scope.push_back(&*EXE_OBJECT);
 	OBJECT_STORAGE.get_unsafe()->add_object(&*LIBC_OBJECT);
 	OBJECT_STORAGE.get_unsafe()->global_scope.push_back(&*LIBC_OBJECT);
+	OBJECT_STORAGE.get_unsafe()->initial_tls_size = LIBC_OBJECT->tls_offset;
 	__ensure(OBJECT_STORAGE.get_unsafe()->load_dependencies(&*EXE_OBJECT, true) == LoadError::Success);
 
 	// allocate the tls
@@ -210,8 +257,16 @@ extern "C" [[gnu::used]] uintptr_t start(uintptr_t* sp) {
 	void* initial_tcb;
 	void* initial_tp;
 	__ensure(__dlapi_create_tcb(&initial_tcb, &initial_tp));
+	static_cast<Tcb*>(initial_tcb)->tid = sys_get_process_id();
 	__ensure(sys_tcb_set(initial_tcb) == 0);
 
+	_dl_debug_addr = &DEBUG_INTERFACE;
+	DEBUG_INTERFACE.version = 1;
+	DEBUG_INTERFACE.brk = &_dl_debug_state;
+	DEBUG_INTERFACE.state = RtState::Consistent;
+	_dl_debug_state();
+
+	hzlibc_env_init(argv + argc + 1);
 	OBJECT_STORAGE.get_unsafe()->init_objects();
 
 	return exe_entry;

@@ -3,6 +3,7 @@
 #include "stdlib.h"
 #include "errno.h"
 #include <hz/array.hpp>
+#include <hz/algorithm.hpp>
 
 EXPORT size_t strlen(const char* str) {
 	size_t len = 0;
@@ -50,6 +51,22 @@ EXPORT char* strrchr(const char* str, int ch) {
 	return nullptr;
 }
 
+EXPORT char* strstr(const char* str, const char* substr) {
+	hz::string_view a {str};
+	if (auto pos = a.find(substr); pos != hz::string_view::npos) {
+		return const_cast<char*>(str + pos);
+	}
+	return nullptr;
+}
+
+EXPORT char* strpbrk(const char* str, const char* break_set) {
+	hz::string_view str_view {str};
+	if (auto pos = str_view.find_first_of(break_set); pos != hz::string_view::npos) {
+		return const_cast<char*>(str + pos);
+	}
+	return nullptr;
+}
+
 EXPORT char* strcpy(char* __restrict dest, const char* __restrict src) {
 	char* orig_dest = dest;
 	for (; *src;) {
@@ -70,6 +87,35 @@ EXPORT char* strncpy(char* __restrict dest, const char* __restrict src, size_t c
 	return orig_dest;
 }
 
+EXPORT char* strcat(char* __restrict dest, const char* __restrict src) {
+	size_t len = strlen(dest);
+	size_t src_len = strlen(src);
+	memcpy(dest + len, src, src_len + 1);
+	return dest;
+}
+
+EXPORT void* memccpy(void* __restrict dest, const void* __restrict src, int ch, size_t size) {
+	auto* dest_ptr = static_cast<unsigned char*>(dest);
+	auto* src_ptr = static_cast<const unsigned char*>(src);
+	auto c = static_cast<unsigned char>(ch);
+	for (; size; --size, ++dest_ptr, ++src_ptr) {
+		*dest_ptr = *src_ptr;
+		if (*dest_ptr == c) {
+			return dest_ptr + 1;
+		}
+	}
+	return nullptr;
+}
+
+EXPORT char* strncat(char* __restrict dest, const char* __restrict src, size_t count) {
+	size_t len = strlen(dest);
+	size_t src_len = strlen(src);
+	auto to_write = hz::max(src_len, count);
+	memcpy(dest + len, src, to_write);
+	dest[len + to_write] = 0;
+	return dest;
+}
+
 EXPORT char* strdup(const char* str) {
 	size_t len = strlen(str);
 	char* mem = static_cast<char*>(malloc(len + 1));
@@ -77,6 +123,17 @@ EXPORT char* strdup(const char* str) {
 		return nullptr;
 	}
 	memcpy(mem, str, len + 1);
+	return mem;
+}
+
+EXPORT char* strndup(const char* str, size_t size) {
+	size_t len = strnlen(str, size);
+	char* mem = static_cast<char*>(malloc(len + 1));
+	if (!mem) {
+		return nullptr;
+	}
+	memcpy(mem, str, len);
+	mem[len] = 0;
 	return mem;
 }
 
@@ -115,9 +172,32 @@ EXPORT size_t strcspn(const char* str, const char* search) {
 	return found;
 }
 
+namespace {
+	char* STRTOK_SAVE_PTR = nullptr;
+}
+
+EXPORT char* strtok(char* __restrict str, const char* delim) {
+	return strtok_r(str, delim, &STRTOK_SAVE_PTR);
+}
+
 EXPORT int strcoll(const char* lhs, const char* rhs) {
 	println("strcoll ignores locale");
 	return strcmp(lhs, rhs);
+}
+
+EXPORT size_t strxfrm(char* __restrict dest, const char* __restrict src, size_t count) {
+	println("strxfrm ignores locale");
+	size_t len = strlen(src);
+	if (dest && count) {
+		if (len + 1 < count) {
+			memcpy(dest, src, len + 1);
+		}
+		else {
+			memcpy(dest, src, count - 1);
+			dest[count - 1] = 0;
+		}
+	}
+	return len;
 }
 
 namespace {
@@ -132,17 +212,31 @@ namespace {
 		array[ESRCH] = "No such process";
 		array[EINTR] = "Interrupted function call";
 		array[EIO] = "Input/output error";
+		array[ENOEXEC] = "Exec format error";
+		array[ECHILD] = "No child processes";
 		array[EAGAIN] = "Resource temporarily unavailable";
 		array[ENOMEM] = "Not enough space";
 		array[EACCES] = "Permission denied";
+		array[EBUSY] = "Device or resource busy";
+		array[EEXIST] = "File exists";
+		array[ENOTDIR] = "Not a directory";
+		array[EISDIR] = "Is a directory";
 		array[EINVAL] = "Invalid argument";
 		array[ENOTTY] = "Inappropriate I/O control operation";
+		array[ENOSPC] = "No space left on device";
+		array[EPIPE] = "Broken pipe";
 		array[ERANGE] = "Result too large";
 		array[EDEADLK] = "Resource deadlock avoided";
 		array[ENAMETOOLONG] = "Filename too long";
 		array[ENOSYS] = "Function not implemented";
 		array[EOVERFLOW] = "Value too large to be stored in data type";
 		array[EILSEQ] = "Invalid or incomplete multibyte or wide character";
+		array[EMSGSIZE] = "Message too long";
+		array[EAFNOSUPPORT] = "Address family not supported";
+		array[ECONNRESET] = "Connection reset";
+		array[ENOTCONN] = "Transport endpoint is not connected";
+		array[ETIMEDOUT] = "Connection timed out";
+		array[ECONNREFUSED] = "Connection refused";
 		array[EHWPOISON] = "Memory page has hardware error";
 
 		return array;
@@ -313,3 +407,5 @@ EXPORT void* memmove(void* dest, const void* src, size_t size) {
 		return memcpy(dest, src, size);
 	}
 }
+
+ALIAS(strdup, __strdup);

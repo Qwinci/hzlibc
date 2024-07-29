@@ -7,6 +7,49 @@
 
 __begin
 
+#define S_IFMT 0xF000
+#define S_IFIFO 0x1000
+#define S_IFCHR 0x2000
+#define S_IFDIR 0x4000
+#define S_IFBLK 0x6000
+#define S_IFREQ 0x8000
+#define S_IFLNK 0xA000
+#define S_IFSOCK 0xC000
+
+#define S_IEXEC 0x40
+#define S_IWRITE 0x80
+#define S_IREAD 0x100
+#define S_ISVTX 0x200
+#define S_ISGID 0x400
+#define S_ISUID 0x800
+
+#define UTIME_NOW ((1L << 30) - 1L)
+#define UTIME_OMIT ((1L << 30) - 2L)
+
+#define __S_ISTYPE(mode, mask) (((mode) & S_IFMT) == (mask))
+#define S_ISFIFO(mode) __S_ISTYPE((mode), S_IFIFO)
+#define S_ISCHR(mode) __S_ISTYPE((mode), S_IFCHR)
+#define S_ISDIR(mode) __S_ISTYPE((mode), S_IFDIR)
+#define S_ISBLK(mode) __S_ISTYPE((mode), S_IFBLK)
+#define S_ISREQ(mode) __S_ISTYPE((mode), S_IFREQ)
+#define S_ISLNK(mode) __S_ISTYPE((mode), S_IFLNK)
+#define S_ISSOCK(mode) __S_ISTYPE((mode), S_IFSOCK)
+
+#define S_IRUSR S_IREAD
+#define S_IWUSR S_IWRITE
+#define S_IXUSR S_IEXEC
+#define S_IRWXU (S_IREAD | S_IWRITE | S_IEXEC)
+
+#define S_IRGRP (S_IRUSR >> 3)
+#define S_IWGRP (S_IWUSR >> 3)
+#define S_IXGRP (S_IXUSR >> 3)
+#define S_IRWXG (S_IRWXU >> 3)
+
+#define S_IROTH (S_IRGRP >> 3)
+#define S_IWOTH (S_IWGRP >> 3)
+#define S_IXOTH (S_IXGRP >> 3)
+#define S_IRWXO (S_IRWXG >> 3)
+
 #ifdef __x86_64__
 
 struct stat {
@@ -130,6 +173,16 @@ int fstatat(int __dir_fd, const char* __restrict __path, struct stat* __restrict
 int fstatat64(int __dir_fd, const char* __restrict __path, struct stat64* __restrict __buf, int __flags);
 int lstat(const char* __restrict __path, struct stat* __restrict __buf);
 int lstat64(const char* __restrict __path, struct stat64* __restrict __buf);
+
+int chmod(const char* __path, mode_t __mode);
+int fchmod(int __fd, mode_t __mode);
+int fchmodat(int __dir_fd, const char* __path, mode_t __mode, int __flags);
+int utimensat(int __dir_fd, const char* __path, const timespec __times[2], int __flags);
+int futimens(int __fd, const struct timespec __times[2]);
+int mkdir(const char* __path, mode_t __mode);
+int mknod(const char* __path, mode_t __mode, dev_t __dev);
+
+mode_t umask(mode_t __mask);
 
 // linux
 int statx(

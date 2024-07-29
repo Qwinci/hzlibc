@@ -22,6 +22,8 @@ typedef long __fsword_t;
 typedef unsigned long __fsblkcnt_t;
 typedef unsigned long __fsfilcnt_t;
 typedef long suseconds_t;
+typedef int32_t key_t;
+typedef uint32_t useconds_t;
 
 typedef int64_t off64_t;
 typedef uint64_t ino64_t;

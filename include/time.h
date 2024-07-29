@@ -3,6 +3,8 @@
 
 #include <bits/utils.h>
 #include <stddef.h>
+#include <stdint.h>
+#include <locale.h>
 
 __begin
 
@@ -29,8 +31,12 @@ struct tm {
 	const char* tm_zone;
 };
 
-time_t time(time_t* __arg);
+#define CLOCKS_PER_SEC 1000000
 
+time_t time(time_t* __arg);
+clock_t clock(void);
+
+struct tm* localtime(const time_t* __time);
 struct tm* localtime_r(const time_t* __restrict __time, struct tm* __restrict __buf);
 struct tm* gmtime_r(const time_t* __restrict __time, struct tm* __restrict __buf);
 time_t mktime(struct tm* __arg);
@@ -49,9 +55,22 @@ size_t strftime(char* __restrict __str, size_t __count, const char* __restrict _
 #define CLOCK_REALTIME_ALARM 8
 #define CLOCK_BOOTTIME_ALARM 9
 
+#define TIMER_ABSTIME 1
+
 int clock_gettime(clockid_t __id, struct timespec* __tp);
+int clock_getres(clockid_t __id, struct timespec* __res);
+int clock_nanosleep(clockid_t __id, int __flags, const struct timespec* __req, struct timespec* __rem);
+int nanosleep(const struct timespec* __duration, struct timespec* __rem);
+
 void tzset(void);
 time_t timegm(struct tm* __arg);
+
+size_t strftime_l(
+	char* __restrict __str,
+	size_t __count,
+	const char* __restrict __fmt,
+	const struct tm* __time,
+	locale_t __locale);
 
 extern char* tzname[2];
 extern long timezone;

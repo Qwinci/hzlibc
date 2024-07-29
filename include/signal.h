@@ -2,7 +2,9 @@
 #define _SIGNAL_H
 
 #include <bits/utils.h>
+#include <bits/sigset_t.h>
 #include <sys/types.h>
+#include <ucontext.h>
 #include <time.h>
 
 __begin
@@ -70,10 +72,6 @@ typedef void (*__sighandler)(int);
 
 #define MINSIGSTKSZ 2048
 #define SIGSTKSZ 8192
-
-typedef struct {
-	unsigned long __value[1024 / (8 * sizeof(unsigned long))];
-} sigset_t;
 
 typedef union sigval {
 	int sival_int;
@@ -150,12 +148,18 @@ struct sigaction {
 	void (*sa_restorer)(void);
 };
 
+int kill(pid_t __pid, int __sig);
 int sigprocmask(int __how, const sigset_t* __restrict __set, sigset_t* __restrict __old);
 int pthread_sigmask(int __how, const sigset_t* __restrict __set, sigset_t* __restrict __old);
 int sigaction(int __sig_num, const struct sigaction* __restrict __action, struct sigaction* __restrict __old);
+int sigtimedwait(const sigset_t* __restrict __set, siginfo_t* __restrict __info, const struct timespec* __timeout);
+int sigaltstack(const stack_t* __stack, stack_t* __old_stack);
+
 int sigemptyset(sigset_t* __set);
+int sigfillset(sigset_t* __set);
 int sigismember(const sigset_t* __set, int __sig_num);
 int sigaddset(sigset_t* __set, int __sig_num);
+int sigdelset(sigset_t* __set, int __sig_num);
 
 __end
 

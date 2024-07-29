@@ -3,6 +3,7 @@
 #include "stdio.h"
 #include "errno.h"
 #include "allocator.hpp"
+#include "string.h"
 #include <hz/string_utils.hpp>
 #include <hz/string.hpp>
 
@@ -64,12 +65,12 @@ namespace {
 		}
 
 		size_t count;
-		auto uid = hz::to_integer<uid_t>(user_id, count);
+		auto uid = hz::to_integer<uid_t>(user_id, 10, &count);
 		if (count != user_id.size()) {
 			return false;
 		}
 
-		auto gid = hz::to_integer<gid_t>(group_id, count);
+		auto gid = hz::to_integer<gid_t>(group_id, 10, &count);
 		if (count != group_id.size()) {
 			return false;
 		}
@@ -82,6 +83,53 @@ namespace {
 		view.dir = home;
 		view.shell = shell;
 		return true;
+	}
+
+	int fill_user_in_area(user_view view, passwd& res, char* area, size_t area_size) {
+		size_t total =
+			view.name.size() + 1 +
+			view.password.size() + 1 +
+			view.info.size() + 1 +
+			view.dir.size() + 1 +
+			view.shell.size() + 1;
+		if (area_size < total) {
+			return ERANGE;
+		}
+
+		size_t offset = 0;
+
+		memcpy(area, view.name.data(), view.name.size());
+		offset += view.name.size() + 1;
+		area[offset - 1] = 0;
+
+		auto pwd_passwd_offset = offset;
+		memcpy(area + offset, view.password.data(), view.password.size());
+		offset += view.password.size() + 1;
+		area[offset - 1] = 0;
+
+		auto pwd_gecos_offset = offset;
+		memcpy(area + offset, view.info.data(), view.info.size());
+		offset += view.info.size() + 1;
+		area[offset - 1] = 0;
+
+		auto pwd_dir_offset = offset;
+		memcpy(area + offset, view.dir.data(), view.dir.size());
+		offset += view.dir.size() + 1;
+		area[offset - 1] = 0;
+
+		auto pwd_shell_offset = offset;
+		memcpy(area + offset, view.shell.data(), view.shell.size());
+		offset += view.shell.size() + 1;
+		area[offset - 1] = 0;
+
+		res.pw_name = area;
+		res.pw_passwd = area + pwd_passwd_offset;
+		res.pw_uid = view.uid;
+		res.pw_gid = view.gid;
+		res.pw_gecos = area + pwd_gecos_offset;
+		res.pw_dir = area + pwd_dir_offset;
+		res.pw_shell = area + pwd_shell_offset;
+		return 0;
 	}
 
 	void fill_user(user_view view, passwd& res) {
@@ -186,6 +234,86 @@ EXPORT passwd* getpwuid(uid_t uid) {
 	fclose(file);
 	errno = ENOENT;
 	return nullptr;
+}
+
+EXPORT int getpwnam_r(
+	const char* name,
+	struct passwd* __restrict pwd,
+	char* __restrict buf,
+	size_t buf_len,
+	struct passwd** __restrict result) {
+	FILE* file = fopen("/etc/passwd", "r");
+	if (!file) {
+		*result = nullptr;
+		return EIO;
+	}
+
+	hz::string_view name_str {name};
+
+	char line_buf[NSS_BUFLEN_PASSWD];
+	while (fgets(line_buf, NSS_BUFLEN_PASSWD, file)) {
+		user_view view;
+		if (!parse_entry(line_buf, view)) {
+			continue;
+		}
+		if (view.name == name_str) {
+			if (auto err = fill_user_in_area(view, *pwd, buf, buf_len)) {
+				fclose(file);
+				*result = nullptr;
+				return err;
+			}
+			*result = pwd;
+			return 0;
+		}
+	}
+
+	*result = nullptr;
+
+	if (ferror(file)) {
+		fclose(file);
+		return EIO;
+	}
+	fclose(file);
+	return 0;
+}
+
+EXPORT int getpwuid_r(
+	uid_t uid,
+	struct passwd* __restrict pwd,
+	char* __restrict buf,
+	size_t buf_len,
+	struct passwd** __restrict result) {
+	FILE* file = fopen("/etc/passwd", "r");
+	if (!file) {
+		*result = nullptr;
+		return EIO;
+	}
+
+	char line_buf[NSS_BUFLEN_PASSWD];
+	while (fgets(line_buf, NSS_BUFLEN_PASSWD, file)) {
+		user_view view;
+		if (!parse_entry(line_buf, view)) {
+			continue;
+		}
+		if (view.uid == uid) {
+			if (auto err = fill_user_in_area(view, *pwd, buf, buf_len)) {
+				fclose(file);
+				*result = nullptr;
+				return err;
+			}
+			*result = pwd;
+			return 0;
+		}
+	}
+
+	*result = nullptr;
+
+	if (ferror(file)) {
+		fclose(file);
+		return EIO;
+	}
+	fclose(file);
+	return 0;
 }
 
 EXPORT void setpwent() {

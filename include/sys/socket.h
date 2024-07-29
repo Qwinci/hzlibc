@@ -2,8 +2,8 @@
 #define _SYS_SOCKET_H
 
 #include <bits/utils.h>
-#include <stdint.h>
-#include <stddef.h>
+#include <sys/types.h>
+#include <bits/iov.h>
 
 __begin
 
@@ -19,11 +19,6 @@ struct sockaddr_storage {
 	sa_family_t sa_family;
 	char __padding[128 - sizeof(sa_family_t) - sizeof(unsigned long)];
 	unsigned long __align;
-};
-
-struct iovec {
-	void* iov_base;
-	size_t iov_len;
 };
 
 struct msghdr {
@@ -93,7 +88,86 @@ struct cmsghdr {
 #define AF_NETLINK PF_NETLINK
 #define AF_PACKET PF_PACKET
 
+#define SHUT_RD 0
+#define SHUT_WR 1
+#define SHUT_RDWR 2
+
+#define SOL_SOCKET 1
+
+#define SO_DEBUG 1
+#define SO_REUSEADDR 2
+#define SO_TYPE 3
+#define SO_ERROR 4
+#define SO_DONTROUTE 5
+#define SO_BROADCAST 6
+#define SO_SNDBUF 7
+#define SO_RCVBUF 8
+#define SO_KEEPALIVE 9
+#define SO_OOBINLINE 10
+#define SO_NO_CHECK 11
+#define SO_PRIORITY 12
+#define SO_LINGER 13
+#define SO_BSDCOMPAT 14
+#define SO_REUSEPORT 15
+#define SO_PASSCRED	16
+#define SO_PEERCRED	17
+#define SO_RCVLOWAT	18
+#define SO_SNDLOWAT	19
+#define SO_RCVTIMEO_OLD	20
+#define SO_SNDTIMEO_OLD	21
+#define SO_SNDBUFFORCE 32
+#define SO_RCVBUFFORCE 33
+#define SO_RCVTIMEO_NEW         66
+#define SO_SNDTIMEO_NEW         67
+
+#if UINTPTR_MAX == UINT64_MAX
+
+#define SO_RCVTIMEO SO_RCVTIMEO_OLD
+#define SO_SNDTIMEO SO_SNDTIMEO_OLD
+
+#else
+
+#define SO_RCVTIMEO (sizeof(time_t) == sizeof(long) ? SO_RCVTIMEO_OLD : SO_RCVTIMEO_NEW)
+#define SO_SNDTIMEO (sizeof(time_t) == sizeof(long) ? SO_SNDTIMEO_OLD : SO_SNDTIMEO_NEW)
+
+#endif
+
 int socket(int __domain, int __type, int __protocol);
+int socketpair(int __domain, int __type, int __protocol, int __sv[2]);
+int connect(int __fd, const struct sockaddr* __addr, socklen_t __addr_len);
+int bind(int __fd, const sockaddr* __addr, socklen_t __addr_len);
+int listen(int __fd, int __backlog);
+int accept(int __fd, sockaddr* __restrict __addr, socklen_t* __restrict __addr_len);
+int shutdown(int __fd, int __how);
+
+int getsockopt(int __fd, int __level, int __option, void* __restrict __value, socklen_t* __restrict __value_len);
+int setsockopt(int __fd, int __level, int __option, const void* __value, socklen_t __value_len);
+
+int getsockname(int __fd, struct sockaddr* __restrict __addr, socklen_t* __restrict __addr_len);
+int getpeername(int __fd, struct sockaddr* __restrict __addr, socklen_t* __restrict __addr_len);
+
+ssize_t send(int __fd, const void* __buf, size_t __len, int __flags);
+ssize_t sendto(
+	int __fd,
+	const void* __buf,
+	size_t __len,
+	int __flags,
+	const struct sockaddr* __dest_addr,
+	socklen_t __addr_len);
+ssize_t sendmsg(int __fd, const struct msghdr* __msg, int __flags);
+
+ssize_t recv(int __fd, void* __restrict __buf, size_t __len, int __flags);
+ssize_t recvfrom(
+	int __fd,
+	void* __restrict __buf,
+	size_t __len,
+	int __flags,
+	struct sockaddr* __restrict __src_addr,
+	socklen_t* __restrict __addr_len);
+ssize_t recvmsg(int __fd, struct msghdr* __msg, int __flags);
+
+// linux
+int accept4(int __fd, sockaddr* __restrict __addr, socklen_t* __restrict __addr_len, int __flags);
 
 __end
 

@@ -3,6 +3,7 @@
 
 #include <bits/utils.h>
 #include <sys/types.h>
+#include <sys/resource.h>
 
 __begin
 
@@ -25,7 +26,11 @@ __begin
 #define W_STOPCODE(sig) ((sig) << 8 | 0x7F)
 #define __W_CONTINUED 0xFFFF
 
+pid_t wait(int* __status);
 pid_t waitpid(pid_t __pid, int* __status, int __options);
+
+// linux
+pid_t wait4(pid_t __pid, int* __status, int __options, struct rusage* __rusage);
 
 __end
 

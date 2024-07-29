@@ -4,12 +4,14 @@
 
 #define memcpy __builtin_memcpy
 
+extern DebugInterface DEBUG_INTERFACE;
+
 SharedObject::SharedObject(
 	SharedObject* origin,
 	hz::string<Allocator> name,
 	hz::string<Allocator> new_path,
 	uintptr_t base,
-	const Elf_Dyn* dynamic,
+	Elf_Dyn* dynamic,
 	const Elf_Phdr* phdrs,
 	uint16_t phent,
 	uint16_t phnum)
@@ -64,6 +66,11 @@ SharedObject::SharedObject(
 			case DT_SYMBOLIC:
 				symbolic_resolution = true;
 				break;
+			case DT_DEBUG:
+			{
+				dyn->d_un.d_ptr = reinterpret_cast<uintptr_t>(&DEBUG_INTERFACE);
+				break;
+			}
 			case DT_INIT_ARRAY:
 				init_array = reinterpret_cast<InitFn*>(base + dyn->d_un.d_ptr);
 				break;
@@ -181,7 +188,65 @@ SharedObject::SharedObject(
 			}
 		}
 	}
+
+	link_map.base = base;
+	link_map.name = this->path.data();
+	link_map.dynamic = dynamic;
 }
+
+
+SharedObject::~SharedObject() {
+	for (auto ptr : tls_descs) {
+		delete ptr;
+	}
+}
+
+#ifdef __x86_64__
+
+asm(R"(
+.pushsection .text
+.hidden __tlsdesc_static
+.type __tlsdesc_static, @function
+__tlsdesc_static:
+	mov 8(%rax), %rax
+	ret
+
+.hidden __tlsdesc_dynamic
+.type __tlsdesc_dynamic, @function
+__tlsdesc_dynamic:
+	push %rbx
+	push %rcx
+
+	mov 8(%rax), %rax
+
+	// index
+	mov (%rax), %rbx
+	// addend
+	mov 8(%rax), %rcx
+
+	// (*tp).dtv.data
+	mov %fs:64, %rax
+	// dtv.data[index]
+	mov (%rax, %rbx, 8), %rax
+	// + addend
+	add %rcx, %rax
+	sub %fs:0, %rax
+
+	pop %rcx
+	pop %rbx
+	ret
+
+.popsection
+)");
+
+#endif
+
+extern "C" void* __tlsdesc_static(void*);
+extern "C" void* __tlsdesc_dynamic(void*);
+
+void* access_tls_for_object(SharedObject* object);
+
+void* rtld_memset(void* __restrict dest, int ch, size_t size);
 
 void SharedObject::relocate() {
 	uintptr_t rela = 0;
@@ -229,6 +294,7 @@ void SharedObject::relocate() {
 	}
 
 	bool has_unresolved_symbols = false;
+	LookupPolicy lookup_policy = symbolic_resolution ? LookupPolicy::Symbolic : LookupPolicy::None;
 
 	for (uintptr_t i = 0; i < rela_size; i += sizeof(Elf_Rela)) {
 		auto entry = *reinterpret_cast<Elf_Rela*>(rela + i);
@@ -244,7 +310,7 @@ void SharedObject::relocate() {
 		auto* sym = &symtab[ELF_R_SYM(entry.r_info)];
 		if (ELF_R_SYM(entry.r_info)) {
 			const char* sym_name = strtab + sym->st_name;
-			resolved_sym = OBJECT_STORAGE.get_unsafe()->lookup(symbolic_resolution ? this : nullptr, sym_name, LookupPolicy::None);
+			resolved_sym = OBJECT_STORAGE.get_unsafe()->lookup(this, sym_name, lookup_policy);
 		}
 
 		switch (type) {
@@ -275,7 +341,32 @@ void SharedObject::relocate() {
 				break;
 			}
 			case R_TPOFF:
-				*ptr = -tls_offset + entry.r_addend;
+			{
+				if (ELF_R_SYM(entry.r_info)) {
+					__ensure(resolved_sym);
+					__ensure(resolved_sym->object->initial_tls_model);
+					*ptr = -resolved_sym->object->tls_offset +
+						resolved_sym->sym->st_value +
+						entry.r_addend;
+				}
+				else {
+					__ensure(initial_tls_model);
+					*ptr = -tls_offset + entry.r_addend;
+				}
+				break;
+			}
+			case R_DTPMOD:
+				if (ELF_R_SYM(entry.r_info)) {
+					__ensure(resolved_sym);
+					*ptr = reinterpret_cast<uintptr_t>(resolved_sym->object);
+				}
+				else {
+					*ptr = reinterpret_cast<uintptr_t>(this);
+				}
+				break;
+			case R_DTPOFF:
+				__ensure(resolved_sym);
+				*ptr = resolved_sym->sym->st_value + entry.r_addend;
 				break;
 			default:
 				panic("unsupported relocation type ", type);
@@ -294,11 +385,14 @@ void SharedObject::relocate() {
 		// odd entry indicates a bitmap of locations to be relocated
 		else {
 			__ensure(relr_addr);
-			for (int j = 0; entry; ++j) {
-				if (entry & 1) {
+			for (int j = 0;; ++j) {
+				entry >>= 1;
+				if (!entry) {
+					break;
+				}
+				else if (entry & 1) {
 					relr_addr[j] += base;
 				}
-				entry >>= 1;
 			}
 			// each entry describes at max 63 or 31 locations
 			relr_addr += 8 * sizeof(Elf_Relr) - 1;
@@ -319,7 +413,7 @@ void SharedObject::relocate() {
 		auto* sym = &symtab[ELF_R_SYM(entry.r_info)];
 		if (ELF_R_SYM(entry.r_info)) {
 			const char* sym_name = strtab + sym->st_name;
-			resolved_sym = OBJECT_STORAGE.get_unsafe()->lookup(symbolic_resolution ? this : nullptr, sym_name, LookupPolicy::None);
+			resolved_sym = OBJECT_STORAGE.get_unsafe()->lookup(this, sym_name, lookup_policy);
 		}
 
 		switch (type) {
@@ -352,6 +446,19 @@ void SharedObject::relocate() {
 			case R_TPOFF:
 				*ptr += -tls_offset;
 				break;
+			case R_DTPMOD:
+				if (ELF_R_SYM(entry.r_info)) {
+					__ensure(resolved_sym);
+					*ptr = reinterpret_cast<uintptr_t>(resolved_sym->object);
+				}
+				else {
+					*ptr = reinterpret_cast<uintptr_t>(this);
+				}
+				break;
+			case R_DTPOFF:
+				__ensure(resolved_sym);
+				*ptr += resolved_sym->sym->st_value;
+				break;
 			default:
 				panic("unsupported relocation type ", type);
 		}
@@ -367,7 +474,7 @@ void SharedObject::relocate() {
 			auto* sym = &symtab[ELF_R_SYM(entry.r_info)];
 			if (ELF_R_SYM(entry.r_info)) {
 				const char* sym_name = strtab + sym->st_name;
-				resolved_sym = OBJECT_STORAGE.get_unsafe()->lookup(symbolic_resolution ? this : nullptr, sym_name, LookupPolicy::None);
+				resolved_sym = OBJECT_STORAGE.get_unsafe()->lookup(this, sym_name, lookup_policy);
 			}
 
 			switch (type) {
@@ -393,6 +500,44 @@ void SharedObject::relocate() {
 					}
 					break;
 				}
+#ifdef R_TLSDESC
+				case R_TLSDESC:
+				{
+					SharedObject* target;
+					uintptr_t symbol_value = 0;
+					if (ELF_R_SYM(entry.r_info)) {
+						if (!resolved_sym) {
+							println("rtld: unresolved tlsdesc symbol ", strtab + sym->st_name, " in object ", name);
+							has_unresolved_symbols = true;
+							break;
+						}
+						target = resolved_sym->object;
+						symbol_value = resolved_sym->sym->st_value;
+					}
+					else {
+						target = this;
+					}
+
+					if (target->initial_tls_model) {
+						ptr[0] = reinterpret_cast<uintptr_t>(&__tlsdesc_static);
+						ptr[1] = -target->tls_offset + symbol_value + entry.r_addend;
+					}
+					else {
+						auto* data = new TlsdescData {
+							.index = target->tls_module_index,
+							.addend = symbol_value + entry.r_addend
+						};
+
+						access_tls_for_object(target);
+
+						ptr[0] = reinterpret_cast<uintptr_t>(&__tlsdesc_dynamic);
+						ptr[1] = reinterpret_cast<uintptr_t>(data);
+						tls_descs.push_back(data);
+					}
+
+					break;
+				}
+#endif
 				default:
 					panic("unsupported plt relocation type ", type);
 			}
@@ -408,7 +553,7 @@ void SharedObject::relocate() {
 			auto* sym = &symtab[ELF_R_SYM(entry.r_info)];
 			if (ELF_R_SYM(entry.r_info)) {
 				const char* sym_name = strtab + sym->st_name;
-				resolved_sym = OBJECT_STORAGE.get_unsafe()->lookup(symbolic_resolution ? this : nullptr, sym_name, LookupPolicy::None);
+				resolved_sym = OBJECT_STORAGE.get_unsafe()->lookup(this, sym_name, lookup_policy);
 			}
 
 			switch (type) {

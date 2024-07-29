@@ -2,7 +2,9 @@
 #define _UCONTEXT_H
 
 #include <bits/utils.h>
-#include <signal.h>
+#include <bits/sigset_t.h>
+#include <stdint.h>
+#include <stddef.h>
 
 __begin
 
@@ -152,7 +154,9 @@ typedef struct ucontext_t {
 
 #endif
 
+int getcontext(ucontext_t* __ctx);
 int setcontext(const ucontext_t* __ctx);
+void makecontext(ucontext_t* __ctx, void (*__func)(), int __argc, ...);
 
 __end
 

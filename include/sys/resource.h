@@ -3,6 +3,7 @@
 
 #include <bits/utils.h>
 #include <sys/time.h>
+#include <stdint.h>
 
 __begin
 
@@ -24,6 +25,30 @@ struct rusage {
 	long ru_nvcsw;
 	long ru_nivcsw;
 };
+
+typedef unsigned long rlim_t;
+typedef uint64_t rlim64_t;
+
+struct rlimit {
+	rlim_t rlim_cur;
+	rlim_t rlim_max;
+};
+
+struct rlimit64 {
+	rlim64_t rlim_cur;
+	rlim64_t rlim_max;
+};
+
+#define RLIM_INFINITY ((rlim_t) ~0UL)
+
+int setpriority(int __which, int __who, int __prio);
+
+int getrlimit(int __resource, struct rlimit* __rlim);
+int getrlimit64(int __resource, struct rlimit64* __rlim);
+int setrlimit(int __resource, const struct rlimit* __rlim);
+int setrlimit64(int __resource, const struct rlimit64* __rlim);
+
+int getrusage(int __who, struct rusage* __usage);
 
 __end
 

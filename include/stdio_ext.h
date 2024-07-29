@@ -9,7 +9,7 @@ __begin
 
 size_t __fpending(FILE* __file);
 int __freading(FILE* __file);
-void __fpurge([[maybe_unused]] FILE* __file);
+void __fpurge(FILE* __file);
 
 __end
 

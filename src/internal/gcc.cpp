@@ -40,3 +40,9 @@ extern "C" uint64_t __umoddi3(uint64_t numerator, uint64_t denominator) {
 	}
 	return rem;
 }
+
+extern "C" [[noreturn]] void __stack_chk_fail();
+
+extern "C" [[noreturn]] void __stack_chk_fail_local() {
+	__stack_chk_fail();
+}

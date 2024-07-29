@@ -43,7 +43,7 @@ namespace {
 	};
 }
 
-EXPORT char* setlocale([[maybe_unused]] int category, const char* locale) {
+EXPORT char* setlocale(int category, const char* locale) {
 	if (!locale) {
 		return LOCALE.data();
 	}

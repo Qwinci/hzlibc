@@ -5,6 +5,7 @@
 #include "fcntl.h"
 #include "limits.h"
 #include "errno.h"
+#include "internal/time.hpp"
 #include <hz/vector.hpp>
 #include <hz/bit.hpp>
 #include <hz/string_view.hpp>
@@ -74,32 +75,11 @@ namespace {
 	}
 }
 
-namespace {
-	constexpr bool is_leap(time_t year) {
-		return year % 400 == 0 || (year % 4 == 0 && year % 100 != 0);
-	}
-
-	int days_per_year(time_t year) {
-		return is_leap(year) ? 366 : 365;
-	}
-
-	constexpr int DAYS_IN_MONTHS_NOLEAP[] {31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
-	constexpr int DAYS_IN_MONTHS_LEAP[] {31, 29, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
-
-	constexpr const int* get_days_per_month_table(int year) {
-		return is_leap(year) ? DAYS_IN_MONTHS_LEAP : DAYS_IN_MONTHS_NOLEAP;
-	}
-
-	constexpr int EPOCH_YEAR = 1970;
+bool tz_data_initialized() {
+	return !TZ_DATA.empty();
 }
 
-struct TzData {
-	int32_t gmt_offset;
-	bool is_dst;
-	const char* zone;
-};
-
-static TzData get_tz_data(time_t time) {
+TzData get_tz_data(time_t time) {
 	auto* ptr = reinterpret_cast<TzFile*>(TZ_DATA.data());
 
 	int transition_index = -1;
@@ -150,6 +130,20 @@ EXPORT time_t time(time_t* arg) {
 		*arg = value;
 	}
 	return value;
+}
+
+EXPORT clock_t clock() {
+	timespec tp {};
+	if (auto err = sys_clock_gettime(CLOCK_PROCESS_CPUTIME_ID, &tp)) {
+		errno = err;
+		return -1;
+	}
+	return tp.tv_sec * CLOCKS_PER_SEC + tp.tv_nsec / 1000;
+}
+
+EXPORT struct tm* localtime(const time_t* time) {
+	static tm t {};
+	return localtime_r(time, &t);
 }
 
 EXPORT tm* localtime_r(const time_t* __restrict time, tm* __restrict buf) {

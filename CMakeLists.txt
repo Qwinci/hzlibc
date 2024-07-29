@@ -1,7 +1,10 @@
 cmake_minimum_required(VERSION 3.20)
-project(hzlibc)
+project(hzlibc C CXX ASM)
+
+include(CheckCXXCompilerFlag)
 
 set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
 add_library(c SHARED
 	src/rtld/main.cpp
@@ -14,9 +17,10 @@ add_library(c SHARED
 target_compile_options(c PRIVATE
 	-Wall -Wextra
 	-fno-exceptions -fno-rtti -ffreestanding -fvisibility=hidden -fvisibility-inlines-hidden
-	-ftls-model=initial-exec -Wno-missing-attributes
+	-fno-stack-protector
+	-ftls-model=initial-exec -Wno-missing-attributes -Wno-unused-parameter
 )
-target_link_options(c PRIVATE -nostdlib -Wl,--entry=_start,--fatal-warnings,--no-undefined)
+target_link_options(c PRIVATE -nostdlib -Wl,--entry=_start,--fatal-warnings,--no-undefined,-z,noexecstack)
 target_include_directories(c SYSTEM PUBLIC include)
 target_include_directories(c PRIVATE sys)
 
@@ -31,6 +35,21 @@ add_subdirectory(sys)
 
 add_subdirectory(hzutils)
 target_link_libraries(c PRIVATE hzutils)
+
+add_library(libunwind OBJECT
+	thirdparty/libunwind/src/UnwindRegistersRestore.S
+	thirdparty/libunwind/src/UnwindRegistersSave.S
+	thirdparty/libunwind/src/UnwindLevel1.c
+	thirdparty/libunwind/src/UnwindLevel1-gcc-ext.c
+	thirdparty/libunwind/src/libunwind.cpp
+)
+target_compile_options(libunwind PRIVATE -funwind-tables -fno-exceptions -fno-rtti -nostdinc++ -fvisibility=hidden)
+target_compile_definitions(libunwind PRIVATE
+	_LIBUNWIND_IS_NATIVE_ONLY
+	_LIBUNWIND_HIDE_SYMBOLS)
+target_include_directories(libunwind PUBLIC include thirdparty/libunwind/include)
+
+target_link_libraries(c PRIVATE libunwind)
 
 add_library(dummy SHARED dummy.cpp)
 target_link_options(dummy PRIVATE -nostdlib)
@@ -75,14 +94,3 @@ dummy_lib("libresolv.so.2")
 dummy_lib("librt.so.1")
 dummy_lib("libthread_db.so.1")
 dummy_lib("libutil.so.1")
-
-add_executable(libc_test test.c)
-add_dependencies(libc_test c)
-target_link_options(libc_test PRIVATE -Wl,-rpath=$ORIGIN)
-add_custom_command(TARGET libc_test POST_BUILD
-	COMMAND patchelf --set-interpreter ${CMAKE_CURRENT_BINARY_DIR}/libc.so $<TARGET_FILE:libc_test>
-)
-
-add_library(libc_test_lib SHARED lib.c)
-add_dependencies(libc_test libc_test_lib)
-# target_link_libraries(libc_test PRIVATE libc_test_lib)

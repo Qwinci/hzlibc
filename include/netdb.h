@@ -35,6 +35,44 @@ __begin
 #define NI_DGRAM 16
 #define NI_IDN 32
 
+#define AI_PASSIVE 1
+#define AI_CANONNAME 2
+#define AI_NUMERICHOST 4
+#define AI_V4MAPPED 8
+#define AI_ALL 0x10
+#define AI_ADDRCONFIG 0x20
+#define AI_IDN 0x40
+#define AI_CANONIDN 0x80
+#define AI_NUMERICSERV 0x400
+
+struct addrinfo {
+	int ai_flags;
+	int ai_family;
+	int ai_socktype;
+	int ai_protocol;
+	socklen_t ai_addrlen;
+	struct sockaddr* ai_addr;
+	char* ai_canonname;
+	struct addrinfo* ai_next;
+};
+
+struct hostent {
+	char* h_name;
+	char** h_aliases;
+	int h_addrtype;
+	int h_length;
+	char** h_addr_list;
+};
+#define h_addr h_addr_list[0]
+
+int* __h_errno_location(void);
+#define h_errno (*__h_errno_location())
+
+#define HOST_NOT_FOUND 1
+#define TRY_AGAIN 2
+#define NO_RECOVERY 3
+#define NO_DATA 4
+
 int getnameinfo(
 	const struct sockaddr* __restrict __addr,
 	socklen_t __addr_len,
@@ -43,6 +81,18 @@ int getnameinfo(
 	char* __serv,
 	socklen_t __serv_len,
 	int __flags);
+
+int getaddrinfo(
+	const char* __restrict __node_name,
+	const char* __restrict __service_name,
+	const struct addrinfo* __restrict __hints,
+	struct addrinfo** __restrict __res);
+void freeaddrinfo(struct addrinfo* __ai);
+
+__attribute__((deprecated("Use getaddrinfo instead")))
+struct hostent* gethostbyname(const char* __name);
+
+const char* gai_strerror(int __err_code);
 
 __end
 

@@ -1,3 +1,6 @@
 target_sources(c PRIVATE
-	unistd.cpp
+	file.cpp
+	grp.cpp
+	stdlib.cpp
+	uio.cpp
 )

@@ -33,7 +33,7 @@ EXPORT size_t mbrtoc32(
 		}
 		return 2;
 	}
-	else if ((first & 0b11110000) != 0b11100000) {
+	else if ((first & 0b11110000) == 0b11100000) {
 		if (n == 1) {
 			return static_cast<size_t>(-2);
 		}
@@ -55,7 +55,7 @@ EXPORT size_t mbrtoc32(
 		}
 		return 3;
 	}
-	else if ((first & 0b11111000) != 0b11110000) {
+	else if ((first & 0b11111000) == 0b11110000) {
 		if (n == 1) {
 			return static_cast<size_t>(-2);
 		}

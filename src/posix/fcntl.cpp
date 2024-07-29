@@ -57,3 +57,20 @@ EXPORT int posix_fadvise(int fd, off_t offset, off_t len, int advice) {
 	}
 	return 0;
 }
+
+EXPORT int posix_fallocate(int fd, off_t offset, off_t len) {
+	if (auto err = sys_fallocate(fd, 0, offset, len)) {
+		return err;
+	}
+	return 0;
+}
+
+EXPORT int posix_fallocate64(int fd, off64_t offset, off64_t len) {
+	if (auto err = sys_fallocate(fd, 0, offset, len)) {
+		return err;
+	}
+	return 0;
+}
+
+ALIAS(open, open64);
+ALIAS(fcntl, fcntl64);

@@ -2,10 +2,23 @@
 #define _SCHED_H
 
 #include <bits/utils.h>
+#include <sys/types.h>
 
 __begin
 
+#define SCHED_OTHER 0
+#define SCHED_FIFO 1
+#define SCHED_RR 2
+#define SCHED_BATCH 3
+#define SCHED_ISO 4
+#define SCHED_IDLE 4
+#define SCHED_DEADLINE 6
+#define SCHED_RESET_ON_FORK 0x40000000
+
 int sched_yield(void);
+
+// glibc
+int sched_getcpu(void);
 
 // linux
 
@@ -33,6 +46,19 @@ int sched_yield(void);
 #define CLONE_NEWPID 0x20000000
 #define CLONE_NEWNET 0x40000000
 #define CLONE_IO 0x80000000
+
+typedef unsigned long __cpu_mask;
+
+#define CPU_SETSIZE	1024
+#define __NCPUBITS (8 * sizeof(__cpu_mask))
+#define __CPUELT(cpu) ((cpu) / __NCPUBITS)
+#define __CPUMASK(cpu) ((__cpu_mask) 1 << ((cpu) % __NCPUBITS))
+
+typedef struct {
+	__cpu_mask __bits[CPU_SETSIZE / __NCPUBITS];
+} cpu_set_t;
+
+int sched_getaffinity(pid_t __pid, size_t __cpu_set_size, cpu_set_t* __mask);
 
 __end
 

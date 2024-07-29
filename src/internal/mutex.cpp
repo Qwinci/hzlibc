@@ -46,6 +46,31 @@ int Mutex::manual_lock() {
 	}
 }
 
+int Mutex::try_manual_lock() {
+	auto id = sys_get_thread_id();
+
+	int expected = 0;
+	if (state.state.compare_exchange_strong(expected, id, hz::memory_order::acquire)) {
+		state.recursion = 1;
+		return 0;
+	}
+
+	if ((expected & ~FLAG_WAITING) == id) {
+		if (state.kind == PTHREAD_MUTEX_RECURSIVE) {
+			++state.recursion;
+			return 0;
+		}
+		else if (state.kind == PTHREAD_MUTEX_ERRORCHECK) {
+			return EDEADLK;
+		}
+		else {
+			panic("tried to lock a normal mutex multiple times");
+		}
+	}
+
+	return EBUSY;
+}
+
 int Mutex::manual_unlock() {
 	auto id = sys_get_thread_id();
 

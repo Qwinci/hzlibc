@@ -1,5 +1,7 @@
 #include "string.h"
 #include "utils.hpp"
+#include "ctype.h"
+#include "strings.h"
 
 EXPORT void* rawmemchr(const void* ptr, int ch) {
 	return memchr(ptr, ch, SIZE_MAX);
@@ -19,3 +21,63 @@ EXPORT void* memrchr(const void* ptr, int ch, size_t count) {
 	}
 	return nullptr;
 }
+
+EXPORT char* strerror_r(int err_num, char*, size_t) {
+	return const_cast<char*>(strerror(err_num));
+}
+
+EXPORT int strverscmp(const char* s1, const char* s2) {
+	size_t seq_pos = 0;
+	bool is_zero = true;
+	size_t i = 0;
+	for (; s1[i] == s2[i]; ++i) {
+		if (!s1[i]) {
+			return 0;
+		}
+		else if (!isdigit(s1[i])) {
+			seq_pos = i + 1;
+			is_zero = true;
+		}
+		else if (s1[i] != '0') {
+			is_zero = false;
+		}
+	}
+
+	if (s1[seq_pos] != '0' && s2[seq_pos] != '0') {
+		size_t j = i;
+		for (; isdigit(s1[j]); ++j) {
+			if (!isdigit(s2[j])) {
+				return 1;
+			}
+		}
+		if (isdigit(s2[j])) {
+			return -1;
+		}
+	}
+	else if (is_zero && seq_pos < i && (isdigit(s1[i]) || isdigit(s2[i]))) {
+		return (s1[i] - '0') - (s2[i] - '0');
+	}
+
+	return s1[i] - s2[i];
+}
+
+EXPORT char* strcasestr(const char* str, const char* substr) {
+	auto len = strlen(substr);
+	for (; *str; ++str) {
+		if (strncasecmp(str, substr, len) == 0) {
+			return const_cast<char*>(str);
+		}
+	}
+	return nullptr;
+}
+
+EXPORT char* strchrnul(const char* str, int ch) {
+	for (; *str; ++str) {
+		if (*str == ch) {
+			return const_cast<char*>(str);
+		}
+	}
+	return const_cast<char*>(str);
+}
+
+ALIAS(rawmemchr, __rawmemchr);

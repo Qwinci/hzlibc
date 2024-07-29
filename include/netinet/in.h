@@ -1,7 +1,13 @@
 #ifndef _NETINET_IN_H
 #define _NETINET_IN_H
 
+#include <bits/utils.h>
 #include <sys/socket.h>
+
+__begin
+
+#define IN6ADDR_LOOPBACK_INIT {{{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1}}}
+#define IN6ADDR_ANY_INIT {{{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}}}
 
 typedef uint16_t in_port_t;
 typedef uint32_t in_addr_t;
@@ -39,5 +45,12 @@ struct sockaddr_in6 {
 	struct in6_addr sin6_addr;
 	uint32_t sin6_scope_id;
 };
+
+extern in6_addr in6addr_loopback;
+
+#define INET_ADDRSTRLEN 16
+#define INET6_ADDRSTRLEN 46
+
+__end
 
 #endif

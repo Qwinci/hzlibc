@@ -20,13 +20,21 @@ struct FILE {
 	char* write_ptr {};
 	char* write_end {};
 
+	unsigned char ungetc_buffer[0x1000] {};
+	unsigned char* ungetc_read_ptr = ungetc_buffer;
+	unsigned char* ungetc_ptr = ungetc_buffer;
+	int ungetc_size = 0;
+
 	ssize_t (*write)(FILE* file, const void* data, size_t size) {};
 	ssize_t (*read)(FILE* file, void* data, size_t size) {};
+	void (*destroy)(FILE* file) {};
+	void (*flush)(FILE* file) {};
 	Mutex mutex {};
 	int error {};
 	int fd {};
 	bool last_was_read {};
 	bool no_destroy {};
+	void* data {};
 };
 
 FILE* create_fd_file(int fd);

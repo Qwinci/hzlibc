@@ -3,7 +3,12 @@
 #include "utils.hpp"
 
 struct Mutex {
+	constexpr explicit Mutex(int kind = 0) {
+		state.kind = kind;
+	}
+
 	int manual_lock();
+	int try_manual_lock();
 	int manual_unlock();
 
 	struct Guard {
@@ -18,11 +23,10 @@ struct Mutex {
 		Mutex* owner;
 	};
 
-	inline Guard lock() {
+	[[nodiscard]] inline Guard lock() {
 		__ensure(manual_lock() == 0);
 		return Guard {this};
 	}
 
-private:
-	pthread_mutex_internal state;
+	pthread_mutex_internal state {};
 };

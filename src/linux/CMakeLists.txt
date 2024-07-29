@@ -1,7 +1,19 @@
 target_sources(c PRIVATE
 	cap.cpp
+	epoll.cpp
+	eventfd.cpp
+	ifaddrs.cpp
+	inotify.cpp
+	mman.cpp
+	personality.cpp
+	poll.cpp
 	prctl.cpp
+	random.cpp
+	sched.cpp
+	sendfile.cpp
+	socket.cpp
 	stat.cpp
 	unistd.cpp
+	wait.cpp
 	xattr.cpp
 )

@@ -18,9 +18,28 @@ struct group {
 struct group* getgrnam(const char* __name);
 struct group* getgrgid(gid_t __gid);
 
+int getgrnam_r(
+	const char* __name,
+	struct group* __grp,
+	char* __buf,
+	size_t __buf_len,
+	struct group** __result);
+int getgrgid_r(
+	gid_t __gid,
+	struct group* __grp,
+	char* __buf,
+	size_t __buf_len,
+	struct group** __result);
+
 void setgrent(void);
 struct group* getgrent(void);
 void endgrent(void);
+
+// bsd
+int setgroups(size_t __size, const gid_t* __list);
+
+// glibc
+int getgrouplist(const char* __user, gid_t __group, gid_t* __groups, int* __num_groups);
 
 __end
 

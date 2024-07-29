@@ -28,7 +28,18 @@ extern const int32_t** __ctype_toupper_loc(void);
 int toupper(int __ch);
 int tolower(int __ch);
 
+int isupper(int __ch);
+int islower(int __ch);
+int isalpha(int __ch);
 int isdigit(int __ch);
+int isxdigit(int __ch);
+int isspace(int __ch);
+int isprint(int __ch);
+int isgraph(int __ch);
+int isblank(int __ch);
+int iscntrl(int __ch);
+int ispunct(int __ch);
+int isalnum(int __ch);
 
 __end
 

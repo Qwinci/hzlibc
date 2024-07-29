@@ -46,8 +46,24 @@ struct lconv {
 #define LC_MEASUREMENT 11
 #define LC_IDENTIFICATION 12
 
+#define LC_GLOBAL_LOCALE ((locale_t) -1L)
+
+typedef struct __locale {
+	struct __locale_data* __locales[13];
+	const unsigned short* __ctype_b;
+	const int* __ctype_tolower;
+	const int* __ctype_toupper;
+	const char* __names[13];
+} *locale_t;
+
 char* setlocale(int __category, const char* __locale);
 struct lconv* localeconv(void);
+
+// posix
+locale_t newlocale(int __category, const char* __locale, locale_t __base);
+void freelocale(locale_t __locale);
+locale_t duplocale(locale_t __locale);
+locale_t uselocale(locale_t __new_locale);
 
 __end
 
