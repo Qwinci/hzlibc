@@ -4,7 +4,7 @@
 #include <bits/utils.h>
 #include <stdint.h>
 
-__begin
+__begin_decls
 
 #define RTLD_NEXT ((void*) -1)
 #define RTLD_DEFAULT ((void*) 0)
@@ -74,6 +74,6 @@ int dladdr1(const void* __addr, Dl_info* __info, void** __extra_info, int __flag
 int dlinfo(void* __restrict __handle, int __request, void* __restrict __info);
 int _dl_find_object(void* __addr, struct dl_find_object* __result);
 
-__end
+__end_decls
 
 #endif

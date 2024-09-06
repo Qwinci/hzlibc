@@ -3,7 +3,7 @@
 
 #include <bits/utils.h>
 
-__begin
+__begin_decls
 
 #define FNM_PATHNAME 1
 #define FNM_NOESCAPE 2
@@ -19,6 +19,6 @@ int fnmatch(const char* __pattern, const char* __str, int __flags);
 #define FNM_CASEFOLD 16
 #define FNM_EXTMATCH 32
 
-__end
+__end_decls
 
 #endif

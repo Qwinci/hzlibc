@@ -4,7 +4,7 @@
 #include <bits/utils.h>
 #include <sys/types.h>
 
-__begin
+__begin_decls
 
 #define PROT_NONE 0
 #define PROT_READ 1
@@ -40,6 +40,6 @@ int shm_unlink(const char* __name);
 int memfd_create(const char* __name, unsigned int __flags);
 void* mremap(void* __old_addr, size_t __old_size, size_t __new_size, int __flags, ...);
 
-__end
+__end_decls
 
 #endif

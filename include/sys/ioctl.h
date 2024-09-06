@@ -3,7 +3,7 @@
 
 #include <bits/utils.h>
 
-__begin
+__begin_decls
 
 int ioctl(int __fd, unsigned long __op, ...);
 
@@ -28,6 +28,6 @@ struct winsize {
 	unsigned short ws_ypixel;
 };
 
-__end
+__end_decls
 
 #endif

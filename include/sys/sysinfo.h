@@ -4,7 +4,7 @@
 #include <bits/utils.h>
 #include <stdint.h>
 
-__begin
+__begin_decls
 
 struct sysinfo {
 	long uptime;
@@ -26,6 +26,6 @@ struct sysinfo {
 // glibc
 int get_nprocs(void);
 
-__end
+__end_decls
 
 #endif

@@ -93,6 +93,10 @@ EXPORT int getpeername(int fd, struct sockaddr* __restrict addr, socklen_t* __re
 	return 0;
 }
 
+EXPORT int sockatmark(int fd) {
+	panic("sockatmark is not implemented");
+}
+
 EXPORT ssize_t send(int fd, const void* buf, size_t len, int flags) {
 	return sendto(fd, buf, len, flags, nullptr, 0);
 }

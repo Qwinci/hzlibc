@@ -4,7 +4,7 @@
 #include <bits/utils.h>
 #include <sys/types.h>
 
-__begin
+__begin_decls
 
 typedef struct __dir DIR;
 
@@ -50,6 +50,6 @@ int alphasort64(const struct dirent64** __a, const struct dirent64** __b);
 int versionsort(const struct dirent** __a, const struct dirent** __b);
 int versionsort64(const struct dirent64** __a, const struct dirent64** __b);
 
-__end
+__end_decls
 
 #endif

@@ -20,3 +20,11 @@ EXPORT pid_t waitpid(pid_t pid, int* status, int options) {
 	}
 	return ret;
 }
+
+EXPORT int waitid(idtype_t id_type, id_t id, siginfo_t* info, int options) {
+	if (auto err = sys_waitid(id_type, id, info, options)) {
+		errno = err;
+		return -1;
+	}
+	return 0;
+}

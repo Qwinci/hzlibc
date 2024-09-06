@@ -3,10 +3,10 @@
 
 #include <bits/utils.h>
 
-__begin
+__begin_decls
 
 int prctl(int __option, unsigned long __arg2, unsigned long __arg3, unsigned long __arg4, unsigned long __arg5);
 
-__end
+__end_decls
 
 #endif

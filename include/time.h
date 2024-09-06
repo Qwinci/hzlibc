@@ -6,7 +6,7 @@
 #include <stdint.h>
 #include <locale.h>
 
-__begin
+__begin_decls
 
 typedef long time_t;
 typedef long clock_t;
@@ -33,14 +33,23 @@ struct tm {
 
 #define CLOCKS_PER_SEC 1000000
 
+#define TIME_UTC 1
+
 time_t time(time_t* __arg);
 clock_t clock(void);
 
 struct tm* localtime(const time_t* __time);
 struct tm* localtime_r(const time_t* __restrict __time, struct tm* __restrict __buf);
+struct tm* gmtime(const time_t* __restrict __time);
 struct tm* gmtime_r(const time_t* __restrict __time, struct tm* __restrict __buf);
 time_t mktime(struct tm* __arg);
+
 size_t strftime(char* __restrict __str, size_t __count, const char* __restrict __fmt, const struct tm* __time);
+__attribute__((deprecated)) char* asctime(const struct tm* __time);
+__attribute__((deprecated)) char* ctime(const time_t* __time);
+
+double difftime(time_t __b, time_t __a);
+int timespec_get(struct timespec* __ts, int __base);
 
 // posix
 
@@ -76,6 +85,6 @@ extern char* tzname[2];
 extern long timezone;
 extern int daylight;
 
-__end
+__end_decls
 
 #endif

@@ -1,6 +1,5 @@
 #include "sys.hpp"
 #include "syscall.hpp"
-#include "syscall.h"
 #include "utils.hpp"
 #include "fcntl.h"
 #include "sys/ioctl.h"
@@ -10,6 +9,14 @@
 #include "limits.h"
 #include "sched.h"
 #include "stdio.h"
+
+#ifdef __x86_64__
+#include "bits/syscall_nums_x86_64.h"
+#elif defined(__i386__)
+#include "bits/syscall_nums_i386.h"
+#else
+#error unsupported architecture
+#endif
 
 #define memcpy __builtin_memcpy
 
@@ -614,6 +621,10 @@ int sys_fsync(int fd) {
 	return syscall_error(syscall(SYS_fsync, fd));
 }
 
+int sys_fdatasync(int fd) {
+	return syscall_error(syscall(SYS_fdatasync, fd));
+}
+
 int sys_fallocate(int fd, int mode, off64_t offset, off64_t len) {
 	return syscall_error(syscall(SYS_fallocate, fd, mode, offset, len));
 }
@@ -808,6 +819,24 @@ int sys_sched_getaffinity(pid_t pid, size_t cpu_set_size, cpu_set_t* mask) {
 	return syscall_error(syscall(SYS_sched_getaffinity, pid, cpu_set_size, mask));
 }
 
+int sys_sched_get_priority_min(int policy, int* ret) {
+	auto res = syscall(SYS_sched_get_priority_min, policy);
+	if (int err = syscall_error(res)) {
+		return err;
+	}
+	*ret = static_cast<int>(res);
+	return 0;
+}
+
+int sys_sched_get_priority_max(int policy, int* ret) {
+	auto res = syscall(SYS_sched_get_priority_max, policy);
+	if (int err = syscall_error(res)) {
+		return err;
+	}
+	*ret = static_cast<int>(res);
+	return 0;
+}
+
 int sys_sched_getcpu(int* ret) {
 	return syscall_error(syscall(SYS_getcpu, ret, nullptr, nullptr));
 }
@@ -819,6 +848,10 @@ int sys_prctl(int option, unsigned long arg2, unsigned long arg3, unsigned long 
 	}
 	*ret = static_cast<int>(res);
 	return 0;
+}
+
+int sys_iopl(int level) {
+	return syscall_error(syscall(SYS_iopl, level));
 }
 
 int sys_setuid(uid_t uid) {
@@ -849,6 +882,10 @@ int sys_waitpid(pid_t pid, int* status, int options, rusage* usage, pid_t* ret) 
 	}
 	*ret = static_cast<pid_t>(res);
 	return 0;
+}
+
+int sys_waitid(idtype_t id_type, id_t id, siginfo_t* info, int options) {
+	return syscall_error(syscall(SYS_waitid, id_type, id, info, options));
 }
 
 int sys_fork(pid_t* ret) {
@@ -1099,6 +1136,10 @@ int sys_sigaltstack(const stack_t* stack, stack_t* old_stack) {
 
 int sys_kill(pid_t pid, int sig) {
 	return syscall_error(syscall(SYS_kill, pid, sig));
+}
+
+int sys_tgkill(pid_t pid, pid_t tid, int sig) {
+	return syscall_error(syscall(SYS_tgkill, pid, tid, sig));
 }
 
 struct KernelTimespec {

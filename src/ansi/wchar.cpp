@@ -803,3 +803,23 @@ EXPORT wint_t ungetwc(wint_t ch, FILE* file) {
 	}
 	return ch;
 }
+
+EXPORT int vswprintf(
+	wchar_t* __restrict buffer,
+	size_t size,
+	const wchar_t* __restrict fmt,
+	va_list ap) {
+	panic("vswprintf is not implemented");
+}
+
+EXPORT int swprintf(
+	wchar_t* __restrict buffer,
+	size_t size,
+	const wchar_t* __restrict fmt,
+	...) {
+	va_list ap;
+	va_start(ap, fmt);
+	int res = vswprintf(buffer, size, fmt, ap);
+	va_end(ap);
+	return res;
+}

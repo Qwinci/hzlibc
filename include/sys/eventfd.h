@@ -3,10 +3,10 @@
 
 #include <bits/utils.h>
 
-__begin
+__begin_decls
 
 int eventfd(unsigned int __init_value, int __flags);
 
-__end
+__end_decls
 
 #endif

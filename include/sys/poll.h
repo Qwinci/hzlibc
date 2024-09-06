@@ -5,7 +5,7 @@
 #include <time.h>
 #include <signal.h>
 
-__begin
+__begin_decls
 
 typedef unsigned long nfds_t;
 
@@ -24,6 +24,6 @@ int ppoll(
 	const struct timespec* __timeout,
 	const sigset_t* __sig_mask);
 
-__end
+__end_decls
 
 #endif

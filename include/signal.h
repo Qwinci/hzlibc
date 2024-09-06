@@ -7,7 +7,7 @@
 #include <ucontext.h>
 #include <time.h>
 
-__begin
+__begin_decls
 
 typedef void (*sighandler_t)(int __sig_num);
 
@@ -161,6 +161,6 @@ int sigismember(const sigset_t* __set, int __sig_num);
 int sigaddset(sigset_t* __set, int __sig_num);
 int sigdelset(sigset_t* __set, int __sig_num);
 
-__end
+__end_decls
 
 #endif

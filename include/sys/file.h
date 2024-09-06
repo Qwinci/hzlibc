@@ -3,7 +3,7 @@
 
 #include <bits/utils.h>
 
-__begin
+__begin_decls
 
 #define LOCK_SH 1
 #define LOCK_EX 2
@@ -12,6 +12,6 @@ __begin
 
 int flock(int __fd, int __operation);
 
-__end
+__end_decls
 
 #endif

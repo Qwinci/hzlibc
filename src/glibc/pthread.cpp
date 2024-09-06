@@ -22,3 +22,7 @@ EXPORT int pthread_getaffinity_np(pthread_t thread, size_t cpu_set_size, cpu_set
 	auto* tcb = reinterpret_cast<Tcb*>(thread);
 	return sys_sched_getaffinity(tcb->tid, cpu_set_size, cpu_set);
 }
+
+EXPORT int pthread_num_processors_np() {
+	return get_nprocs();
+}

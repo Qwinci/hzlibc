@@ -261,261 +261,261 @@ constexpr unsigned short CTYPE_B_ARRAY[] {
 	// <-1>
 	0,
 	// <0>
-	_IsCntrl,
+	_IScntrl,
 	// <1>
-	_IsCntrl,
+	_IScntrl,
 	// <2>
-	_IsCntrl,
+	_IScntrl,
 	// <3>
-	_IsCntrl,
+	_IScntrl,
 	// <4>
-	_IsCntrl,
+	_IScntrl,
 	// <5>
-	_IsCntrl,
+	_IScntrl,
 	// <6>
-	_IsCntrl,
+	_IScntrl,
 	// <7>
-	_IsCntrl,
+	_IScntrl,
 	// <8>
-	_IsCntrl,
+	_IScntrl,
 	// <9>
-	_IsSpace | _IsBlank | _IsCntrl,
+	_ISspace | _ISblank | _IScntrl,
 	// <10>
-	_IsSpace | _IsCntrl,
+	_ISspace | _IScntrl,
 	// <11>
-	_IsSpace | _IsCntrl,
+	_ISspace | _IScntrl,
 	// <12>
-	_IsSpace | _IsCntrl,
+	_ISspace | _IScntrl,
 	// <13>
-	_IsSpace | _IsCntrl,
+	_ISspace | _IScntrl,
 	// <14>
-	_IsCntrl,
+	_IScntrl,
 	// <15>
-	_IsCntrl,
+	_IScntrl,
 	// <16>
-	_IsCntrl,
+	_IScntrl,
 	// <17>
-	_IsCntrl,
+	_IScntrl,
 	// <18>
-	_IsCntrl,
+	_IScntrl,
 	// <19>
-	_IsCntrl,
+	_IScntrl,
 	// <20>
-	_IsCntrl,
+	_IScntrl,
 	// <21>
-	_IsCntrl,
+	_IScntrl,
 	// <22>
-	_IsCntrl,
+	_IScntrl,
 	// <23>
-	_IsCntrl,
+	_IScntrl,
 	// <24>
-	_IsCntrl,
+	_IScntrl,
 	// <25>
-	_IsCntrl,
+	_IScntrl,
 	// <26>
-	_IsCntrl,
+	_IScntrl,
 	// <27>
-	_IsCntrl,
+	_IScntrl,
 	// <28>
-	_IsCntrl,
+	_IScntrl,
 	// <29>
-	_IsCntrl,
+	_IScntrl,
 	// <30>
-	_IsCntrl,
+	_IScntrl,
 	// <31>
-	_IsCntrl,
+	_IScntrl,
 	// ' '
-	_IsSpace | _IsPrint | _IsBlank,
+	_ISspace | _ISprint | _ISblank,
 	// '!'
-	_IsPrint | _IsGraph | _IsPunct,
+	_ISprint | _ISgraph | _ISpunct,
 	// '"'
-	_IsPrint | _IsGraph | _IsPunct,
+	_ISprint | _ISgraph | _ISpunct,
 	// '#'
-	_IsPrint | _IsGraph | _IsPunct,
+	_ISprint | _ISgraph | _ISpunct,
 	// '$'
-	_IsPrint | _IsGraph | _IsPunct,
+	_ISprint | _ISgraph | _ISpunct,
 	// '%'
-	_IsPrint | _IsGraph | _IsPunct,
+	_ISprint | _ISgraph | _ISpunct,
 	// '&'
-	_IsPrint | _IsGraph | _IsPunct,
+	_ISprint | _ISgraph | _ISpunct,
 	// '''
-	_IsPrint | _IsGraph | _IsPunct,
+	_ISprint | _ISgraph | _ISpunct,
 	// '('
-	_IsPrint | _IsGraph | _IsPunct,
+	_ISprint | _ISgraph | _ISpunct,
 	// ')'
-	_IsPrint | _IsGraph | _IsPunct,
+	_ISprint | _ISgraph | _ISpunct,
 	// '*'
-	_IsPrint | _IsGraph | _IsPunct,
+	_ISprint | _ISgraph | _ISpunct,
 	// '+'
-	_IsPrint | _IsGraph | _IsPunct,
+	_ISprint | _ISgraph | _ISpunct,
 	// ','
-	_IsPrint | _IsGraph | _IsPunct,
+	_ISprint | _ISgraph | _ISpunct,
 	// '-'
-	_IsPrint | _IsGraph | _IsPunct,
+	_ISprint | _ISgraph | _ISpunct,
 	// '.'
-	_IsPrint | _IsGraph | _IsPunct,
+	_ISprint | _ISgraph | _ISpunct,
 	// '/'
-	_IsPrint | _IsGraph | _IsPunct,
+	_ISprint | _ISgraph | _ISpunct,
 	// '0'
-	_IsDigit | _IsXdigit | _IsPrint | _IsGraph | _IsAlnum,
+	_ISdigit | _ISxdigit | _ISprint | _ISgraph | _ISalnum,
 	// '1'
-	_IsDigit | _IsXdigit | _IsPrint | _IsGraph | _IsAlnum,
+	_ISdigit | _ISxdigit | _ISprint | _ISgraph | _ISalnum,
 	// '2'
-	_IsDigit | _IsXdigit | _IsPrint | _IsGraph | _IsAlnum,
+	_ISdigit | _ISxdigit | _ISprint | _ISgraph | _ISalnum,
 	// '3'
-	_IsDigit | _IsXdigit | _IsPrint | _IsGraph | _IsAlnum,
+	_ISdigit | _ISxdigit | _ISprint | _ISgraph | _ISalnum,
 	// '4'
-	_IsDigit | _IsXdigit | _IsPrint | _IsGraph | _IsAlnum,
+	_ISdigit | _ISxdigit | _ISprint | _ISgraph | _ISalnum,
 	// '5'
-	_IsDigit | _IsXdigit | _IsPrint | _IsGraph | _IsAlnum,
+	_ISdigit | _ISxdigit | _ISprint | _ISgraph | _ISalnum,
 	// '6'
-	_IsDigit | _IsXdigit | _IsPrint | _IsGraph | _IsAlnum,
+	_ISdigit | _ISxdigit | _ISprint | _ISgraph | _ISalnum,
 	// '7'
-	_IsDigit | _IsXdigit | _IsPrint | _IsGraph | _IsAlnum,
+	_ISdigit | _ISxdigit | _ISprint | _ISgraph | _ISalnum,
 	// '8'
-	_IsDigit | _IsXdigit | _IsPrint | _IsGraph | _IsAlnum,
+	_ISdigit | _ISxdigit | _ISprint | _ISgraph | _ISalnum,
 	// '9'
-	_IsDigit | _IsXdigit | _IsPrint | _IsGraph | _IsAlnum,
+	_ISdigit | _ISxdigit | _ISprint | _ISgraph | _ISalnum,
 	// ':'
-	_IsPrint | _IsGraph | _IsPunct,
+	_ISprint | _ISgraph | _ISpunct,
 	// ';'
-	_IsPrint | _IsGraph | _IsPunct,
+	_ISprint | _ISgraph | _ISpunct,
 	// '<'
-	_IsPrint | _IsGraph | _IsPunct,
+	_ISprint | _ISgraph | _ISpunct,
 	// '='
-	_IsPrint | _IsGraph | _IsPunct,
+	_ISprint | _ISgraph | _ISpunct,
 	// '>'
-	_IsPrint | _IsGraph | _IsPunct,
+	_ISprint | _ISgraph | _ISpunct,
 	// '?'
-	_IsPrint | _IsGraph | _IsPunct,
+	_ISprint | _ISgraph | _ISpunct,
 	// '@'
-	_IsPrint | _IsGraph | _IsPunct,
+	_ISprint | _ISgraph | _ISpunct,
 	// 'A'
-	_IsUpper | _IsAlpha | _IsXdigit | _IsPrint | _IsGraph | _IsAlnum,
+	_ISupper | _ISalpha | _ISxdigit | _ISprint | _ISgraph | _ISalnum,
 	// 'B'
-	_IsUpper | _IsAlpha | _IsXdigit | _IsPrint | _IsGraph | _IsAlnum,
+	_ISupper | _ISalpha | _ISxdigit | _ISprint | _ISgraph | _ISalnum,
 	// 'C'
-	_IsUpper | _IsAlpha | _IsXdigit | _IsPrint | _IsGraph | _IsAlnum,
+	_ISupper | _ISalpha | _ISxdigit | _ISprint | _ISgraph | _ISalnum,
 	// 'D'
-	_IsUpper | _IsAlpha | _IsXdigit | _IsPrint | _IsGraph | _IsAlnum,
+	_ISupper | _ISalpha | _ISxdigit | _ISprint | _ISgraph | _ISalnum,
 	// 'E'
-	_IsUpper | _IsAlpha | _IsXdigit | _IsPrint | _IsGraph | _IsAlnum,
+	_ISupper | _ISalpha | _ISxdigit | _ISprint | _ISgraph | _ISalnum,
 	// 'F'
-	_IsUpper | _IsAlpha | _IsXdigit | _IsPrint | _IsGraph | _IsAlnum,
+	_ISupper | _ISalpha | _ISxdigit | _ISprint | _ISgraph | _ISalnum,
 	// 'G'
-	_IsUpper | _IsAlpha | _IsPrint | _IsGraph | _IsAlnum,
+	_ISupper | _ISalpha | _ISprint | _ISgraph | _ISalnum,
 	// 'H'
-	_IsUpper | _IsAlpha | _IsPrint | _IsGraph | _IsAlnum,
+	_ISupper | _ISalpha | _ISprint | _ISgraph | _ISalnum,
 	// 'I'
-	_IsUpper | _IsAlpha | _IsPrint | _IsGraph | _IsAlnum,
+	_ISupper | _ISalpha | _ISprint | _ISgraph | _ISalnum,
 	// 'J'
-	_IsUpper | _IsAlpha | _IsPrint | _IsGraph | _IsAlnum,
+	_ISupper | _ISalpha | _ISprint | _ISgraph | _ISalnum,
 	// 'K'
-	_IsUpper | _IsAlpha | _IsPrint | _IsGraph | _IsAlnum,
+	_ISupper | _ISalpha | _ISprint | _ISgraph | _ISalnum,
 	// 'L'
-	_IsUpper | _IsAlpha | _IsPrint | _IsGraph | _IsAlnum,
+	_ISupper | _ISalpha | _ISprint | _ISgraph | _ISalnum,
 	// 'M'
-	_IsUpper | _IsAlpha | _IsPrint | _IsGraph | _IsAlnum,
+	_ISupper | _ISalpha | _ISprint | _ISgraph | _ISalnum,
 	// 'N'
-	_IsUpper | _IsAlpha | _IsPrint | _IsGraph | _IsAlnum,
+	_ISupper | _ISalpha | _ISprint | _ISgraph | _ISalnum,
 	// 'O'
-	_IsUpper | _IsAlpha | _IsPrint | _IsGraph | _IsAlnum,
+	_ISupper | _ISalpha | _ISprint | _ISgraph | _ISalnum,
 	// 'P'
-	_IsUpper | _IsAlpha | _IsPrint | _IsGraph | _IsAlnum,
+	_ISupper | _ISalpha | _ISprint | _ISgraph | _ISalnum,
 	// 'Q'
-	_IsUpper | _IsAlpha | _IsPrint | _IsGraph | _IsAlnum,
+	_ISupper | _ISalpha | _ISprint | _ISgraph | _ISalnum,
 	// 'R'
-	_IsUpper | _IsAlpha | _IsPrint | _IsGraph | _IsAlnum,
+	_ISupper | _ISalpha | _ISprint | _ISgraph | _ISalnum,
 	// 'S'
-	_IsUpper | _IsAlpha | _IsPrint | _IsGraph | _IsAlnum,
+	_ISupper | _ISalpha | _ISprint | _ISgraph | _ISalnum,
 	// 'T'
-	_IsUpper | _IsAlpha | _IsPrint | _IsGraph | _IsAlnum,
+	_ISupper | _ISalpha | _ISprint | _ISgraph | _ISalnum,
 	// 'U'
-	_IsUpper | _IsAlpha | _IsPrint | _IsGraph | _IsAlnum,
+	_ISupper | _ISalpha | _ISprint | _ISgraph | _ISalnum,
 	// 'V'
-	_IsUpper | _IsAlpha | _IsPrint | _IsGraph | _IsAlnum,
+	_ISupper | _ISalpha | _ISprint | _ISgraph | _ISalnum,
 	// 'W'
-	_IsUpper | _IsAlpha | _IsPrint | _IsGraph | _IsAlnum,
+	_ISupper | _ISalpha | _ISprint | _ISgraph | _ISalnum,
 	// 'X'
-	_IsUpper | _IsAlpha | _IsPrint | _IsGraph | _IsAlnum,
+	_ISupper | _ISalpha | _ISprint | _ISgraph | _ISalnum,
 	// 'Y'
-	_IsUpper | _IsAlpha | _IsPrint | _IsGraph | _IsAlnum,
+	_ISupper | _ISalpha | _ISprint | _ISgraph | _ISalnum,
 	// 'Z'
-	_IsUpper | _IsAlpha | _IsPrint | _IsGraph | _IsAlnum,
+	_ISupper | _ISalpha | _ISprint | _ISgraph | _ISalnum,
 	// '['
-	_IsPrint | _IsGraph | _IsPunct,
+	_ISprint | _ISgraph | _ISpunct,
 	// '\'
-	_IsPrint | _IsGraph | _IsPunct,
+	_ISprint | _ISgraph | _ISpunct,
 	// ']'
-	_IsPrint | _IsGraph | _IsPunct,
+	_ISprint | _ISgraph | _ISpunct,
 	// '^'
-	_IsPrint | _IsGraph | _IsPunct,
+	_ISprint | _ISgraph | _ISpunct,
 	// '_'
-	_IsPrint | _IsGraph | _IsPunct,
+	_ISprint | _ISgraph | _ISpunct,
 	// '`'
-	_IsPrint | _IsGraph | _IsPunct,
+	_ISprint | _ISgraph | _ISpunct,
 	// 'a'
-	_IsLower | _IsAlpha | _IsXdigit | _IsPrint | _IsGraph | _IsAlnum,
+	_ISlower | _ISalpha | _ISxdigit | _ISprint | _ISgraph | _ISalnum,
 	// 'b'
-	_IsLower | _IsAlpha | _IsXdigit | _IsPrint | _IsGraph | _IsAlnum,
+	_ISlower | _ISalpha | _ISxdigit | _ISprint | _ISgraph | _ISalnum,
 	// 'c'
-	_IsLower | _IsAlpha | _IsXdigit | _IsPrint | _IsGraph | _IsAlnum,
+	_ISlower | _ISalpha | _ISxdigit | _ISprint | _ISgraph | _ISalnum,
 	// 'd'
-	_IsLower | _IsAlpha | _IsXdigit | _IsPrint | _IsGraph | _IsAlnum,
+	_ISlower | _ISalpha | _ISxdigit | _ISprint | _ISgraph | _ISalnum,
 	// 'e'
-	_IsLower | _IsAlpha | _IsXdigit | _IsPrint | _IsGraph | _IsAlnum,
+	_ISlower | _ISalpha | _ISxdigit | _ISprint | _ISgraph | _ISalnum,
 	// 'f'
-	_IsLower | _IsAlpha | _IsXdigit | _IsPrint | _IsGraph | _IsAlnum,
+	_ISlower | _ISalpha | _ISxdigit | _ISprint | _ISgraph | _ISalnum,
 	// 'g'
-	_IsLower | _IsAlpha | _IsPrint | _IsGraph | _IsAlnum,
+	_ISlower | _ISalpha | _ISprint | _ISgraph | _ISalnum,
 	// 'h'
-	_IsLower | _IsAlpha | _IsPrint | _IsGraph | _IsAlnum,
+	_ISlower | _ISalpha | _ISprint | _ISgraph | _ISalnum,
 	// 'i'
-	_IsLower | _IsAlpha | _IsPrint | _IsGraph | _IsAlnum,
+	_ISlower | _ISalpha | _ISprint | _ISgraph | _ISalnum,
 	// 'j'
-	_IsLower | _IsAlpha | _IsPrint | _IsGraph | _IsAlnum,
+	_ISlower | _ISalpha | _ISprint | _ISgraph | _ISalnum,
 	// 'k'
-	_IsLower | _IsAlpha | _IsPrint | _IsGraph | _IsAlnum,
+	_ISlower | _ISalpha | _ISprint | _ISgraph | _ISalnum,
 	// 'l'
-	_IsLower | _IsAlpha | _IsPrint | _IsGraph | _IsAlnum,
+	_ISlower | _ISalpha | _ISprint | _ISgraph | _ISalnum,
 	// 'm'
-	_IsLower | _IsAlpha | _IsPrint | _IsGraph | _IsAlnum,
+	_ISlower | _ISalpha | _ISprint | _ISgraph | _ISalnum,
 	// 'n'
-	_IsLower | _IsAlpha | _IsPrint | _IsGraph | _IsAlnum,
+	_ISlower | _ISalpha | _ISprint | _ISgraph | _ISalnum,
 	// 'o'
-	_IsLower | _IsAlpha | _IsPrint | _IsGraph | _IsAlnum,
+	_ISlower | _ISalpha | _ISprint | _ISgraph | _ISalnum,
 	// 'p'
-	_IsLower | _IsAlpha | _IsPrint | _IsGraph | _IsAlnum,
+	_ISlower | _ISalpha | _ISprint | _ISgraph | _ISalnum,
 	// 'q'
-	_IsLower | _IsAlpha | _IsPrint | _IsGraph | _IsAlnum,
+	_ISlower | _ISalpha | _ISprint | _ISgraph | _ISalnum,
 	// 'r'
-	_IsLower | _IsAlpha | _IsPrint | _IsGraph | _IsAlnum,
+	_ISlower | _ISalpha | _ISprint | _ISgraph | _ISalnum,
 	// 's'
-	_IsLower | _IsAlpha | _IsPrint | _IsGraph | _IsAlnum,
+	_ISlower | _ISalpha | _ISprint | _ISgraph | _ISalnum,
 	// 't'
-	_IsLower | _IsAlpha | _IsPrint | _IsGraph | _IsAlnum,
+	_ISlower | _ISalpha | _ISprint | _ISgraph | _ISalnum,
 	// 'u'
-	_IsLower | _IsAlpha | _IsPrint | _IsGraph | _IsAlnum,
+	_ISlower | _ISalpha | _ISprint | _ISgraph | _ISalnum,
 	// 'v'
-	_IsLower | _IsAlpha | _IsPrint | _IsGraph | _IsAlnum,
+	_ISlower | _ISalpha | _ISprint | _ISgraph | _ISalnum,
 	// 'w'
-	_IsLower | _IsAlpha | _IsPrint | _IsGraph | _IsAlnum,
+	_ISlower | _ISalpha | _ISprint | _ISgraph | _ISalnum,
 	// 'x'
-	_IsLower | _IsAlpha | _IsPrint | _IsGraph | _IsAlnum,
+	_ISlower | _ISalpha | _ISprint | _ISgraph | _ISalnum,
 	// 'y'
-	_IsLower | _IsAlpha | _IsPrint | _IsGraph | _IsAlnum,
+	_ISlower | _ISalpha | _ISprint | _ISgraph | _ISalnum,
 	// 'z'
-	_IsLower | _IsAlpha | _IsPrint | _IsGraph | _IsAlnum,
+	_ISlower | _ISalpha | _ISprint | _ISgraph | _ISalnum,
 	// '{'
-	_IsPrint | _IsGraph | _IsPunct,
+	_ISprint | _ISgraph | _ISpunct,
 	// '|'
-	_IsPrint | _IsGraph | _IsPunct,
+	_ISprint | _ISgraph | _ISpunct,
 	// '}'
-	_IsPrint | _IsGraph | _IsPunct,
+	_ISprint | _ISgraph | _ISpunct,
 	// '~'
-	_IsPrint | _IsGraph | _IsPunct,
+	_ISprint | _ISgraph | _ISpunct,
 	// <127>
-	_IsCntrl,
+	_IScntrl,
 	// <128>
 	0,
 	// <129>

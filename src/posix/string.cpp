@@ -47,7 +47,7 @@ EXPORT int strcoll_l(const char* lhs, const char* rhs, locale_t locale) {
 }
 
 EXPORT size_t strxfrm_l(char* __restrict dest, const char* __restrict src, size_t count, locale_t locale) {
-	println("strxfrm_l ignores locale");
+	//println("strxfrm_l ignores locale");
 	return strxfrm(dest, src, count);
 }
 

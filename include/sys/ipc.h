@@ -3,7 +3,7 @@
 
 #include <bits/utils.h>
 
-__begin
+__begin_decls
 
 #include <sys/types.h>
 
@@ -24,6 +24,6 @@ struct ipc_perm {
 	unsigned long __unused[2];
 };
 
-__end
+__end_decls
 
 #endif

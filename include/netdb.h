@@ -4,7 +4,7 @@
 #include <bits/utils.h>
 #include <sys/socket.h>
 
-__begin
+__begin_decls
 
 #define EAI_BADFLAGS -1
 #define EAI_NONAME -2
@@ -94,6 +94,6 @@ struct hostent* gethostbyname(const char* __name);
 
 const char* gai_strerror(int __err_code);
 
-__end
+__end_decls
 
 #endif

@@ -39,7 +39,25 @@ EXPORT ssize_t pread(int fd, void* buf, size_t count, off_t offset) {
 	return ret;
 }
 
+EXPORT ssize_t pread64(int fd, void* buf, size_t count, off64_t offset) {
+	ssize_t ret;
+	if (auto err = sys_pread(fd, buf, count, offset, &ret)) {
+		errno = err;
+		return -1;
+	}
+	return ret;
+}
+
 EXPORT ssize_t pwrite(int fd, const void* buf, size_t count, off_t offset) {
+	ssize_t ret;
+	if (auto err = sys_pwrite(fd, buf, count, offset, &ret)) {
+		errno = err;
+		return -1;
+	}
+	return ret;
+}
+
+EXPORT ssize_t pwrite64(int fd, const void* buf, size_t count, off64_t offset) {
 	ssize_t ret;
 	if (auto err = sys_pwrite(fd, buf, count, offset, &ret)) {
 		errno = err;
@@ -188,6 +206,14 @@ EXPORT int truncate(const char* path, off_t length) {
 	return 0;
 }
 
+EXPORT int truncate64(const char* path, off64_t length) {
+	if (auto err = sys_truncate(path, length)) {
+		errno = err;
+		return -1;
+	}
+	return 0;
+}
+
 EXPORT int ftruncate(int fd, off_t length) {
 	if (auto err = sys_ftruncate(fd, length)) {
 		errno = err;
@@ -222,6 +248,14 @@ EXPORT int sync() {
 
 EXPORT int fsync(int fd) {
 	if (auto err = sys_fsync(fd)) {
+		errno = err;
+		return -1;
+	}
+	return 0;
+}
+
+EXPORT int fdatasync(int fd) {
+	if (auto err = sys_fdatasync(fd)) {
 		errno = err;
 		return -1;
 	}

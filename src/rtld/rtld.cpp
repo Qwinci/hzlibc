@@ -318,9 +318,19 @@ struct TlsEntry {
 	uintptr_t offset;
 };
 
+#ifdef __i386__
+
+extern "C" [[gnu::regparm(1)]] EXPORT void* ___tls_get_addr(TlsEntry* entry) {
+	return static_cast<char*>(access_tls_for_object(entry->object)) + entry->offset;
+}
+
+#else
+
 extern "C" EXPORT void* __tls_get_addr(TlsEntry* entry) {
 	return static_cast<char*>(access_tls_for_object(entry->object)) + entry->offset;
 }
+
+#endif
 
 int __dlapi_iterate_phdr(
 	int (*callback)(

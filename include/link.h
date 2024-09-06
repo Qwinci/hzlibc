@@ -5,7 +5,7 @@
 #include <stddef.h>
 #include <elf.h>
 
-__begin
+__begin_decls
 
 #if UINTPTR_MAX == UINT64_MAX
 #define ElfW(type) Elf64_ ## type
@@ -39,6 +39,6 @@ int dl_iterate_phdr(
 		void* __data),
 	void* __data);
 
-__end
+__end_decls
 
 #endif

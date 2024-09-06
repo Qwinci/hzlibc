@@ -5,6 +5,7 @@
 void* allocate(size_t size);
 void* reallocate(void* old, size_t new_size);
 void deallocate(void* ptr);
+size_t size_for_allocation(void* ptr);
 
 struct Allocator {
 	static void* allocate(size_t size) {

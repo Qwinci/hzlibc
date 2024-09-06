@@ -3,7 +3,7 @@
 
 #include <bits/utils.h>
 
-__begin
+__begin_decls
 
 typedef enum {
 	preorder,
@@ -24,6 +24,6 @@ void twalk(const void* __root, void (*__action)(const void* __node, VISIT __whic
 // glibc
 void tdestroy(void* __root, void (*__free_node)(void* __node));
 
-__end
+__end_decls
 
 #endif

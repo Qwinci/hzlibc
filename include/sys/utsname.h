@@ -3,7 +3,7 @@
 
 #include <bits/utils.h>
 
-__begin
+__begin_decls
 
 struct utsname {
 	char sysname[65];
@@ -16,6 +16,6 @@ struct utsname {
 
 int uname(struct utsname* __buf);
 
-__end
+__end_decls
 
 #endif

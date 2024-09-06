@@ -301,6 +301,14 @@ EXPORT int mknod(const char* path, mode_t mode, dev_t dev) {
 	return 0;
 }
 
+EXPORT int mkfifoat(int dir_fd, const char* path, mode_t mode) {
+	if (auto err = sys_mknodat(dir_fd, path, mode | S_IFIFO, 0)) {
+		errno = err;
+		return -1;
+	}
+	return 0;
+}
+
 EXPORT mode_t umask(mode_t mask) {
 	return sys_umask(mask);
 }

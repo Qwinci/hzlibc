@@ -49,10 +49,11 @@ asm(R"(
 .hidden _start
 .hidden start
 _start:
-	mov %esp, %edi
-	push %edi
+	sub $12, %esp
+	lea 12(%esp), %eax
+	push %eax
 	call start
-	add $4, %esp
+	add $16, %esp
 	jmp *%eax
 
 .globl get_dynamic

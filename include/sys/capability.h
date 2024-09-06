@@ -4,7 +4,7 @@
 #include <bits/utils.h>
 #include <stdint.h>
 
-__begin
+__begin_decls
 
 typedef struct __user_cap_header_struct {
 	uint32_t version;
@@ -20,6 +20,6 @@ typedef struct __user_cap_data_struct {
 int capget(cap_user_header_t __hdr, cap_user_data_t __data);
 int capset(cap_user_header_t __hdr, cap_user_data_t __data);
 
-__end
+__end_decls
 
 #endif

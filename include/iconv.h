@@ -4,7 +4,7 @@
 #include <bits/utils.h>
 #include <stddef.h>
 
-__begin
+__begin_decls
 
 typedef void* iconv_t;
 
@@ -17,6 +17,6 @@ size_t iconv(
 	char** __restrict __out_buf,
 	size_t* __restrict __out_bytes_left);
 
-__end
+__end_decls
 
 #endif

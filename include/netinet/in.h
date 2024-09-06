@@ -4,7 +4,7 @@
 #include <bits/utils.h>
 #include <sys/socket.h>
 
-__begin
+__begin_decls
 
 #define IN6ADDR_LOOPBACK_INIT {{{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1}}}
 #define IN6ADDR_ANY_INIT {{{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}}}
@@ -22,10 +22,11 @@ struct in6_addr {
 		uint16_t __u6_addr16[8];
 		uint32_t __u6_addr32[4];
 	} __in6_u;
+};
+
 #define s6_addr __in6_u.__u6_addr8
 #define s6_addr16 __in6_u.__u6_addr16
 #define s6_addr32 __in6_u.__u6_addr32
-};
 
 struct sockaddr_in {
 	sa_family_t sin_family;
@@ -33,9 +34,9 @@ struct sockaddr_in {
 	struct in_addr sin_addr;
 	unsigned char sin_zero[
 		sizeof(struct sockaddr) -
-			sizeof(sa_family_t) -
-			sizeof(in_port_t) -
-			sizeof(struct in_addr)];
+		sizeof(sa_family_t) -
+		sizeof(in_port_t) -
+		sizeof(struct in_addr)];
 };
 
 struct sockaddr_in6 {
@@ -46,11 +47,11 @@ struct sockaddr_in6 {
 	uint32_t sin6_scope_id;
 };
 
-extern in6_addr in6addr_loopback;
+extern struct in6_addr in6addr_loopback;
 
 #define INET_ADDRSTRLEN 16
 #define INET6_ADDRSTRLEN 46
 
-__end
+__end_decls
 
 #endif

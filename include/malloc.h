@@ -4,7 +4,7 @@
 #include <bits/utils.h>
 #include <stddef.h>
 
-__begin
+__begin_decls
 
 struct mallinfo2 {
 	size_t arena;
@@ -21,7 +21,8 @@ struct mallinfo2 {
 
 int malloc_trim(size_t __pad);
 struct mallinfo2 mallinfo2(void);
+size_t malloc_usable_size(void* __ptr);
 
-__end
+__end_decls
 
 #endif

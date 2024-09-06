@@ -3,7 +3,7 @@
 
 #include <bits/utils.h>
 
-__begin
+__begin_decls
 
 typedef struct __res_state* res_state;
 
@@ -36,6 +36,6 @@ int dn_expand(
 	char* __expanded_dn,
 	int __length);
 
-__end
+__end_decls
 
 #endif

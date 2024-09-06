@@ -5,11 +5,11 @@
 #include <sys/types.h>
 #include <bits/iov.h>
 
-__begin
+__begin_decls
 
 ssize_t readv(int __fd, const struct iovec* __iov, int __iov_count);
 ssize_t writev(int __fd, const struct iovec* __iov, int __iov_count);
 
-__end
+__end_decls
 
 #endif

@@ -75,6 +75,7 @@ EXPORT void free(void* ptr) {
 EXPORT char* getenv(const char* name) {
 	hz::string_view name_str {name};
 
+	__ensure(environ);
 	for (auto* env = environ; *env; ++env) {
 		hz::string_view env_str {*env};
 		auto sep = env_str.find('=');
@@ -162,7 +163,9 @@ namespace {
 	};
 
 	AtExitBlock INITIAL_BLOCK {};
+	AtExitBlock INITIAL_QUICK_BLOCK {};
 	hz::spinlock<AtExitBlock*> BLOCKS {&INITIAL_BLOCK};
+	hz::spinlock<AtExitBlock*> QUICK_BLOCKS {&INITIAL_QUICK_BLOCK};
 }
 
 extern "C" EXPORT void __cxa_finalize(void* dso_handle) {
@@ -230,6 +233,27 @@ EXPORT __attribute__((noreturn)) void exit(int status) {
 }
 
 EXPORT __attribute__((__noreturn__)) void quick_exit(int status) {
+	auto guard = QUICK_BLOCKS.lock();
+	auto* block = *guard;
+	while (block) {
+		for (int i = block->size; i > 0; --i) {
+			auto& fn = block->fns[i - 1];
+			if (!fn.fn) {
+				continue;
+			}
+			fn.fn(fn.arg);
+		}
+
+		auto* next = block->next;
+		if (block != &INITIAL_QUICK_BLOCK) {
+			delete block;
+		}
+		block = next;
+	}
+	*guard = &INITIAL_QUICK_BLOCK;
+	INITIAL_QUICK_BLOCK.size = 0;
+	INITIAL_QUICK_BLOCK.next = nullptr;
+
 	_Exit(status);
 }
 
@@ -264,6 +288,29 @@ EXPORT int atexit(void (*func)()) {
 	return __cxa_atexit(reinterpret_cast<AtExitFn>(func), nullptr, nullptr);
 }
 
+EXPORT int at_quick_exit(void (*func)()) {
+	auto guard = QUICK_BLOCKS.lock();
+	if ((*guard)->size == 8) {
+		auto* new_block = new AtExitBlock {};
+		new_block->fns[new_block->size++] = {
+			.fn = reinterpret_cast<void (*)(void*)>(func),
+			.arg = nullptr,
+			.dso_handle = nullptr
+		};
+		new_block->next = *guard;
+		*guard = new_block;
+	}
+	else {
+		(*guard)->fns[(*guard)->size++] = {
+			.fn = reinterpret_cast<void (*)(void*)>(func),
+			.arg = nullptr,
+			.dso_handle = nullptr
+		};
+	}
+
+	return 0;
+}
+
 namespace {
 	constexpr char CHARS[] = "0123456789abcdefghijklmnopqrstuvwxyz";
 }
@@ -279,6 +326,52 @@ EXPORT int atoi(const char* str) {
 	}
 
 	int value = 0;
+	for (; isdigit(*str); ++str) {
+		value *= 10;
+		value += *str - '0';
+	}
+
+	if (sign) {
+		value *= -1;
+	}
+
+	return value;
+}
+
+EXPORT long atol(const char* str) {
+	bool sign = false;
+	if (*str == '-') {
+		++str;
+		sign = true;
+	}
+	else if (*str == '+') {
+		++str;
+	}
+
+	long value = 0;
+	for (; isdigit(*str); ++str) {
+		value *= 10;
+		value += *str - '0';
+	}
+
+	if (sign) {
+		value *= -1;
+	}
+
+	return value;
+}
+
+EXPORT long long atoll(const char* str) {
+	bool sign = false;
+	if (*str == '-') {
+		++str;
+		sign = true;
+	}
+	else if (*str == '+') {
+		++str;
+	}
+
+	long long value = 0;
 	for (; isdigit(*str); ++str) {
 		value *= 10;
 		value += *str - '0';
@@ -496,14 +589,13 @@ T str_to_float(const char* __restrict ptr, char** __restrict end_ptr) {
 			exponent += digit;
 		}
 
-		if (base == 10) {
-			int exponent_value = exponent_sign ? -10 : 10;
+		int exponent_value = base == 10 ? 10 : 2;
+		if (exponent_sign) {
 			for (int i = 0; i < exponent; ++i) {
-				value *= exponent_value;
+				value /= exponent_value;
 			}
 		}
 		else {
-			int exponent_value = exponent_sign ? -2 : 2;
 			for (int i = 0; i < exponent; ++i) {
 				value *= exponent_value;
 			}
@@ -625,6 +717,39 @@ EXPORT int rand() {
 	x ^= x << 5;
 	RAND_STATE = x;
 	return static_cast<int>(x % RAND_MAX);
+}
+
+EXPORT int abs(int x) {
+	return x < 0 ? x * -1 : x;
+}
+
+EXPORT long labs(long x) {
+	return x < 0 ? x * -1 : x;
+}
+
+EXPORT long long llabs(long long x) {
+	return x < 0 ? x * -1 : x;
+}
+
+EXPORT div_t div(int x, int y) {
+	return {
+		.quot = x / y,
+		.rem = x % y
+	};
+}
+
+EXPORT ldiv_t ldiv(long x, long y) {
+	return {
+		.quot = x / y,
+		.rem = x % y
+	};
+}
+
+EXPORT lldiv_t lldiv(long long x, long long y) {
+	return {
+		.quot = x / y,
+		.rem = x % y
+	};
 }
 
 EXPORT void* bsearch(

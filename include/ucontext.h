@@ -6,7 +6,7 @@
 #include <stdint.h>
 #include <stddef.h>
 
-__begin
+__begin_decls
 
 typedef struct {
 	void* ss_sp;
@@ -64,8 +64,8 @@ struct __fpstate {
 	uint64_t rdp;
 	uint32_t mxcsr;
 	uint32_t mxcsr_mask;
-	__fpreg _st[8];
-	__fpxmmreg _xmm[16];
+	struct __fpreg _st[8];
+	struct __fpxmmreg _xmm[16];
 	uint32_t __reserved0[12];
 	uint32_t __reserved1[12];
 };
@@ -127,7 +127,7 @@ struct __fpstate {
 	uint32_t cssel;
 	uint32_t dataoff;
 	uint32_t datasel;
-	__fpreg _st[8];
+	struct __fpreg _st[8];
 	uint32_t status;
 };
 
@@ -158,6 +158,6 @@ int getcontext(ucontext_t* __ctx);
 int setcontext(const ucontext_t* __ctx);
 void makecontext(ucontext_t* __ctx, void (*__func)(), int __argc, ...);
 
-__end
+__end_decls
 
 #endif

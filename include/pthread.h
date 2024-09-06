@@ -6,7 +6,7 @@
 #include <time.h>
 #include <sched.h>
 
-__begin
+__begin_decls
 
 typedef unsigned long pthread_t;
 typedef unsigned int pthread_key_t;
@@ -125,10 +125,6 @@ typedef union {
 	long __align;
 } pthread_barrierattr_t;
 
-struct sched_param {
-	int sched_priority;
-};
-
 pthread_t pthread_self(void);
 int pthread_equal(pthread_t __t1, pthread_t __t2);
 
@@ -139,6 +135,8 @@ int pthread_create(
 	void* __restrict __arg);
 int pthread_join(pthread_t __thrd, void** __ret);
 int pthread_detach(pthread_t __thrd);
+int pthread_kill(pthread_t __thrd, int __sig);
+__attribute__((noreturn)) void pthread_exit(void* __ret);
 int pthread_setcanceltype(int __state, int* __old_state);
 
 int pthread_atfork(void (*__prepare)(void), void (*__parent)(void), void (*__child)(void));
@@ -206,6 +204,8 @@ int pthread_getname_np(pthread_t __thrd, char* __name, size_t __len);
 int pthread_setaffinity_np(pthread_t __thrd, size_t __cpu_set_size, const cpu_set_t* __cpu_set);
 int pthread_getaffinity_np(pthread_t __thrd, size_t __cpu_set_size, cpu_set_t* __cpu_set);
 
-__end
+int pthread_num_processors_np(void);
+
+__end_decls
 
 #endif

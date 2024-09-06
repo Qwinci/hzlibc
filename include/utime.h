@@ -4,7 +4,7 @@
 #include <bits/utils.h>
 #include <time.h>
 
-__begin
+__begin_decls
 
 struct utimbuf {
 	time_t actime;
@@ -13,6 +13,6 @@ struct utimbuf {
 
 int utime(const char* __path, const struct utimbuf* __times);
 
-__end
+__end_decls
 
 #endif

@@ -4,7 +4,7 @@
 #include <bits/utils.h>
 #include <stddef.h>
 
-__begin
+__begin_decls
 
 typedef struct re_pattern_buffer {
 	struct re_dfa_t* __buffer;
@@ -40,6 +40,6 @@ int regexec(
 	regmatch_t* __restrict __match,
 	int __flags);
 
-__end
+__end_decls
 
 #endif

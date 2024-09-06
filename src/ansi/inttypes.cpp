@@ -134,5 +134,16 @@ EXPORT intmax_t strtoimax(const char* __restrict ptr, char** __restrict end_ptr,
 	return static_cast<intmax_t>(value);
 }
 
+EXPORT intmax_t imaxabs(intmax_t x) {
+	return x < 0 ? x * -1 : x;
+}
+
+EXPORT imaxdiv_t imaxdiv(intmax_t x, intmax_t y) {
+	return {
+		.quot = x / y,
+		.rem = x % y
+	};
+}
+
 ALIAS(strtoumax, __isoc23_strtoumax);
 ALIAS(strtoimax, __isoc23_strtoimax);

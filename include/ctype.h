@@ -4,21 +4,21 @@
 #include <bits/utils.h>
 #include <stdint.h>
 
-__begin
+__begin_decls
 
 enum {
-	_IsUpper = 1 << 8,
-	_IsLower = 1 << 9,
-	_IsAlpha = 1 << 10,
-	_IsDigit = 1 << 11,
-	_IsXdigit = 1 << 12,
-	_IsSpace = 1 << 13,
-	_IsPrint = 1 << 14,
-	_IsGraph = 1 << 15,
-	_IsBlank = 1 << 0,
-	_IsCntrl = 1 << 1,
-	_IsPunct = 1 << 2,
-	_IsAlnum = 1 << 3
+	_ISupper = 1 << 8,
+	_ISlower = 1 << 9,
+	_ISalpha = 1 << 10,
+	_ISdigit = 1 << 11,
+	_ISxdigit = 1 << 12,
+	_ISspace = 1 << 13,
+	_ISprint = 1 << 14,
+	_ISgraph = 1 << 15,
+	_ISblank = 1 << 0,
+	_IScntrl = 1 << 1,
+	_ISpunct = 1 << 2,
+	_ISalnum = 1 << 3
 };
 
 extern const unsigned short** __ctype_b_loc(void);
@@ -41,6 +41,6 @@ int iscntrl(int __ch);
 int ispunct(int __ch);
 int isalnum(int __ch);
 
-__end
+__end_decls
 
 #endif

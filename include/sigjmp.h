@@ -4,7 +4,7 @@
 #include <bits/utils.h>
 #include <signal.h>
 
-__begin
+__begin_decls
 
 #ifdef __x86_64__
 typedef long __jmp_buf[8];
@@ -34,6 +34,6 @@ typedef __jmp_buf_tag sigjmp_buf[1];
 __attribute__((__returns_twice__)) int sigsetjmp(sigjmp_buf __env, int __save_mask);
 __attribute__((__noreturn__)) void siglongjmp(sigjmp_buf __env, int __value);
 
-__end
+__end_decls
 
 #endif

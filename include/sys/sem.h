@@ -6,7 +6,7 @@
 #include <sys/ipc.h>
 #include <time.h>
 
-__begin
+__begin_decls
 
 #define GETPID 11
 #define GETVAL 12
@@ -47,6 +47,6 @@ int semget(key_t __key, int __num_sems, int __sem_flag);
 int semop(int __sem_id, struct sembuf* __sops, size_t __num_sops);
 int semctl(int __sem_id, int __sem_num, int __cmd, ...);
 
-__end
+__end_decls
 
 #endif

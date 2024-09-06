@@ -5,7 +5,7 @@
 #include <stdlib.h>
 #include <sys/types.h>
 
-__begin
+__begin_decls
 
 #define O_RDONLY 0
 #define O_WRONLY 1
@@ -30,6 +30,8 @@ __begin
 #define AT_FDCWD -100
 
 #define AT_SYMLINK_NOFOLLOW 0x100
+#define AT_REMOVEDIR 0x200
+
 #define AT_EACCESS 0x200
 #define AT_EMPTY_PATH 0x1000
 
@@ -97,12 +99,13 @@ struct flock64 {
 int open(const char* __path, int __flags, ...);
 int open64(const char* __path, int __flags, ...);
 int openat(int __dir_fd, const char* __path, int __flags, ...);
+int openat64(int __dir_fd, const char* __path, int __flags, ...);
 int fcntl(int __fd, int __cmd, ...);
 int fcntl64(int __fd, int __cmd, ...);
 int posix_fadvise(int __fd, off_t __offset, off_t __len, int __advice);
 int posix_fallocate(int __fd, off_t __offset, off_t __len);
 int posix_fallocate64(int __fd, off64_t __offset, off64_t __len);
 
-__end
+__end_decls
 
 #endif

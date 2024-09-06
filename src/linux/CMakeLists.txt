@@ -4,6 +4,7 @@ target_sources(c PRIVATE
 	eventfd.cpp
 	ifaddrs.cpp
 	inotify.cpp
+	io.cpp
 	mman.cpp
 	personality.cpp
 	poll.cpp

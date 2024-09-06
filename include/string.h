@@ -5,7 +5,7 @@
 #include <stddef.h>
 #include <locale.h>
 
-__begin
+__begin_decls
 
 size_t strlen(const char* __str);
 void* memset(void* __dest, int __ch, size_t __size);
@@ -49,11 +49,12 @@ char* strsignal(int __sig);
 void* rawmemchr(const void* __ptr, int __ch);
 void* mempcpy(void* __restrict __dest, const void* __restrict __src, size_t __size);
 void* memrchr(const void* __ptr, int __ch, size_t __count);
+void* memmem(const void* __ptr, size_t __len, const void* __search, size_t __search_len);
 char* strerror_r(int __err_num, char* __buf, size_t __buf_len);
 int strverscmp(const char* __s1, const char* __s2);
 char* strcasestr(const char* __str, const char* __substr);
 char* strchrnul(const char* __str, int __ch);
 
-__end
+__end_decls
 
 #endif

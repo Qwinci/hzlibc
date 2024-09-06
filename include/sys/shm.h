@@ -6,7 +6,7 @@
 #include <sys/ipc.h>
 #include <time.h>
 
-__begin
+__begin_decls
 
 typedef unsigned long shmatt_t;
 
@@ -36,6 +36,6 @@ int shmdt(const void* __shm_addr);
 int shmget(key_t __key, size_t __size, int __shm_flag);
 int shmctl(int __shm_id, int __op, struct shmid_ds* __buf);
 
-__end
+__end_decls
 
 #endif

@@ -3,10 +3,10 @@
 
 #include <bits/utils.h>
 
-__begin
+__begin_decls
 
 int personality(unsigned long __persona);
 
-__end
+__end_decls
 
 #endif

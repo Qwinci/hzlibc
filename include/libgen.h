@@ -3,11 +3,11 @@
 
 #include <bits/utils.h>
 
-__begin
+__begin_decls
 
 extern char *__xpg_basename (char* __path);
 #define basename __xpg_basename
 
-__end
+__end_decls
 
 #endif

@@ -4,7 +4,7 @@
 #include <sys/types.h>
 #include <bits/utils.h>
 
-__begin
+__begin_decls
 
 dev_t gnu_dev_makedev(unsigned int __major, unsigned int __minor);
 unsigned int gnu_dev_major(dev_t __dev);
@@ -14,6 +14,6 @@ unsigned int gnu_dev_minor(dev_t __dev);
 #define major gnu_dev_major
 #define minor gnu_dev_minor
 
-__end
+__end_decls
 
 #endif

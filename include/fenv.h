@@ -3,7 +3,7 @@
 
 #include <bits/utils.h>
 
-__begin
+__begin_decls
 
 #if defined(__x86_64__) || defined(__i386__)
 
@@ -23,6 +23,6 @@ int fegetround(void);
 int feclearexcept(int __excepts);
 int fetestexcept(int __excepts);
 
-__end
+__end_decls
 
 #endif

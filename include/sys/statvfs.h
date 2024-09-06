@@ -4,7 +4,7 @@
 #include <bits/utils.h>
 #include <sys/types.h>
 
-__begin
+__begin_decls
 
 struct statvfs {
 	unsigned long f_bsize;
@@ -41,6 +41,6 @@ struct statvfs64 {
 int statvfs(const char* __restrict __path, struct statvfs* __restrict __buf);
 int statvfs64(const char* __restrict __path, struct statvfs64* __restrict __buf);
 
-__end
+__end_decls
 
 #endif

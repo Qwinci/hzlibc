@@ -4,7 +4,7 @@
 #include <bits/utils.h>
 #include <sys/types.h>
 
-__begin
+__begin_decls
 
 struct statfs {
 	__fsword_t f_type;
@@ -41,6 +41,6 @@ int statfs64(const char* __path, struct statfs64* __buf);
 int fstatfs(int __fd, struct statfs* __buf);
 int fstatfs64(int __fd, struct statfs64* __buf);
 
-__end
+__end_decls
 
 #endif

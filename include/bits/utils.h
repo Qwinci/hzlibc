@@ -2,11 +2,11 @@
 #define _BITS_UTILS_H
 
 #ifdef __cplusplus
-#define __begin extern "C" {
-#define __end }
+#define __begin_decls extern "C" {
+#define __end_decls }
 #else
-#define __begin
-#define __end
+#define __begin_decls
+#define __end_decls
 #endif
 
 #endif

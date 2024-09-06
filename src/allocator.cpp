@@ -52,3 +52,7 @@ void* reallocate(void* old, size_t new_size) {
 void deallocate(void* ptr) {
 	ALLOCATOR.free(ptr);
 }
+
+size_t size_for_allocation(void* ptr) {
+	return ALLOCATOR.get_size_for_allocation(ptr);
+}

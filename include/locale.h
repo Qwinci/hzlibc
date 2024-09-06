@@ -3,7 +3,7 @@
 
 #include <bits/utils.h>
 
-__begin
+__begin_decls
 
 struct lconv {
 	char* decimal_point;
@@ -46,6 +46,32 @@ struct lconv {
 #define LC_MEASUREMENT 11
 #define LC_IDENTIFICATION 12
 
+#define LC_CTYPE_MASK (1 << LC_CTYPE)
+#define LC_NUMERIC_MASK (1 << LC_NUMERIC)
+#define LC_TIME_MASK (1 << LC_TIME)
+#define LC_COLLATE_MASK (1 << LC_COLLATE)
+#define LC_MONETARY_MASK (1 << LC_MONETARY)
+#define LC_MESSAGES_MASK (1 << LC_MESSAGES)
+#define LC_PAPER_MASK (1 << LC_PAPER)
+#define LC_NAME_MASK (1 << LC_NAME)
+#define LC_ADDRESS_MASK (1 << LC_ADDRESS)
+#define LC_TELEPHONE_MASK (1 << LC_TELEPHONE)
+#define LC_MEASUREMENT_MASK (1 << LC_MEASUREMENT)
+#define LC_IDENTIFICATION_MASK (1 << LC_IDENTIFICATION)
+#define LC_ALL_MASK ( \
+	LC_CTYPE_MASK | \
+	LC_NUMERIC_MASK | \
+	LC_TIME_MASK | \
+	LC_COLLATE_MASK | \
+	LC_MONETARY_MASK | \
+	LC_MESSAGES_MASK | \
+	LC_PAPER_MASK | \
+	LC_NAME_MASK | \
+	LC_ADDRESS_MASK | \
+	LC_TELEPHONE_MASK | \
+	LC_MEASUREMENT_MASK | \
+	LC_IDENTIFICATION_MASK)
+
 #define LC_GLOBAL_LOCALE ((locale_t) -1L)
 
 typedef struct __locale {
@@ -54,7 +80,9 @@ typedef struct __locale {
 	const int* __ctype_tolower;
 	const int* __ctype_toupper;
 	const char* __names[13];
-} *locale_t;
+} *__locale_t;
+
+typedef __locale_t locale_t;
 
 char* setlocale(int __category, const char* __locale);
 struct lconv* localeconv(void);
@@ -65,6 +93,6 @@ void freelocale(locale_t __locale);
 locale_t duplocale(locale_t __locale);
 locale_t uselocale(locale_t __new_locale);
 
-__end
+__end_decls
 
 #endif

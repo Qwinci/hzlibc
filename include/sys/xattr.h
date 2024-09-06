@@ -4,7 +4,7 @@
 #include <bits/utils.h>
 #include <sys/types.h>
 
-__begin
+__begin_decls
 
 ssize_t getxattr(const char* __path, const char* __name, void* __value, size_t __size);
 ssize_t fgetxattr(int __fd, const char* __name, void* __value, size_t __size);
@@ -13,6 +13,6 @@ int fsetxattr(int __fd, const char* __name, const void* __value, size_t __size, 
 int removexattr(const char* __path, const char* __name);
 int fremovexattr(int __fd, const char* __name);
 
-__end
+__end_decls
 
 #endif

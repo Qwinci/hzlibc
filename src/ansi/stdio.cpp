@@ -1094,6 +1094,10 @@ EXPORT int sscanf(const char* __restrict str, const char* __restrict fmt, ...) {
 	return ret;
 }
 
+EXPORT int vscanf(const char* __restrict fmt, va_list ap) {
+	return vfscanf(stdin, fmt, ap);
+}
+
 EXPORT int scanf(const char* __restrict fmt, ...) {
 	va_list ap;
 	va_start(ap, fmt);
@@ -1202,6 +1206,10 @@ EXPORT int getc(FILE* file) {
 	return fgetc(file);
 }
 
+EXPORT int getchar() {
+	return getc(stdin);
+}
+
 EXPORT char* fgets(char* __restrict str, int count, FILE* __restrict file) {
 	if (!count) {
 		errno = EINVAL;
@@ -1299,6 +1307,7 @@ EXPORT int fseek(FILE* file, long offset, int origin) {
 	off64_t tmp;
 	if (auto err = sys_lseek(file->fd, offset, origin, &tmp)) {
 		errno = err;
+		file->flags |= FILE_ERR_FLAG;
 		return -1;
 	}
 	file->ungetc_ptr = file->ungetc_buffer;
@@ -1311,6 +1320,7 @@ EXPORT long ftell(FILE* file) {
 	off64_t tmp;
 	if (auto err = sys_lseek(file->fd, 0, SEEK_CUR, &tmp)) {
 		errno = err;
+		file->flags |= FILE_ERR_FLAG;
 		return -1;
 	}
 	if (tmp > LONG_MAX) {
@@ -1329,6 +1339,44 @@ EXPORT void rewind(FILE* file) {
 	file->flags &= ~(FILE_ERR_FLAG | FILE_EOF_FLAG);
 	file->ungetc_ptr = file->ungetc_buffer;
 	file->ungetc_read_ptr = file->ungetc_buffer;
+	file->ungetc_size = 0;
+}
+
+EXPORT int fsetpos(FILE* __restrict file, const fpos_t* pos) {
+	auto guard = file->mutex.lock();
+
+	off64_t tmp;
+	if (auto err = sys_lseek(file->fd, pos->__pos, SEEK_SET, &tmp)) {
+		errno = err;
+		file->flags |= FILE_ERR_FLAG;
+		return -1;
+	}
+
+	file->ungetc_ptr = file->ungetc_buffer;
+	file->ungetc_read_ptr = file->ungetc_buffer;
+	file->ungetc_size = 0;
+
+	return 0;
+}
+
+EXPORT int fgetpos(FILE* __restrict file, fpos_t* __restrict pos) {
+	auto guard = file->mutex.lock();
+
+	off64_t tmp;
+	if (auto err = sys_lseek(file->fd, 0, SEEK_CUR, &tmp)) {
+		errno = err;
+		file->flags |= FILE_ERR_FLAG;
+		return -1;
+	}
+
+	if (tmp > LONG_MAX) {
+		errno = EOVERFLOW;
+		file->flags |= FILE_ERR_FLAG;
+		return -1;
+	}
+
+	pos->__pos = static_cast<off_t>(tmp);
+	return 0;
 }
 
 EXPORT int setbuf(
@@ -1350,6 +1398,10 @@ EXPORT int fflush(FILE* file) {
 		file->flush(file);
 	}
 	return 0;
+}
+
+EXPORT FILE* tmpfile() {
+	__ensure(!"tmpfile is not implemented");
 }
 
 EXPORT int remove(const char* path) {
@@ -1378,4 +1430,6 @@ ALIAS(sscanf, __isoc99_sscanf);
 ALIAS(sscanf, __isoc23_sscanf);
 ALIAS(vsscanf, __isoc23_vsscanf);
 ALIAS(vfscanf, __isoc23_vfscanf);
+ALIAS(fscanf, __isoc99_fscanf);
 ALIAS(fscanf, __isoc23_fscanf);
+ALIAS(tmpfile, tmpfile64);

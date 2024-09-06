@@ -4,7 +4,7 @@
 #include <bits/utils.h>
 #include <stddef.h>
 
-__begin
+__begin_decls
 
 int strcasecmp(const char* __s1, const char* __s2);
 int strncasecmp(const char* __s1, const char* __s2, size_t __count);
@@ -13,6 +13,6 @@ __attribute__((deprecated("Use memcmp instead"))) int bcmp(const void* __s1, con
 
 int ffs(int __value);
 
-__end
+__end_decls
 
 #endif

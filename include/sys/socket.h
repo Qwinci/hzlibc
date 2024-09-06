@@ -5,7 +5,7 @@
 #include <sys/types.h>
 #include <bits/iov.h>
 
-__begin
+__begin_decls
 
 typedef unsigned short sa_family_t;
 typedef uint32_t socklen_t;
@@ -135,9 +135,9 @@ struct cmsghdr {
 int socket(int __domain, int __type, int __protocol);
 int socketpair(int __domain, int __type, int __protocol, int __sv[2]);
 int connect(int __fd, const struct sockaddr* __addr, socklen_t __addr_len);
-int bind(int __fd, const sockaddr* __addr, socklen_t __addr_len);
+int bind(int __fd, const struct sockaddr* __addr, socklen_t __addr_len);
 int listen(int __fd, int __backlog);
-int accept(int __fd, sockaddr* __restrict __addr, socklen_t* __restrict __addr_len);
+int accept(int __fd, struct sockaddr* __restrict __addr, socklen_t* __restrict __addr_len);
 int shutdown(int __fd, int __how);
 
 int getsockopt(int __fd, int __level, int __option, void* __restrict __value, socklen_t* __restrict __value_len);
@@ -145,6 +145,8 @@ int setsockopt(int __fd, int __level, int __option, const void* __value, socklen
 
 int getsockname(int __fd, struct sockaddr* __restrict __addr, socklen_t* __restrict __addr_len);
 int getpeername(int __fd, struct sockaddr* __restrict __addr, socklen_t* __restrict __addr_len);
+
+int sockatmark(int __fd);
 
 ssize_t send(int __fd, const void* __buf, size_t __len, int __flags);
 ssize_t sendto(
@@ -167,8 +169,8 @@ ssize_t recvfrom(
 ssize_t recvmsg(int __fd, struct msghdr* __msg, int __flags);
 
 // linux
-int accept4(int __fd, sockaddr* __restrict __addr, socklen_t* __restrict __addr_len, int __flags);
+int accept4(int __fd, struct sockaddr* __restrict __addr, socklen_t* __restrict __addr_len, int __flags);
 
-__end
+__end_decls
 
 #endif

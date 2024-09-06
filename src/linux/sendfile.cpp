@@ -33,3 +33,12 @@ EXPORT ssize_t sendfile(int out_fd, int in_fd, off_t* offset, size_t count) {
 #endif
 	return ret;
 }
+
+EXPORT ssize_t sendfile64(int out_fd, int in_fd, off64_t* offset, size_t count) {
+	ssize_t ret;
+	if (auto err = sys_sendfile(out_fd, in_fd, offset, count, &ret)) {
+		errno = err;
+		return -1;
+	}
+	return ret;
+}

@@ -73,4 +73,6 @@ EXPORT int posix_fallocate64(int fd, off64_t offset, off64_t len) {
 }
 
 ALIAS(open, open64);
+ALIAS(open, __open64_2);
+ALIAS(openat, openat64);
 ALIAS(fcntl, fcntl64);

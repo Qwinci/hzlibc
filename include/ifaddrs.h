@@ -3,7 +3,7 @@
 
 #include <bits/utils.h>
 
-__begin
+__begin_decls
 
 struct ifaddrs {
 	struct ifaddrs* ifa_next;
@@ -24,6 +24,6 @@ struct ifaddrs {
 int getifaddrs(struct ifaddrs** __ifap);
 void freeifaddrs(struct ifaddrs* __ifa);
 
-__end
+__end_decls
 
 #endif

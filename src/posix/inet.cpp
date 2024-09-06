@@ -6,6 +6,14 @@
 #include "net_utils.hpp"
 #include <hz/bit.hpp>
 
+EXPORT uint16_t htons(uint16_t host_short) {
+	return hz::to_be(host_short);
+}
+
+EXPORT uint32_t htonl(uint32_t host_long) {
+	return hz::to_be(host_long);
+}
+
 EXPORT uint16_t ntohs(uint16_t net_short) {
 	return hz::to_ne_from_be(net_short);
 }

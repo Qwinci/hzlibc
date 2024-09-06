@@ -4,10 +4,10 @@
 #include <bits/utils.h>
 #include <sys/types.h>
 
-__begin
+__begin_decls
 
 ssize_t listxattr(const char* __path, char* __list, size_t __size);
 
-__end
+__end_decls
 
 #endif

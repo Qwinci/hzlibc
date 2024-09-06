@@ -4,8 +4,9 @@
 #include <bits/utils.h>
 #include <sys/types.h>
 #include <sys/resource.h>
+#include <signal.h>
 
-__begin
+__begin_decls
 
 #define WNOHANG 1
 #define WUNTRACED 2
@@ -26,12 +27,22 @@ __begin
 #define W_STOPCODE(sig) ((sig) << 8 | 0x7F)
 #define __W_CONTINUED 0xFFFF
 
+typedef enum {
+	P_ALL,
+	P_PID,
+	P_PGID,
+	P_PIDFD
+} idtype_t;
+
+typedef uint32_t id_t;
+
 pid_t wait(int* __status);
 pid_t waitpid(pid_t __pid, int* __status, int __options);
+int waitid(idtype_t __id_type, id_t __id, siginfo_t* __info, int __options);
 
 // linux
 pid_t wait4(pid_t __pid, int* __status, int __options, struct rusage* __rusage);
 
-__end
+__end_decls
 
 #endif

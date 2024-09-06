@@ -3,7 +3,7 @@
 
 #include <bits/utils.h>
 
-__begin
+__begin_decls
 
 char* textdomain(const char* __domain_name);
 char* bindtextdomain(const char* __domain_name, const char* __dir_name);
@@ -14,6 +14,6 @@ char* dcgettext(const char* __domain_name, const char* __msg_id, int __category)
 
 char* ngettext(const char* __msg_id, const char* __msg_id_plural, unsigned long __n);
 
-__end
+__end_decls
 
 #endif

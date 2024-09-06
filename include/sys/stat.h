@@ -5,7 +5,7 @@
 #include <sys/types.h>
 #include <time.h>
 
-__begin
+__begin_decls
 
 #define S_IFMT 0xF000
 #define S_IFIFO 0x1000
@@ -64,9 +64,20 @@ struct stat {
 	off_t st_size;
 	blksize_t st_blksize;
 	blkcnt_t st_blocks;
+
+#ifdef __USE_XOPEN2K8
 	struct timespec st_atim;
 	struct timespec st_mtim;
 	struct timespec st_ctim;
+#else
+	time_t st_atime;
+	unsigned long st_atimensec;
+	time_t st_mtime;
+	unsigned long st_mtimensec;
+	time_t st_ctime;
+	unsigned long st_ctimensec;
+#endif
+
 	long __unused[3];
 };
 
@@ -82,9 +93,20 @@ struct stat64 {
 	off_t st_size;
 	blksize_t st_blksize;
 	blkcnt_t st_blocks;
+
+#ifdef __USE_XOPEN2K8
 	struct timespec st_atim;
 	struct timespec st_mtim;
 	struct timespec st_ctim;
+#else
+	time_t st_atime;
+	unsigned long st_atimensec;
+	time_t st_mtime;
+	unsigned long st_mtimensec;
+	time_t st_ctime;
+	unsigned long st_ctimensec;
+#endif
+
 	long __unused[3];
 };
 
@@ -103,9 +125,20 @@ struct stat {
 	off_t st_size;
 	blksize_t st_blksize;
 	blkcnt_t st_blocks;
+
+#ifdef __USE_XOPEN2K8
 	struct timespec st_atim;
 	struct timespec st_mtim;
 	struct timespec st_ctim;
+#else
+	time_t st_atime;
+	unsigned long st_atimensec;
+	time_t st_mtime;
+	unsigned long st_mtimensec;
+	time_t st_ctime;
+	unsigned long st_ctimensec;
+#endif
+
 	unsigned long __unused[2];
 };
 
@@ -122,9 +155,20 @@ struct stat64 {
 	off64_t st_size;
 	blksize_t st_blksize;
 	blkcnt64_t st_blocks;
+
+#ifdef __USE_XOPEN2K8
 	struct timespec st_atim;
 	struct timespec st_mtim;
 	struct timespec st_ctim;
+#else
+	time_t st_atime;
+	unsigned long st_atimensec;
+	time_t st_mtime;
+	unsigned long st_mtimensec;
+	time_t st_ctime;
+	unsigned long st_ctimensec;
+#endif
+
 	ino64_t st_ino;
 };
 
@@ -177,10 +221,11 @@ int lstat64(const char* __restrict __path, struct stat64* __restrict __buf);
 int chmod(const char* __path, mode_t __mode);
 int fchmod(int __fd, mode_t __mode);
 int fchmodat(int __dir_fd, const char* __path, mode_t __mode, int __flags);
-int utimensat(int __dir_fd, const char* __path, const timespec __times[2], int __flags);
+int utimensat(int __dir_fd, const char* __path, const struct timespec __times[2], int __flags);
 int futimens(int __fd, const struct timespec __times[2]);
 int mkdir(const char* __path, mode_t __mode);
 int mknod(const char* __path, mode_t __mode, dev_t __dev);
+int mkfifoat(int __dir_fd, const char* __path, mode_t __mode);
 
 mode_t umask(mode_t __mask);
 
@@ -192,6 +237,6 @@ int statx(
 	unsigned int __mask,
 	struct statx* __restrict __buf);
 
-__end
+__end_decls
 
 #endif

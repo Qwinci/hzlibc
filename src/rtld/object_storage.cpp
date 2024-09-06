@@ -9,7 +9,7 @@
 
 // todo unhardcode this
 namespace {
-	constinit hz::string_view SYSTEM_LIBRARY_PATHS[6] {};
+	constinit hz::string_view SYSTEM_LIBRARY_PATHS[7] {};
 
 	void init_system_paths() {
 		SYSTEM_LIBRARY_PATHS[0] =
@@ -28,6 +28,7 @@ namespace {
 		SYSTEM_LIBRARY_PATHS[3] = "/usr/lib";
 		SYSTEM_LIBRARY_PATHS[4] = "/usr/lib/llvm/18/lib64";
 		SYSTEM_LIBRARY_PATHS[5] = "/usr/lib/gcc/x86_64-pc-linux-gnu/13";
+		SYSTEM_LIBRARY_PATHS[6] = ".";
 	}
 }
 
@@ -349,6 +350,9 @@ LoadError ObjectStorage::load_dependencies(SharedObject* object, bool global) {
 			}
 
 			hz::string_view name {object->strtab + dyn->d_un.d_ptr};
+			if (name == "ld-linux.so.2" || name == "ld-linux-x86-64.so.2") {
+				continue;
+			}
 
 			hz::result<SharedObject*, LoadError> result;
 			if (name.find('/') != hz::string_view::npos) {

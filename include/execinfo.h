@@ -3,11 +3,11 @@
 
 #include <bits/utils.h>
 
-__begin
+__begin_decls
 
 int backtrace(void** __buffer, int __size);
 char** backtrace_symbols(const void** __buffer, int __size);
 
-__end
+__end_decls
 
 #endif

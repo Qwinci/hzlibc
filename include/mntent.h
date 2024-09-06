@@ -4,7 +4,7 @@
 #include <bits/utils.h>
 #include <stdio.h>
 
-__begin
+__begin_decls
 
 struct mntent {
 	char* mnt_fsname;
@@ -26,6 +26,6 @@ struct mntent* getmntent_r(
 	char* __restrict __buf,
 	int __buf_len);
 
-__end
+__end_decls
 
 #endif

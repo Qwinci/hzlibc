@@ -4,7 +4,7 @@
 #include <bits/utils.h>
 #include <stdarg.h>
 
-__begin
+__begin_decls
 
 #define LOG_EMERG 0
 #define LOG_ALERT 1
@@ -53,6 +53,6 @@ void closelog(void);
 void vsyslog(int __priority, const char* __fmt, va_list __ap);
 void syslog(int __priority, const char* __fmt, ...);
 
-__end
+__end_decls
 
 #endif

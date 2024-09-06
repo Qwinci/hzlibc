@@ -6,7 +6,7 @@
 #include <signal.h>
 #include <pthread.h>
 
-__begin
+__begin_decls
 
 typedef struct {
 	short __flags;
@@ -45,6 +45,6 @@ int posix_spawn(
 	char* const __argv[],
 	char* const __envp[]);
 
-__end
+__end_decls
 
 #endif

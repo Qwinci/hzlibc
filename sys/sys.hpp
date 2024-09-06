@@ -13,6 +13,7 @@
 #include <sys/shm.h>
 #include <sys/sem.h>
 #include <sys/sysinfo.h>
+#include <sys/wait.h>
 #include <time.h>
 #include <signal.h>
 #include <pthread.h>
@@ -124,6 +125,7 @@ int sys_dup(int old_fd, int* ret);
 int sys_dup2(int old_fd, int new_fd, int flags);
 int sys_sync();
 int sys_fsync(int fd);
+int sys_fdatasync(int fd);
 int sys_fallocate(int fd, int mode, off64_t offset, off64_t len);
 
 int sys_getxattr(const char* path, const char* name, void* value, size_t size, ssize_t* ret);
@@ -158,14 +160,18 @@ int sys_sched_setscheduler(pid_t pid, int policy, const sched_param* param);
 int sys_sched_getscheduler(pid_t pid, int* ret);
 int sys_sched_setaffinity(pid_t pid, size_t cpu_set_size, const cpu_set_t* mask);
 int sys_sched_getaffinity(pid_t pid, size_t cpu_set_size, cpu_set_t* mask);
+int sys_sched_get_priority_min(int policy, int* ret);
+int sys_sched_get_priority_max(int policy, int* ret);
 int sys_sched_getcpu(int* ret);
 
 int sys_prctl(int option, unsigned long arg0, unsigned long arg1, unsigned long arg2, unsigned long arg3, int* ret);
+int sys_iopl(int level);
 int sys_setuid(uid_t uid);
 int sys_setgid(gid_t gid);
 int sys_setsid(pid_t* ret);
 int sys_setpgid(pid_t pid, pid_t pgid);
 int sys_waitpid(pid_t pid, int* status, int options, rusage* usage, pid_t* ret);
+int sys_waitid(idtype_t id_type, id_t id, siginfo_t* info, int options);
 int sys_fork(pid_t* ret);
 int sys_setpriority(int which, int who, int prio);
 int sys_getrlimit(int resource, rlimit64* rlim);
@@ -195,6 +201,7 @@ int sys_sigaction(int sig_num, const struct sigaction* __restrict action, struct
 int sys_sigtimedwait(const sigset_t* __restrict set, siginfo_t* __restrict info, const timespec* timeout, int* ret);
 int sys_sigaltstack(const stack_t* stack, stack_t* old_stack);
 int sys_kill(pid_t pid, int sig);
+int sys_tgkill(pid_t pid, pid_t tid, int sig);
 
 int sys_clock_gettime(clockid_t id, timespec* tp);
 int sys_clock_getres(clockid_t id, timespec* res);

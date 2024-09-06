@@ -3,6 +3,7 @@
 #include "utils.hpp"
 #include "sys.hpp"
 #include "internal/tcb.hpp"
+#include "internal/thread.hpp"
 #include "rtld/rtld.hpp"
 #include "errno.h"
 #include "mutex.hpp"
@@ -86,6 +87,22 @@ EXPORT int pthread_detach(pthread_t thread) {
 	auto* tcb = reinterpret_cast<Tcb*>(thread);
 	tcb->detached = true;
 	return 0;
+}
+
+EXPORT int pthread_kill(pthread_t thread, int sig) {
+	auto* tcb = reinterpret_cast<Tcb*>(thread);
+
+	auto pid = sys_get_process_id();
+
+	if (auto err = sys_tgkill(pid, tcb->tid, sig)) {
+		return err;
+	}
+
+	return 0;
+}
+
+EXPORT __attribute__((noreturn)) void pthread_exit(void* ret) {
+	hzlibc_thread_exit(ret);
 }
 
 EXPORT int pthread_setcanceltype(int state, int* old_state) {
@@ -613,7 +630,7 @@ EXPORT int pthread_barrier_wait(pthread_barrier_t* barrier) {
 	auto leave = [&]() {
 		int inside = ptr->inside.fetch_sub(1, hz::memory_order::release) - 1;
 		if (inside == 0) {
-			sys_futex_wake(ptr->inside.data());
+			sys_futex_wake_all(ptr->inside.data());
 		}
 	};
 
@@ -628,7 +645,7 @@ EXPORT int pthread_barrier_wait(pthread_barrier_t* barrier) {
 			if (expected + 1 == ptr->count) {
 				ptr->sequence.fetch_add(1, hz::memory_order::acquire);
 				ptr->waiting.store(0, hz::memory_order::release);
-				sys_futex_wake(ptr->sequence.data());
+				sys_futex_wake_all(ptr->sequence.data());
 				leave();
 				return PTHREAD_BARRIER_SERIAL_THREAD;
 			}

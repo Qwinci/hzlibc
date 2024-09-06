@@ -6,7 +6,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
-__begin
+__begin_decls
 
 #if !defined(__cplusplus) || __cpp_unicode_characters < 200704L
 typedef uint_least32_t char32_t;
@@ -18,6 +18,6 @@ size_t mbrtoc32(
 	size_t __n,
 	mbstate_t* __restrict __ps);
 
-__end
+__end_decls
 
 #endif

@@ -176,7 +176,6 @@ EXPORT tm* localtime_r(const time_t* __restrict time, tm* __restrict buf) {
 			++year;
 		}
 		else {
-
 			break;
 		}
 	}
@@ -214,6 +213,14 @@ EXPORT tm* localtime_r(const time_t* __restrict time, tm* __restrict buf) {
 	buf->tm_gmtoff = gmt_offset;
 	buf->tm_zone = zone;
 	return buf;
+}
+
+namespace {
+	struct tm GMTIME_BUF {};
+}
+
+EXPORT struct tm* gmtime(const time_t* __restrict time) {
+	return gmtime_r(time, &GMTIME_BUF);
 }
 
 EXPORT struct tm* gmtime_r(const time_t* __restrict time, struct tm* __restrict buf) {
@@ -950,6 +957,41 @@ EXPORT size_t strftime(char* __restrict str, size_t count, const char* __restric
 	}
 
 	return written;
+}
+
+namespace {
+	char ASCTIME_BUF[26] {};
+}
+
+EXPORT char* asctime(const struct tm* time) {
+	strftime(ASCTIME_BUF, 26, "%a %b %d %T %Y\n", time);
+	return ASCTIME_BUF;
+}
+
+EXPORT char* ctime(const time_t* time) {
+	return asctime(localtime(time));
+}
+
+EXPORT double difftime(time_t b, time_t a) {
+	if (a > 0) {
+		if (b < LONG_MIN - a) {
+			return static_cast<double>(LONG_MIN);
+		}
+	}
+	else {
+		if (b > LONG_MAX - a) {
+			return static_cast<double>(LONG_MAX);
+		}
+	}
+	return static_cast<double>(b) - static_cast<double>(a);
+}
+
+EXPORT int timespec_get(struct timespec* ts, int base) {
+	if (base != TIME_UTC) {
+		return 0;
+	}
+	int res = clock_gettime(CLOCK_REALTIME, ts);
+	return res < 0 ? 0 : base;
 }
 
 // posix

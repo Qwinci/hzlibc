@@ -5,12 +5,12 @@
 #include <stdio.h>
 #include <stddef.h>
 
-__begin
+__begin_decls
 
 size_t __fpending(FILE* __file);
 int __freading(FILE* __file);
 void __fpurge(FILE* __file);
 
-__end
+__end_decls
 
 #endif

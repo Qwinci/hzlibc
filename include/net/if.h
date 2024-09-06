@@ -3,10 +3,10 @@
 
 #include <bits/utils.h>
 
-__begin
+__begin_decls
 
 unsigned int if_nametoindex(const char* __if_name);
 
-__end
+__end_decls
 
 #endif

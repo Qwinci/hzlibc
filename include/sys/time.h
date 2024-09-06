@@ -5,7 +5,7 @@
 #include <time.h>
 #include <sys/types.h>
 
-__begin
+__begin_decls
 
 struct timeval {
 	time_t tv_sec;
@@ -17,8 +17,20 @@ struct timezone {
 	int tz_dsttime;
 };
 
+struct itimerval {
+	struct timeval it_interval;
+	struct timeval it_value;
+};
+
 int gettimeofday(struct timeval* __restrict __tv, struct timezone* __restrict __tz);
 
-__end
+int setitimer(
+	int __which,
+	const struct itimerval* __restrict __new_value,
+	struct itimerval* __restrict __old_value);
+
+int utimes(const char* __path, const struct timeval __times[2]);
+
+__end_decls
 
 #endif

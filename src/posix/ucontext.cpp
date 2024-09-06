@@ -132,7 +132,7 @@ getcontext:
 	"mov %ebx, " REG_OFFSET(REG_EBX) "(%eax);"
 	"mov %edx, " REG_OFFSET(REG_EDX) "(%eax);"
 	"mov %ecx, " REG_OFFSET(REG_ECX) "(%eax);"
-	"mov $0, " REG_OFFSET(REG_EAX) "(%eax);"
+	"movl $0, " REG_OFFSET(REG_EAX) "(%eax);"
 	"lea 4(%esp), %ecx;"
 	"mov %ecx, " REG_OFFSET(REG_ESP) "(%eax);"
 	"mov (%esp), %ecx;"

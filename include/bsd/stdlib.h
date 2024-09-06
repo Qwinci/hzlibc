@@ -5,11 +5,11 @@
 #include <stddef.h>
 #include <stdint.h>
 
-__begin
+__begin_decls
 
 uint32_t arc4random(void);
 void arc4random_buf(void* __buf, size_t __num_bytes);
 
-__end
+__end_decls
 
 #endif

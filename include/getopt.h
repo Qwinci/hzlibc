@@ -3,7 +3,7 @@
 
 #include <bits/utils.h>
 
-__begin
+__begin_decls
 
 // glibc
 
@@ -25,6 +25,6 @@ int getopt_long(
 	const struct option* __long_opts,
 	int* __long_index);
 
-__end
+__end_decls
 
 #endif

@@ -3,11 +3,11 @@
 
 #include <bits/utils.h>
 
-__begin
+__begin_decls
 
 int epoll_create(int __size);
 int epoll_create1(int __flags);
 
-__end
+__end_decls
 
 #endif

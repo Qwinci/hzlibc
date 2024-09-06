@@ -1,15 +1,34 @@
 #ifndef _STDLIB_H
 #define _STDLIB_H
 
-#include "bits/utils.h"
-#include "locale.h"
+#include <bits/utils.h>
+#include <bsd/stdlib.h>
+#include <locale.h>
 #include <stddef.h>
 #include <stdint.h>
 #include <wchar.h>
 
-__begin
+__begin_decls
+
+typedef struct {
+	int quot;
+	int rem;
+} div_t;
+
+typedef struct {
+	long quot;
+	long rem;
+} ldiv_t;
+
+typedef struct {
+	long long quot;
+	long long rem;
+} lldiv_t;
 
 #define RAND_MAX 2147483647
+
+#define EXIT_SUCCESS 0
+#define EXIT_FAILURE 1
 
 void* malloc(size_t __size);
 void* realloc(void* __old, size_t __new_size);
@@ -26,8 +45,11 @@ __attribute__((__noreturn__)) void quick_exit(int __status);
 __attribute__((__noreturn__)) void _Exit(int __status);
 __attribute__((__noreturn__)) void abort(void);
 int atexit(void (*__func)(void));
+int at_quick_exit(void (*__func)(void));
 
 int atoi(const char* __str);
+long atol(const char* __str);
+long long atoll(const char* __str);
 double atof(const char* __str);
 long strtol(const char* __restrict __ptr, char** __restrict __end_ptr, int __base);
 unsigned long strtoul(const char* __restrict __ptr, char** __restrict __end_ptr, int __base);
@@ -47,6 +69,13 @@ int wctomb(char* __str, wchar_t __wc);
 
 void srand(unsigned int __seed);
 int rand(void);
+
+int abs(int __x);
+long labs(long __x);
+long long llabs(long long __x);
+div_t div(int __x, int __y);
+ldiv_t ldiv(long __x, long __y);
+lldiv_t lldiv(long long __x, long long __y);
 
 void* bsearch(
 	const void* __key,
@@ -107,6 +136,6 @@ int strfromf128(
 	__float128 __value);
 __float128 strtof128(const char* __restrict __str, char** __restrict __end_ptr);
 
-__end
+__end_decls
 
 #endif

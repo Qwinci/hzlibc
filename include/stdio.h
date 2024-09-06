@@ -2,16 +2,21 @@
 #define _STDIO_H
 
 #include <bits/utils.h>
+#include <bits/seek.h>
+#include <bits/mbstate_t.h>
 #include <sys/types.h>
 #include <stdarg.h>
 
-__begin
+__begin_decls
 
 typedef struct FILE FILE;
 
-#define SEEK_SET 0
-#define SEEK_CUR 1
-#define SEEK_END 2
+typedef struct _G_fpos_t {
+	off_t __pos;
+	mbstate_t __mbstate;
+} __fpos_t;
+
+typedef __fpos_t fpos_t;
 
 #define EOF -1
 
@@ -19,7 +24,7 @@ typedef struct FILE FILE;
 #define _IOLBF 1
 #define _IONBF 2
 
-#define BUFSZ 8192
+#define BUFSIZ 8192
 
 extern FILE* stdin;
 extern FILE* stdout;
@@ -63,6 +68,7 @@ __attribute__((__format__(__scanf__, 2, 0))) int vfscanf(FILE* __restrict __file
 __attribute__((__format__(__scanf__, 2, 3))) int fscanf(FILE* __restrict __file, const char* __restrict __fmt, ...);
 __attribute__((__format__(__scanf__, 2, 0))) int vsscanf(const char* __restrict __str, const char* __restrict __fmt, va_list __ap);
 __attribute__((__format__(__scanf__, 2, 3))) int sscanf(const char* __restrict __str, const char* __restrict __fmt, ...);
+__attribute__((__format__(__scanf__, 1, 0))) int vscanf(const char* __restrict __fmt, va_list __ap);
 __attribute__((__format__(__scanf__, 1, 2))) int scanf(const char* __restrict __fmt, ...);
 
 FILE* fopen(const char* __restrict __filename, const char* __restrict __mode);
@@ -71,6 +77,7 @@ size_t fread(void* __restrict __buffer, size_t __size, size_t __count, FILE* __f
 size_t fwrite(const void* __restrict __buffer, size_t __size, size_t __count, FILE* __restrict __file);
 int fgetc(FILE* __file);
 int getc(FILE* __file);
+int getchar(void);
 char* fgets(char* __restrict __str, int __count, FILE* __restrict __file);
 int ungetc(int __ch, FILE* __file);
 int fclose(FILE* __file);
@@ -82,9 +89,14 @@ int fseek(FILE* __file, long __offset, int __origin);
 long ftell(FILE* __file);
 void rewind(FILE* __file);
 
+int fsetpos(FILE* __restrict __file, const fpos_t* __pos);
+int fgetpos(FILE* __restrict __file, fpos_t* __restrict __pos);
+
 int setbuf(FILE* __file, char* __restrict __buffer);
 int setvbuf(FILE* __file, char* __restrict __buffer, int __mode, size_t __size);
 int fflush(FILE* __file);
+
+FILE* tmpfile(void);
 
 // posix
 FILE* fdopen(int __fd, const char* __mode);
@@ -121,6 +133,6 @@ int asprintf(char** __restrict __ptr, const char* __fmt, ...);
 int remove(const char* __path);
 int rename(const char* __old_path, const char* __new_path);
 
-__end
+__end_decls
 
 #endif

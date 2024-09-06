@@ -3,6 +3,7 @@
 #include "utils.hpp"
 #include "sys.hpp"
 #include "errno.h"
+#include "fcntl.h"
 
 #if UINTPTR_MAX == UINT32_MAX
 #include "limits.h"
@@ -91,6 +92,34 @@ EXPORT int gettimeofday(timeval* __restrict tv, struct timezone* __restrict) {
 	if (tv) {
 		tv->tv_sec = tp.tv_sec;
 		tv->tv_usec = tp.tv_nsec / 1000;
+	}
+	return 0;
+}
+
+EXPORT int setitimer(
+	int which,
+	const itimerval* __restrict new_value,
+	itimerval* __restrict old_value) {
+	__ensure(!"setitimer is not implemented");
+}
+
+EXPORT int utimes(const char* path, const struct timeval times[2]) {
+	timespec64 times64[2] {};
+	if (times) {
+		times64[0].tv_sec = times[0].tv_sec;
+		times64[0].tv_nsec = times[0].tv_usec * 1000;
+		times64[1].tv_sec = times[1].tv_sec;
+		times64[1].tv_nsec = times[1].tv_usec * 1000;
+		if (auto err = sys_utimensat(AT_FDCWD, path, times64, 0)) {
+			errno = err;
+			return -1;
+		}
+	}
+	else {
+		if (auto err = sys_utimensat(AT_FDCWD, path, nullptr, 0)) {
+			errno = err;
+			return -1;
+		}
 	}
 	return 0;
 }

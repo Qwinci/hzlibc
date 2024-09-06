@@ -22,6 +22,15 @@ EXPORT void* memrchr(const void* ptr, int ch, size_t count) {
 	return nullptr;
 }
 
+EXPORT void* memmem(const void* ptr, size_t len, const void* search, size_t search_len) {
+	hz::string_view a {static_cast<const char*>(ptr), len};
+	hz::string_view b {static_cast<const char*>(search), search_len};
+	if (auto pos = a.find(b); pos != hz::string_view::npos) {
+		return const_cast<char*>(static_cast<const char*>(ptr) + pos);
+	}
+	return nullptr;
+}
+
 EXPORT char* strerror_r(int err_num, char*, size_t) {
 	return const_cast<char*>(strerror(err_num));
 }

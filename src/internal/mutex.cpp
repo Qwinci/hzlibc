@@ -99,7 +99,7 @@ int Mutex::manual_unlock() {
 
 	old_state = state.state.exchange(0, hz::memory_order::release);
 	if (old_state & FLAG_WAITING) {
-		auto status = sys_futex_wake(state.state.data());
+		auto status = sys_futex_wake_all(state.state.data());
 		__ensure(status == 0 || status == EACCES || status == EINVAL);
 	}
 	return 0;

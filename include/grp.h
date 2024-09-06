@@ -4,7 +4,7 @@
 #include <bits/utils.h>
 #include <sys/types.h>
 
-__begin
+__begin_decls
 
 #define NSS_BUFLEN_GROUP 1024
 
@@ -41,6 +41,6 @@ int setgroups(size_t __size, const gid_t* __list);
 // glibc
 int getgrouplist(const char* __user, gid_t __group, gid_t* __groups, int* __num_groups);
 
-__end
+__end_decls
 
 #endif

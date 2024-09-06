@@ -4,10 +4,18 @@
 #include <bits/utils.h>
 #include <stdint.h>
 
-__begin
+__begin_decls
+
+typedef struct {
+	intmax_t quot;
+	intmax_t rem;
+} imaxdiv_t;
 
 uintmax_t strtoumax(const char* __restrict __ptr, char** __restrict __end_ptr, int __base);
 intmax_t strtoimax(const char* __restrict __ptr, char** __restrict __end_ptr, int __base);
+
+intmax_t imaxabs(intmax_t __x);
+imaxdiv_t imaxdiv(intmax_t __x, intmax_t __y);
 
 #define PRIu8 "u"
 
@@ -25,6 +33,6 @@ intmax_t strtoimax(const char* __restrict __ptr, char** __restrict __end_ptr, in
 #define PRIxPTR "x"
 #endif
 
-__end
+__end_decls
 
 #endif

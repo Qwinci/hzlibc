@@ -4,7 +4,7 @@
 #include <bits/utils.h>
 #include <sys/time.h>
 
-__begin
+__begin_decls
 
 typedef long fd_mask;
 
@@ -22,6 +22,6 @@ int select(
 	fd_set* __restrict __except_fds,
 	struct timeval* __restrict __timeout);
 
-__end
+__end_decls
 
 #endif

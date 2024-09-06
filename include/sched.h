@@ -4,7 +4,7 @@
 #include <bits/utils.h>
 #include <sys/types.h>
 
-__begin
+__begin_decls
 
 #define SCHED_OTHER 0
 #define SCHED_FIFO 1
@@ -15,7 +15,13 @@ __begin
 #define SCHED_DEADLINE 6
 #define SCHED_RESET_ON_FORK 0x40000000
 
+struct sched_param {
+	int sched_priority;
+};
+
 int sched_yield(void);
+int sched_get_priority_min(int __policy);
+int sched_get_priority_max(int __policy);
 
 // glibc
 int sched_getcpu(void);
@@ -60,6 +66,6 @@ typedef struct {
 
 int sched_getaffinity(pid_t __pid, size_t __cpu_set_size, cpu_set_t* __mask);
 
-__end
+__end_decls
 
 #endif

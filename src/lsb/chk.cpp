@@ -6,6 +6,11 @@
 #include "stdlib.h"
 #include "sigjmp.h"
 #include "fcntl.h"
+#include "wchar.h"
+
+extern "C" EXPORT size_t __fread_chk(void* __restrict buffer, size_t, size_t size, size_t n, FILE* __restrict file) {
+	return fread(buffer, size, n, file);
+}
 
 extern "C" EXPORT int __fprintf_chk(FILE* __restrict file, int, const char* __restrict fmt, ...) {
 	va_list ap;
@@ -75,6 +80,19 @@ extern "C" EXPORT int __snprintf_chk(
 	return res;
 }
 
+extern "C" EXPORT int __swprintf_chk(
+	wchar_t* __restrict buffer,
+	size_t size,
+	int,
+	size_t,
+	const wchar_t* __restrict fmt, ...) {
+	va_list ap;
+	va_start(ap, fmt);
+	int res = vswprintf(buffer, size, fmt, ap);
+	va_end(ap);
+	return res;
+}
+
 extern "C" EXPORT void __vsyslog_chk(int priority, int, const char* fmt, va_list ap) {
 	return vsyslog(priority, fmt, ap);
 }
@@ -133,3 +151,5 @@ extern "C" EXPORT void __longjmp_chk(jmp_buf env, int value) {
 extern "C" EXPORT int __openat_2(int fd, const char* path, int oflag) {
 	return openat(fd, path, oflag);
 }
+
+ALIAS(__openat_2, __openat64_2);

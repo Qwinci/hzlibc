@@ -4,7 +4,7 @@
 #include <bits/utils.h>
 #include <stdint.h>
 
-__begin
+__begin_decls
 
 #define NS_PACKETSZ 512
 #define NS_MAXDNAME 1025
@@ -45,6 +45,6 @@ int ns_initparse(const unsigned char* __msg, int __msg_len, ns_msg* __handle);
 int ns_parserr(ns_msg* __handle, ns_sect __section, int __rr_num, ns_rr* __rr);
 unsigned int ns_get16(const unsigned char* __ptr);
 
-__end
+__end_decls
 
 #endif

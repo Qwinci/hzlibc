@@ -4,10 +4,10 @@
 #include <bits/utils.h>
 #include <sys/types.h>
 
-__begin
+__begin_decls
 
 ssize_t getrandom(void* __buf, size_t __buf_size, unsigned int __flags);
 
-__end
+__end_decls
 
 #endif

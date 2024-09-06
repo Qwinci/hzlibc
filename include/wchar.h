@@ -4,10 +4,11 @@
 #include <bits/utils.h>
 #include <bits/mbstate_t.h>
 #include <stddef.h>
+#include <stdarg.h>
 #include <locale.h>
 #include <time.h>
 
-__begin
+__begin_decls
 
 typedef __WINT_TYPE__ wint_t;
 
@@ -58,6 +59,17 @@ wint_t fputwc(wint_t __ch, FILE* __file);
 wint_t putwc(wint_t __ch, FILE* __file);
 wint_t ungetwc(wint_t __ch, FILE* __file);
 
+int vswprintf(
+	wchar_t* __restrict __buffer,
+	size_t __size,
+	const wchar_t* __restrict __fmt,
+	va_list __ap);
+int swprintf(
+	wchar_t* __restrict __buffer,
+	size_t __size,
+	const wchar_t* __restrict __fmt,
+	...);
+
 // posix
 int wcwidth(wchar_t __ch);
 int wcscoll_l(const wchar_t* __lhs, const wchar_t* __rhs, locale_t __locale);
@@ -85,6 +97,6 @@ size_t mbsnrtowcs(
 	size_t __len,
 	mbstate_t* __restrict __ps);
 
-__end
+__end_decls
 
 #endif

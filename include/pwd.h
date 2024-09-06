@@ -4,7 +4,7 @@
 #include <bits/utils.h>
 #include <sys/types.h>
 
-__begin
+__begin_decls
 
 struct passwd {
 	char* pw_name;
@@ -46,6 +46,6 @@ int getpwuid_r(
 	size_t __buffer_size,
 	struct passwd** __restrict __result);
 
-__end
+__end_decls
 
 #endif

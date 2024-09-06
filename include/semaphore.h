@@ -3,7 +3,7 @@
 
 #include <bits/utils.h>
 
-__begin
+__begin_decls
 
 typedef union {
 #ifdef __x86_64__
@@ -27,6 +27,6 @@ int sem_wait(sem_t* __sem);
 int sem_trywait(sem_t* __sem);
 int sem_timedwait(sem_t* __restrict __sem, const struct timespec* __restrict __abs_timeout);
 
-__end
+__end_decls
 
 #endif
