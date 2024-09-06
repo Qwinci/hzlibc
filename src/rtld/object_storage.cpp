@@ -170,7 +170,7 @@ hz::result<SharedObject*, LoadError> ObjectStorage::load_object(
 			__ensure(sys_mmap(
 				reinterpret_cast<void*>(load_base + (phdr->p_vaddr & ~(0x1000 - 1))),
 				(phdr->p_memsz + phdr->p_vaddr % 0x1000 + 0x1000 - 1) & ~(0x1000 - 1),
-				PROT_READ | PROT_WRITE | PROT_EXEC,
+				PROT_READ | PROT_WRITE,
 				MAP_PRIVATE | MAP_ANON | MAP_FIXED,
 				-1,
 				0,
@@ -272,6 +272,28 @@ hz::result<SharedObject*, LoadError> ObjectStorage::load_object_with_name(Shared
 	}
 
 	return hz::error(LoadError::NotFound);
+}
+
+void ObjectStorage::protect_object(SharedObject* object) {
+	for (auto& phdr : object->phdrs_vec) {
+		if (phdr.p_type == PT_LOAD) {
+			int prot = 0;
+			if (phdr.p_flags & PF_R) {
+				prot |= PROT_READ;
+			}
+			if (phdr.p_flags & PF_W) {
+				prot |= PROT_READ | PROT_WRITE;
+			}
+			if (phdr.p_flags & PF_X) {
+				prot |= PROT_READ | PROT_EXEC;
+			}
+
+			__ensure(sys_mprotect(
+				reinterpret_cast<void*>(object->base + (phdr.p_vaddr & ~(0x1000 - 1))),
+				(phdr.p_memsz + phdr.p_vaddr % 0x1000 + 0x1000 - 1) & ~(0x1000 - 1),
+				prot) == 0);
+		}
+	}
 }
 
 namespace {
@@ -450,6 +472,7 @@ LoadError ObjectStorage::load_dependencies(SharedObject* object, bool global) {
 
 	for (auto obj : init_list) {
 		obj->late_relocate();
+		protect_object(obj);
 	}
 
 	if (!LIBC_INITIALIZED) {

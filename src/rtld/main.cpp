@@ -194,10 +194,10 @@ extern "C" [[gnu::used]] uintptr_t start(uintptr_t* sp) {
 
 		if (phdr->p_type == PT_DYNAMIC) {
 			exe_dynamic_offset = phdr->p_vaddr;
+			exe_dynamic_size = phdr->p_memsz;
 		}
 		else if (phdr->p_type == PT_INTERP) {
 			exe_interp_offset = phdr->p_vaddr;
-			exe_dynamic_size = phdr->p_memsz;
 		}
 		else if (phdr->p_type == PT_PHDR) {
 			exe_base = reinterpret_cast<uintptr_t>(exe_phdr) - phdr->p_vaddr;
@@ -213,7 +213,7 @@ extern "C" [[gnu::used]] uintptr_t start(uintptr_t* sp) {
 
 	__ensure(sys_mprotect(
 		reinterpret_cast<void*>((exe_base + exe_dynamic_offset) & ~0xFFF),
-		(exe_dynamic_size + 0xFFF) & ~0xFFF,
+		(((exe_base + exe_dynamic_offset) & 0xFFF) + exe_dynamic_size + 0xFFF) & ~0xFFF,
 		PROT_READ | PROT_WRITE) == 0 && "failed to make executable dynamic section writable");
 
 	hz::string<Allocator> exe_name {Allocator {}};
@@ -251,6 +251,11 @@ extern "C" [[gnu::used]] uintptr_t start(uintptr_t* sp) {
 	OBJECT_STORAGE.get_unsafe()->global_scope.push_back(&*LIBC_OBJECT);
 	OBJECT_STORAGE.get_unsafe()->initial_tls_size = LIBC_OBJECT->tls_offset;
 	__ensure(OBJECT_STORAGE.get_unsafe()->load_dependencies(&*EXE_OBJECT, true) == LoadError::Success);
+
+	__ensure(sys_mprotect(
+		reinterpret_cast<void*>((exe_base + exe_dynamic_offset) & ~0xFFF),
+		(((exe_base + exe_dynamic_offset) & 0xFFF) + exe_dynamic_size + 0xFFF) & ~0xFFF,
+		PROT_READ) == 0 && "failed to make executable dynamic section readable");
 
 	// allocate the tls
 	OBJECT_STORAGE.get_unsafe()->total_initial_tls_size = OBJECT_STORAGE.get_unsafe()->initial_tls_size + 1024 * 4;

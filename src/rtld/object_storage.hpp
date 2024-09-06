@@ -51,6 +51,8 @@ struct ObjectStorage {
 		hz::string_view name
 		);
 
+	static void protect_object(SharedObject* object);
+
 	LoadError load_dependencies(SharedObject* object, bool global);
 
 	hz::optional<ObjectSymbol> lookup(SharedObject* local, const char* name, LookupPolicy policy);
