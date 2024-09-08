@@ -48,6 +48,8 @@ struct SharedObject {
 	void relocate();
 	void late_relocate();
 
+	void relocate_libc(intptr_t* saved_rel_addends);
+
 	void run_init();
 	void run_fini();
 
@@ -99,3 +101,6 @@ struct SharedObject {
 	bool initialized {};
 	bool destructed {};
 };
+
+extern intptr_t* SAVED_LIBC_REL_ADDENDS;
+static constexpr size_t MAX_SAVED_LIBC_REL_ADDENDS = 1024;

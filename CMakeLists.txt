@@ -78,7 +78,6 @@ add_dependencies(c dummy)
 
 macro(dummy_lib name)
 	string(REGEX REPLACE "\\.so.*" ".so" short_name "${name}")
-	message(STATUS "name ${name} short ${short_name}")
 	add_custom_command(TARGET dummy POST_BUILD
 		COMMAND ${CMAKE_COMMAND} -E copy_if_different $<TARGET_FILE:dummy> "${CMAKE_CURRENT_BINARY_DIR}/${name}"
 		COMMAND patchelf --set-soname "${name}" "${CMAKE_CURRENT_BINARY_DIR}/${name}")

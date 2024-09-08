@@ -7,7 +7,6 @@ There is a template folder in sys/ that can be used as a starting point by copyi
 a check for your system in sys/CMakeLists.txt.
 
 ## Todo
-- Clang support (right now it fails in rtld because of it generating relocations for memset/memcpy)
 - Static linking
 - There are a lot of functions still to be implemented
 

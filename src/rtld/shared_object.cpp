@@ -36,7 +36,10 @@ SharedObject::SharedObject(
 			tls_image = reinterpret_cast<void*>(base + phdr->p_vaddr);
 			tls_image_size = phdr->p_filesz;
 		}
-		phdrs_vec.push_back(*phdr);
+		// if name.data() is null then this is the early libc object.
+		if (this->name.data()) {
+			phdrs_vec.push_back(*phdr);
+		}
 	}
 
 	end = (base + (link_end - link_start) + 0x1000 - 1) & ~(0x1000 - 1);
@@ -116,7 +119,7 @@ SharedObject::SharedObject(
 		preinit_array_end = preinit_array + preinit_array_size / sizeof(InitFn);
 	}
 
-	if (so_name_offset && this->name.empty()) {
+	if (so_name_offset && this->name.data() && this->name.empty()) {
 		this->name = strtab + so_name_offset;
 	}
 
@@ -248,6 +251,236 @@ void* access_tls_for_object(SharedObject* object);
 
 void* rtld_memset(void* __restrict dest, int ch, size_t size);
 
+namespace {
+	struct Relocation {
+		inline Relocation(SharedObject* object, Elf_Rela rela)
+			: object {object}, rela {rela} {}
+
+		inline Relocation(SharedObject* object, Elf_Rel rel)
+			: object {object}, rela {} {
+			rela.r_offset = rel.r_offset;
+			rela.r_info = rel.r_info;
+			rela.r_addend = *reinterpret_cast<intptr_t*>(object->base + rel.r_offset);
+		}
+
+		inline Relocation(SharedObject* object, Elf_Rel rel, intptr_t addend)
+			: object {object}, rela {} {
+			rela.r_offset = rel.r_offset;
+			rela.r_info = rel.r_info;
+			rela.r_addend = addend;
+		}
+
+		[[nodiscard]] inline uintptr_t rel_addend() const {
+			return object->base + rela.r_addend;
+		}
+
+		inline void apply(uintptr_t value) const {
+			*reinterpret_cast<uintptr_t*>(object->base + rela.r_offset) = value;
+		}
+
+		SharedObject* object;
+		Elf_Rela rela;
+	};
+}
+
+static bool process_relocation(Relocation reloc, hz::optional<ObjectSymbol> resolved_sym) {
+	auto type = ELF_R_TYPE(reloc.rela.r_info);
+	auto sym_index = ELF_R_SYM(reloc.rela.r_info);
+	auto* sym = &reloc.object->symtab[sym_index];
+
+	switch (type) {
+		case R_RELATIVE:
+			reloc.apply(reloc.rel_addend());
+			break;
+		case R_ABSOLUTE:
+		{
+			if (ELF_ST_BIND(sym->st_info) == STB_WEAK) {
+				if (resolved_sym) {
+					reloc.apply(resolved_sym->object->base + resolved_sym->sym->st_value + reloc.rela.r_addend);
+				}
+				else {
+					println(
+						"rtld: unresolved weak symbol ",
+						reloc.object->strtab + sym->st_name,
+						" in object ",
+						reloc.object->name);
+					reloc.apply(0);
+				}
+			}
+			else {
+				if (!resolved_sym) {
+					println(
+						"rtld: unresolved symbol ",
+						reloc.object->strtab + sym->st_name,
+						" in object ",
+						reloc.object->name);
+					return false;
+				}
+				else {
+					reloc.apply(resolved_sym->object->base + resolved_sym->sym->st_value + reloc.rela.r_addend);
+				}
+			}
+			break;
+		}
+		case R_GLOB_DAT:
+		case R_JUMP_SLOT:
+		{
+			if (ELF_ST_BIND(sym->st_info) == STB_WEAK) {
+				if (resolved_sym) {
+					reloc.apply(resolved_sym->object->base + resolved_sym->sym->st_value);
+				}
+				else {
+					println(
+						"rtld: unresolved weak symbol ",
+						reloc.object->strtab + sym->st_name,
+						" in object ",
+						reloc.object->name);
+					reloc.apply(0);
+				}
+			}
+			else {
+				if (!resolved_sym) {
+					println(
+						"rtld: unresolved symbol ",
+						reloc.object->strtab + sym->st_name,
+						" in object ",
+						reloc.object->name);
+					return false;
+				}
+				else {
+					reloc.apply(resolved_sym->object->base + resolved_sym->sym->st_value);
+				}
+			}
+			break;
+		}
+		case R_TPOFF:
+		{
+			if (sym_index) {
+				__ensure(resolved_sym);
+				__ensure(resolved_sym->object->initial_tls_model);
+				reloc.apply(
+					-resolved_sym->object->tls_offset +
+					resolved_sym->sym->st_value +
+					reloc.rela.r_addend);
+			}
+			else {
+				__ensure(reloc.object->initial_tls_model);
+				reloc.apply(-reloc.object->tls_offset + reloc.rela.r_addend);
+			}
+			break;
+		}
+		case R_DTPMOD:
+			if (sym_index) {
+				__ensure(resolved_sym);
+				reloc.apply(reinterpret_cast<uintptr_t>(resolved_sym->object));
+			}
+			else {
+				reloc.apply(reinterpret_cast<uintptr_t>(reloc.object));
+			}
+			break;
+		case R_DTPOFF:
+			__ensure(resolved_sym);
+			reloc.apply(resolved_sym->sym->st_value + reloc.rela.r_addend);
+			break;
+#ifdef R_TLSDESC
+		case R_TLSDESC:
+		{
+			SharedObject* target;
+			uintptr_t symbol_value = 0;
+			if (sym_index) {
+				if (!resolved_sym) {
+					println(
+						"rtld: unresolved tlsdesc symbol ",
+						reloc.object->strtab + sym->st_name,
+						" in object ",
+						reloc.object->name);
+					return false;
+				}
+				target = resolved_sym->object;
+				symbol_value = resolved_sym->sym->st_value;
+			}
+			else {
+				target = reloc.object;
+			}
+
+			auto ptr = reinterpret_cast<uintptr_t*>(reloc.object->base + reloc.rela.r_offset);
+			if (target->initial_tls_model) {
+				ptr[0] = reinterpret_cast<uintptr_t>(&__tlsdesc_static);
+				ptr[1] = -target->tls_offset + symbol_value + reloc.rela.r_addend;
+			}
+			else {
+				auto* data = new TlsdescData {
+					.index = target->tls_module_index,
+					.addend = symbol_value + reloc.rela.r_addend
+				};
+
+				access_tls_for_object(target);
+
+				ptr[0] = reinterpret_cast<uintptr_t>(&__tlsdesc_dynamic);
+				ptr[1] = reinterpret_cast<uintptr_t>(data);
+				reloc.object->tls_descs.push_back(data);
+			}
+
+			break;
+		}
+#endif
+		default:
+			panic("unsupported relocation type ", type);
+	}
+
+	return true;
+}
+
+static void process_late_relocation(Relocation reloc, hz::optional<ObjectSymbol> resolved_sym) {
+	auto type = ELF_R_TYPE(reloc.rela.r_info);
+	auto sym_index = ELF_R_SYM(reloc.rela.r_info);
+	auto* sym = &reloc.object->symtab[sym_index];
+
+	switch (type) {
+		case R_COPY:
+		{
+			if (!resolved_sym) {
+				println(
+					"rtld: unresolved symbol ",
+					reloc.object->strtab + sym->st_name,
+					" in object ",
+					reloc.object->name);
+			}
+			__ensure(resolved_sym && "unresolved symbol for copy relocation");
+
+			auto ptr = reinterpret_cast<uintptr_t*>(reloc.object->base + reloc.rela.r_offset);
+			memcpy(
+				ptr,
+				reinterpret_cast<const void*>(resolved_sym->object->base + resolved_sym->sym->st_value),
+				resolved_sym->sym->st_size);
+			break;
+		}
+#if defined(__x86_64__) || defined(__i386__)
+		case R_IRELATIVE:
+		{
+			auto addr = reloc.rel_addend();
+			auto* fn = reinterpret_cast<uintptr_t (*)()>(addr);
+			reloc.apply(fn());
+			break;
+		}
+#elif defined(__aarch64__)
+			case R_IRELATIVE:
+			{
+				uintptr_t addr = reloc.rel_addend();
+				auto* fn = reinterpret_cast<uintptr_t (*)(uint64_t)>(addr);
+				// todo pass AT_HWCAP
+				reloc.apply(fn(0));
+				break;
+			}
+#endif
+		default:
+			panic("unsupported late relocation type ", type);
+	}
+}
+
+intptr_t* SAVED_LIBC_REL_ADDENDS;
+size_t SAVED_LIBC_REL_ADDEND_COUNT = 0;
+
 void SharedObject::relocate() {
 	uintptr_t rela = 0;
 	uintptr_t relr = 0;
@@ -304,8 +537,6 @@ void SharedObject::relocate() {
 			continue;
 		}
 
-		auto* ptr = reinterpret_cast<uintptr_t*>(base + entry.r_offset);
-
 		hz::optional<ObjectSymbol> resolved_sym;
 		auto* sym = &symtab[ELF_R_SYM(entry.r_info)];
 		if (ELF_R_SYM(entry.r_info)) {
@@ -313,91 +544,38 @@ void SharedObject::relocate() {
 			resolved_sym = OBJECT_STORAGE.get_unsafe()->lookup(this, sym_name, lookup_policy);
 		}
 
-		switch (type) {
-			case R_RELATIVE:
-				*ptr = base + entry.r_addend;
-				break;
-			case R_ABSOLUTE:
-			case R_GLOB_DAT:
-			{
-				if (ELF_ST_BIND(sym->st_info) == STB_WEAK) {
-					if (resolved_sym) {
-						*ptr = resolved_sym->object->base + resolved_sym->sym->st_value + entry.r_addend;
-					}
-					else {
-						println("rtld: unresolved weak symbol ", strtab + sym->st_name, " in object ", name);
-						*ptr = 0;
-					}
-				}
-				else {
-					if (!resolved_sym) {
-						println("rtld: unresolved symbol ", strtab + sym->st_name, " in object ", name);
-						has_unresolved_symbols = true;
-					}
-					else {
-						*ptr = resolved_sym->object->base + resolved_sym->sym->st_value + entry.r_addend;
-					}
-				}
-				break;
+		has_unresolved_symbols |= !process_relocation({this, entry}, resolved_sym);
+	}
+
+	if (!SAVED_LIBC_REL_ADDENDS) {
+		uintptr_t* relr_addr = nullptr;
+		for (uintptr_t i = 0; i < relr_size; i += sizeof(Elf_Relr)) {
+			auto entry = *reinterpret_cast<Elf_Relr*>(relr + i);
+
+			// even entry indicates the starting address
+			if (!(entry & 1)) {
+				relr_addr = reinterpret_cast<uintptr_t*>(base + entry);
+				*relr_addr++ += base;
 			}
-			case R_TPOFF:
-			{
-				if (ELF_R_SYM(entry.r_info)) {
-					__ensure(resolved_sym);
-					__ensure(resolved_sym->object->initial_tls_model);
-					*ptr = -resolved_sym->object->tls_offset +
-						resolved_sym->sym->st_value +
-						entry.r_addend;
+				// odd entry indicates a bitmap of locations to be relocated
+			else {
+				__ensure(relr_addr);
+				for (int j = 0;; ++j) {
+					entry >>= 1;
+					if (!entry) {
+						break;
+					}
+					else if (entry & 1) {
+						relr_addr[j] += base;
+					}
 				}
-				else {
-					__ensure(initial_tls_model);
-					*ptr = -tls_offset + entry.r_addend;
-				}
-				break;
+				// each entry describes at max 63 or 31 locations
+				relr_addr += 8 * sizeof(Elf_Relr) - 1;
 			}
-			case R_DTPMOD:
-				if (ELF_R_SYM(entry.r_info)) {
-					__ensure(resolved_sym);
-					*ptr = reinterpret_cast<uintptr_t>(resolved_sym->object);
-				}
-				else {
-					*ptr = reinterpret_cast<uintptr_t>(this);
-				}
-				break;
-			case R_DTPOFF:
-				__ensure(resolved_sym);
-				*ptr = resolved_sym->sym->st_value + entry.r_addend;
-				break;
-			default:
-				panic("unsupported relocation type ", type);
 		}
 	}
 
-	uintptr_t* relr_addr = nullptr;
-	for (uintptr_t i = 0; i < relr_size; i += sizeof(Elf_Relr)) {
-		auto entry = *reinterpret_cast<Elf_Relr*>(relr + i);
-
-		// even entry indicates the starting address
-		if (!(entry & 1)) {
-			relr_addr = reinterpret_cast<uintptr_t*>(base + entry);
-			*relr_addr++ += base;
-		}
-		// odd entry indicates a bitmap of locations to be relocated
-		else {
-			__ensure(relr_addr);
-			for (int j = 0;; ++j) {
-				entry >>= 1;
-				if (!entry) {
-					break;
-				}
-				else if (entry & 1) {
-					relr_addr[j] += base;
-				}
-			}
-			// each entry describes at max 63 or 31 locations
-			relr_addr += 8 * sizeof(Elf_Relr) - 1;
-		}
-	}
+	size_t libc_saved_addend_index = 0;
 
 	for (uintptr_t i = 0; i < rel_size; i += sizeof(Elf_Rel)) {
 		auto entry = *reinterpret_cast<Elf_Rel*>(rel + i);
@@ -407,180 +585,77 @@ void SharedObject::relocate() {
 			continue;
 		}
 
-		auto* ptr = reinterpret_cast<uintptr_t*>(base + entry.r_offset);
+		Relocation reloc {this, entry, 0};
 
 		hz::optional<ObjectSymbol> resolved_sym;
 		auto* sym = &symtab[ELF_R_SYM(entry.r_info)];
 		if (ELF_R_SYM(entry.r_info)) {
 			const char* sym_name = strtab + sym->st_name;
 			resolved_sym = OBJECT_STORAGE.get_unsafe()->lookup(this, sym_name, lookup_policy);
+
+			if (SAVED_LIBC_REL_ADDENDS) {
+				reloc.rela.r_addend = SAVED_LIBC_REL_ADDENDS[libc_saved_addend_index++];
+			}
+			else {
+				reloc = {this, entry};
+			}
+		}
+		else {
+			if (SAVED_LIBC_REL_ADDENDS) {
+				continue;
+			}
+
+			reloc = {this, entry};
 		}
 
-		switch (type) {
-			case R_RELATIVE:
-				*ptr += base;
-				break;
-			case R_ABSOLUTE:
-			case R_GLOB_DAT:
-			{
-				if (ELF_ST_BIND(sym->st_info) == STB_WEAK) {
-					if (resolved_sym) {
-						*ptr = resolved_sym->object->base + resolved_sym->sym->st_value;
-					}
-					else {
-						println("rtld: unresolved weak symbol ", strtab + sym->st_name, " in object ", name);
-						*ptr = 0;
-					}
-				}
-				else {
-					if (!resolved_sym) {
-						println("rtld: unresolved symbol ", strtab + sym->st_name, " in object ", name);
-						has_unresolved_symbols = true;
-					}
-					else {
-						*ptr = resolved_sym->object->base + resolved_sym->sym->st_value;
-					}
-				}
-				break;
-			}
-			case R_TPOFF:
-				*ptr += -tls_offset;
-				break;
-			case R_DTPMOD:
+		has_unresolved_symbols |= !process_relocation(reloc, resolved_sym);
+	}
+
+	if (plt_rel_size) {
+		if (plt_rel_type == DT_RELA) {
+			for (uintptr_t i = 0; i < plt_rel_size; i += sizeof(Elf_Rela)) {
+				auto entry = *reinterpret_cast<Elf_Rela*>(plt_rel + i);
+
+				hz::optional<ObjectSymbol> resolved_sym;
+				auto* sym = &symtab[ELF_R_SYM(entry.r_info)];
 				if (ELF_R_SYM(entry.r_info)) {
-					__ensure(resolved_sym);
-					*ptr = reinterpret_cast<uintptr_t>(resolved_sym->object);
+					const char* sym_name = strtab + sym->st_name;
+					resolved_sym = OBJECT_STORAGE.get_unsafe()->lookup(this, sym_name, lookup_policy);
+				}
+
+				has_unresolved_symbols |= !process_relocation({this, entry}, resolved_sym);
+			}
+		}
+		else {
+			__ensure(plt_rel_type == DT_REL);
+
+			for (uintptr_t i = 0; i < plt_rel_size; i += sizeof(Elf_Rel)) {
+				auto entry = *reinterpret_cast<Elf_Rel*>(plt_rel + i);
+
+				Relocation reloc {this, entry, 0};
+
+				hz::optional<ObjectSymbol> resolved_sym;
+				auto* sym = &symtab[ELF_R_SYM(entry.r_info)];
+				if (ELF_R_SYM(entry.r_info)) {
+					const char* sym_name = strtab + sym->st_name;
+					resolved_sym = OBJECT_STORAGE.get_unsafe()->lookup(this, sym_name, lookup_policy);
+
+					if (SAVED_LIBC_REL_ADDENDS) {
+						reloc.rela.r_addend = SAVED_LIBC_REL_ADDENDS[libc_saved_addend_index++];
+					}
+					else {
+						reloc = {this, entry};
+					}
 				}
 				else {
-					*ptr = reinterpret_cast<uintptr_t>(this);
+					if (SAVED_LIBC_REL_ADDENDS) {
+						continue;
+					}
+
+					reloc = {this, entry};
 				}
-				break;
-			case R_DTPOFF:
-				__ensure(resolved_sym);
-				*ptr += resolved_sym->sym->st_value;
-				break;
-			default:
-				panic("unsupported relocation type ", type);
-		}
-	}
 
-	if (plt_rel_type == DT_RELA) {
-		for (uintptr_t i = 0; i < plt_rel_size; i += sizeof(Elf_Rela)) {
-			auto entry = *reinterpret_cast<Elf_Rela*>(plt_rel + i);
-			auto type = ELF_R_TYPE(entry.r_info);
-			auto* ptr = reinterpret_cast<uintptr_t*>(base + entry.r_offset);
-
-			hz::optional<ObjectSymbol> resolved_sym;
-			auto* sym = &symtab[ELF_R_SYM(entry.r_info)];
-			if (ELF_R_SYM(entry.r_info)) {
-				const char* sym_name = strtab + sym->st_name;
-				resolved_sym = OBJECT_STORAGE.get_unsafe()->lookup(this, sym_name, lookup_policy);
-			}
-
-			switch (type) {
-				case R_JUMP_SLOT:
-				{
-					if (ELF_ST_BIND(sym->st_info) == STB_WEAK) {
-						if (resolved_sym) {
-							*ptr = resolved_sym->object->base + resolved_sym->sym->st_value + entry.r_addend;
-						}
-						else {
-							println("rtld: unresolved weak symbol ", strtab + sym->st_name, " in object ", name);
-							*ptr = 0;
-						}
-					}
-					else {
-						if (!resolved_sym) {
-							println("rtld: unresolved symbol ", strtab + sym->st_name, " in object ", name);
-							has_unresolved_symbols = true;
-						}
-						else {
-							*ptr = resolved_sym->object->base + resolved_sym->sym->st_value + entry.r_addend;
-						}
-					}
-					break;
-				}
-#ifdef R_TLSDESC
-				case R_TLSDESC:
-				{
-					SharedObject* target;
-					uintptr_t symbol_value = 0;
-					if (ELF_R_SYM(entry.r_info)) {
-						if (!resolved_sym) {
-							println("rtld: unresolved tlsdesc symbol ", strtab + sym->st_name, " in object ", name);
-							has_unresolved_symbols = true;
-							break;
-						}
-						target = resolved_sym->object;
-						symbol_value = resolved_sym->sym->st_value;
-					}
-					else {
-						target = this;
-					}
-
-					if (target->initial_tls_model) {
-						ptr[0] = reinterpret_cast<uintptr_t>(&__tlsdesc_static);
-						ptr[1] = -target->tls_offset + symbol_value + entry.r_addend;
-					}
-					else {
-						auto* data = new TlsdescData {
-							.index = target->tls_module_index,
-							.addend = symbol_value + entry.r_addend
-						};
-
-						access_tls_for_object(target);
-
-						ptr[0] = reinterpret_cast<uintptr_t>(&__tlsdesc_dynamic);
-						ptr[1] = reinterpret_cast<uintptr_t>(data);
-						tls_descs.push_back(data);
-					}
-
-					break;
-				}
-#endif
-				default:
-					panic("unsupported plt relocation type ", type);
-			}
-		}
-	}
-	else {
-		for (uintptr_t i = 0; i < plt_rel_size; i += sizeof(Elf_Rel)) {
-			auto entry = *reinterpret_cast<Elf_Rel*>(plt_rel + i);
-			auto type = ELF_R_TYPE(entry.r_info);
-			auto* ptr = reinterpret_cast<uintptr_t*>(base + entry.r_offset);
-
-			hz::optional<ObjectSymbol> resolved_sym;
-			auto* sym = &symtab[ELF_R_SYM(entry.r_info)];
-			if (ELF_R_SYM(entry.r_info)) {
-				const char* sym_name = strtab + sym->st_name;
-				resolved_sym = OBJECT_STORAGE.get_unsafe()->lookup(this, sym_name, lookup_policy);
-			}
-
-			switch (type) {
-				case R_JUMP_SLOT:
-				{
-					if (ELF_ST_BIND(sym->st_info) == STB_WEAK) {
-						if (resolved_sym) {
-							*ptr = resolved_sym->object->base + resolved_sym->sym->st_value;
-						}
-						else {
-							println("rtld: unresolved weak symbol ", strtab + sym->st_name, " in object ", name);
-							*ptr = 0;
-						}
-					}
-					else {
-						if (!resolved_sym) {
-							println("rtld: unresolved symbol ", strtab + sym->st_name, " in object ", name);
-							has_unresolved_symbols = true;
-						}
-						else {
-							*ptr = resolved_sym->object->base + resolved_sym->sym->st_value;
-						}
-					}
-					break;
-				}
-				default:
-					panic("unsupported plt relocation type ", type);
+				has_unresolved_symbols |= !process_relocation(reloc, resolved_sym);
 			}
 		}
 	}
@@ -592,7 +667,9 @@ void SharedObject::relocate() {
 
 void SharedObject::late_relocate() {
 	uintptr_t rela = 0;
+	uintptr_t rel = 0;
 	uintptr_t rela_size = 0;
+	uintptr_t rel_size = 0;
 
 	for (auto* dyn = dynamic; dyn->d_tag != DT_NULL; ++dyn) {
 		switch (dyn->d_tag) {
@@ -601,6 +678,12 @@ void SharedObject::late_relocate() {
 				break;
 			case DT_RELASZ:
 				rela_size = dyn->d_un.d_val;
+				break;
+			case DT_REL:
+				rel = base + dyn->d_un.d_ptr;
+				break;
+			case DT_RELSZ:
+				rel_size = dyn->d_un.d_val;
 				break;
 			default:
 				break;
@@ -615,7 +698,23 @@ void SharedObject::late_relocate() {
 			continue;
 		}
 
-		auto* ptr = reinterpret_cast<uintptr_t*>(base + entry.r_offset);
+		hz::optional<ObjectSymbol> resolved_sym;
+		auto* sym = &symtab[ELF_R_SYM(entry.r_info)];
+		if (ELF_R_SYM(entry.r_info)) {
+			const char* sym_name = strtab + sym->st_name;
+			resolved_sym = OBJECT_STORAGE.get_unsafe()->lookup(this, sym_name, LookupPolicy::IgnoreLocal);
+		}
+
+		process_late_relocation({this, entry}, resolved_sym);
+	}
+
+	for (uintptr_t i = 0; i < rel_size; i += sizeof(Elf_Rel)) {
+		auto entry = *reinterpret_cast<Elf_Rel*>(rel + i);
+		auto type = ELF_R_TYPE(entry.r_info);
+
+		if (type != R_COPY && type != R_IRELATIVE) {
+			continue;
+		}
 
 		hz::optional<ObjectSymbol> resolved_sym;
 		auto* sym = &symtab[ELF_R_SYM(entry.r_info)];
@@ -624,40 +723,164 @@ void SharedObject::late_relocate() {
 			resolved_sym = OBJECT_STORAGE.get_unsafe()->lookup(this, sym_name, LookupPolicy::IgnoreLocal);
 		}
 
-		switch (type) {
-			case R_COPY:
-			{
-				if (!resolved_sym) {
-					println("rtld: unresolved symbol ", strtab + sym->st_name, " in object ", name);
-				}
-				__ensure(resolved_sym && "unresolved symbol for copy relocation");
-				memcpy(
-					ptr,
-					reinterpret_cast<const void*>(resolved_sym->object->base + resolved_sym->sym->st_value),
-					resolved_sym->sym->st_size);
+		process_late_relocation({this, entry}, resolved_sym);
+	}
+}
+
+void SharedObject::relocate_libc(intptr_t* saved_rel_addends) {
+	uintptr_t rela = 0;
+	uintptr_t relr = 0;
+	uintptr_t rel = 0;
+	uintptr_t rela_size = 0;
+	uintptr_t relr_size = 0;
+	uintptr_t rel_size = 0;
+	uintptr_t plt_rel_size = 0;
+	uintptr_t plt_rel_type = 0;
+	uintptr_t plt_rel = 0;
+
+	for (auto* dyn = dynamic; dyn->d_tag != DT_NULL; ++dyn) {
+		switch (dyn->d_tag) {
+			case DT_PLTRELSZ:
+				plt_rel_size = dyn->d_un.d_val;
 				break;
-			}
-#if defined(__x86_64__) || defined(__i386__)
-			case R_IRELATIVE:
-			{
-				auto addr = base + entry.r_addend;
-				auto* fn = reinterpret_cast<uintptr_t (*)()>(addr);
-				*ptr = fn();
+			case DT_RELA:
+				rela = base + dyn->d_un.d_ptr;
 				break;
-			}
-#elif defined(__aarch64__)
-			case R_IRELATIVE:
-			{
-				uintptr_t addr = base + entry.r_addend;
-				auto* fn = reinterpret_cast<uintptr_t (*)(uint64_t)>(addr);
-				// todo pass AT_HWCAP
-				*ptr = fn(0);
+			case DT_RELASZ:
+				rela_size = dyn->d_un.d_val;
 				break;
-			}
-#endif
+			case DT_REL:
+				rel = base + dyn->d_un.d_ptr;
+				break;
+			case DT_RELSZ:
+				rel_size = dyn->d_un.d_val;
+				break;
+			case DT_PLTREL:
+				plt_rel_type = dyn->d_un.d_val;
+				break;
+			case DT_JMPREL:
+				plt_rel = base + dyn->d_un.d_ptr;
+				break;
+			case DT_RELRSZ:
+				relr_size = dyn->d_un.d_val;
+				break;
+			case DT_RELR:
+				relr = base + dyn->d_un.d_ptr;
+				break;
 			default:
-				panic("unsupported late relocation type ", type);
+				break;
 		}
+	}
+
+	bool has_unresolved_symbols = false;
+
+	for (uintptr_t i = 0; i < rela_size; i += sizeof(Elf_Rela)) {
+		auto entry = *reinterpret_cast<Elf_Rela*>(rela + i);
+		auto type = ELF_R_TYPE(entry.r_info);
+
+		if (type == R_COPY || type == R_IRELATIVE) {
+			continue;
+		}
+
+		hz::optional<ObjectSymbol> resolved_sym;
+		auto* sym = &symtab[ELF_R_SYM(entry.r_info)];
+		if (ELF_R_SYM(entry.r_info)) {
+			const char* sym_name = strtab + sym->st_name;
+			if (auto elf_sym = lookup(sym_name)) {
+				resolved_sym = ObjectSymbol {this, elf_sym};
+			}
+		}
+
+		has_unresolved_symbols |= !process_relocation({this, entry}, resolved_sym);
+	}
+
+	uintptr_t* relr_addr = nullptr;
+	for (uintptr_t i = 0; i < relr_size; i += sizeof(Elf_Relr)) {
+		auto entry = *reinterpret_cast<Elf_Relr*>(relr + i);
+
+		// even entry indicates the starting address
+		if (!(entry & 1)) {
+			relr_addr = reinterpret_cast<uintptr_t*>(base + entry);
+		}
+		// odd entry indicates a bitmap of locations to be relocated
+		else {
+			__ensure(relr_addr);
+			for (int j = 0; entry; ++j) {
+				if (entry & 1) {
+					relr_addr[j] += base;
+				}
+				entry >>= 1;
+			}
+			// each entry describes at max 63 or 31 locations
+			relr_addr += 8 * sizeof(Elf_Relr) - 1;
+		}
+	}
+
+	for (uintptr_t i = 0; i < rel_size; i += sizeof(Elf_Rel)) {
+		auto entry = *reinterpret_cast<Elf_Rel*>(rel + i);
+		auto type = ELF_R_TYPE(entry.r_info);
+
+		if (type == R_COPY || type == R_IRELATIVE) {
+			continue;
+		}
+
+		hz::optional<ObjectSymbol> resolved_sym;
+		auto* sym = &symtab[ELF_R_SYM(entry.r_info)];
+		if (ELF_R_SYM(entry.r_info)) {
+			const char* sym_name = strtab + sym->st_name;
+			if (auto elf_sym = lookup(sym_name)) {
+				resolved_sym = ObjectSymbol {this, elf_sym};
+			}
+
+			__ensure(SAVED_LIBC_REL_ADDEND_COUNT < MAX_SAVED_LIBC_REL_ADDENDS);
+			saved_rel_addends[SAVED_LIBC_REL_ADDEND_COUNT++] = *reinterpret_cast<intptr_t*>(base + entry.r_offset);
+		}
+
+		has_unresolved_symbols |= !process_relocation({this, entry}, resolved_sym);
+	}
+
+	if (plt_rel_size) {
+		if (plt_rel_type == DT_RELA) {
+			for (uintptr_t i = 0; i < plt_rel_size; i += sizeof(Elf_Rela)) {
+				auto entry = *reinterpret_cast<Elf_Rela*>(plt_rel + i);
+
+				hz::optional<ObjectSymbol> resolved_sym;
+				auto* sym = &symtab[ELF_R_SYM(entry.r_info)];
+				if (ELF_R_SYM(entry.r_info)) {
+					const char* sym_name = strtab + sym->st_name;
+					if (auto elf_sym = lookup(sym_name)) {
+						resolved_sym = ObjectSymbol {this, elf_sym};
+					}
+				}
+
+				has_unresolved_symbols |= !process_relocation({this, entry}, resolved_sym);
+			}
+		}
+		else {
+			__ensure(plt_rel_type == DT_REL);
+
+			for (uintptr_t i = 0; i < plt_rel_size; i += sizeof(Elf_Rel)) {
+				auto entry = *reinterpret_cast<Elf_Rel*>(plt_rel + i);
+
+				hz::optional<ObjectSymbol> resolved_sym;
+				auto* sym = &symtab[ELF_R_SYM(entry.r_info)];
+				if (ELF_R_SYM(entry.r_info)) {
+					const char* sym_name = strtab + sym->st_name;
+					if (auto elf_sym = lookup(sym_name)) {
+						resolved_sym = ObjectSymbol {this, elf_sym};
+					}
+
+					__ensure(SAVED_LIBC_REL_ADDEND_COUNT < MAX_SAVED_LIBC_REL_ADDENDS);
+					saved_rel_addends[SAVED_LIBC_REL_ADDEND_COUNT++] = *reinterpret_cast<intptr_t*>(base + entry.r_offset);
+				}
+
+				has_unresolved_symbols |= !process_relocation({this, entry}, resolved_sym);
+			}
+		}
+	}
+
+	if (has_unresolved_symbols) {
+		panic("object had unresolved symbols");
 	}
 }
 

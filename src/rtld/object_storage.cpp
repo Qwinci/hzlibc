@@ -296,10 +296,6 @@ void ObjectStorage::protect_object(SharedObject* object) {
 	}
 }
 
-namespace {
-	bool LIBC_INITIALIZED = false;
-}
-
 void remove_object_from_debug_list(SharedObject* object);
 
 LoadError ObjectStorage::load_dependencies(SharedObject* object, bool global) {
@@ -372,7 +368,8 @@ LoadError ObjectStorage::load_dependencies(SharedObject* object, bool global) {
 			}
 
 			hz::string_view name {object->strtab + dyn->d_un.d_ptr};
-			if (name == "ld-linux.so.2" || name == "ld-linux-x86-64.so.2") {
+			if (name == "ld-linux.so.2" || name == "ld-linux-x86-64.so.2" ||
+				name == "libc.so") {
 				continue;
 			}
 
@@ -458,26 +455,13 @@ LoadError ObjectStorage::load_dependencies(SharedObject* object, bool global) {
 		}
 	}
 
-	if (!LIBC_INITIALIZED) {
-		objects[1]->relocate();
-	}
-
 	for (auto obj : init_list) {
 		obj->relocate();
-	}
-
-	if (!LIBC_INITIALIZED) {
-		objects[1]->late_relocate();
 	}
 
 	for (auto obj : init_list) {
 		obj->late_relocate();
 		protect_object(obj);
-	}
-
-	if (!LIBC_INITIALIZED) {
-		destruct_list.push_back(objects[1]);
-		objects[1]->run_init();
 	}
 
 	return LoadError::Success;
@@ -659,15 +643,6 @@ hz::optional<ObjectSymbol> ObjectStorage::lookup(SharedObject* local, const char
 }
 
 void ObjectStorage::init_objects() {
-	if (!LIBC_INITIALIZED) {
-		if (objects[0]->preinit_array) {
-			for (auto* fn = objects[0]->preinit_array; fn != objects[0]->preinit_array_end; ++fn) {
-				(*fn)();
-			}
-		}
-		LIBC_INITIALIZED = true;
-	}
-
 	for (size_t i = init_list.size(); i > 0; --i) {
 		if (!init_list[i - 1]->initialized) {
 			destruct_list.push_back(init_list[i - 1]);

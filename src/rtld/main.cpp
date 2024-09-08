@@ -146,11 +146,42 @@ extern "C" [[gnu::used]] uintptr_t start(uintptr_t* sp) {
 	for (auto* env = envv; *env; ++env) ++envc;
 	auto* auxv = reinterpret_cast<Elf_Aux*>(envv + envc + 1);
 
+	uintptr_t libc_base = 0;
+	for (auto* aux = auxv; aux->a_type != AT_NULL; ++aux) {
+		if (aux->a_type == AT_BASE) {
+			libc_base = aux->a_un.a_val;
+			break;
+		}
+	}
+
+	auto* libc_ehdr = get_ehdr();
+	auto* libc_phdr = reinterpret_cast<Elf_Phdr*>(libc_base + libc_ehdr->e_phoff);
+
+	LIBC_OBJECT.initialize(
+		&*EXE_OBJECT,
+		hz::string<Allocator>::null(Allocator {}),
+		hz::string<Allocator>::null(Allocator {}),
+		libc_base,
+		get_dynamic(),
+		libc_phdr,
+		libc_ehdr->e_phentsize,
+		libc_ehdr->e_phnum);
+	LIBC_OBJECT->symbolic_resolution = false;
+	LIBC_OBJECT->rtld_loaded = false;
+	LIBC_OBJECT->tls_offset = (LIBC_OBJECT->tls_size + LIBC_OBJECT->tls_align - 1) & ~(LIBC_OBJECT->tls_align - 1);
+
+	intptr_t libc_addends[MAX_SAVED_LIBC_REL_ADDENDS];
+	LIBC_OBJECT->relocate_libc(libc_addends);
+
+	for (int i = 0; i < libc_ehdr->e_phnum; ++i) {
+		auto* phdr = reinterpret_cast<Elf_Phdr*>(reinterpret_cast<uintptr_t>(libc_phdr) + i * libc_ehdr->e_phentsize);
+		LIBC_OBJECT->phdrs_vec.push_back(*phdr);
+	}
+
 	Elf_Phdr* exe_phdr = nullptr;
 	uint16_t exe_phent = 0;
 	uint16_t exe_phnum = 0;
 	uintptr_t exe_entry = 0;
-	uintptr_t libc_base = 0;
 
 	hz::string<Allocator> exe_path {Allocator {}};
 	for (auto* aux = auxv; aux->a_type != AT_NULL; ++aux) {
@@ -204,12 +235,15 @@ extern "C" [[gnu::used]] uintptr_t start(uintptr_t* sp) {
 		}
 	}
 
-	auto* exe_dynamic = reinterpret_cast<Elf_Dyn*>(exe_base + exe_dynamic_offset);
-
-	auto* libc_ehdr = get_ehdr();
-	auto* libc_phdr = reinterpret_cast<Elf_Phdr*>(libc_base + libc_ehdr->e_phoff);
 	hz::string<Allocator> libc_path {Allocator {}};
 	libc_path = reinterpret_cast<const char*>(exe_base + exe_interp_offset);
+	hz::string<Allocator> libc_name {Allocator {}};
+	libc_name = "libc.so";
+
+	LIBC_OBJECT->path = std::move(libc_path);
+	LIBC_OBJECT->name = std::move(libc_name);
+
+	auto* exe_dynamic = reinterpret_cast<Elf_Dyn*>(exe_base + exe_dynamic_offset);
 
 	__ensure(sys_mprotect(
 		reinterpret_cast<void*>((exe_base + exe_dynamic_offset) & ~0xFFF),
@@ -229,21 +263,6 @@ extern "C" [[gnu::used]] uintptr_t start(uintptr_t* sp) {
 		exe_phnum);
 	EXE_OBJECT->rtld_loaded = false;
 
-	hz::string<Allocator> libc_name {Allocator {}};
-	libc_name = "libc.so";
-	LIBC_OBJECT.initialize(
-		&*EXE_OBJECT,
-		std::move(libc_name),
-		std::move(libc_path),
-		libc_base,
-		get_dynamic(),
-		libc_phdr,
-		libc_ehdr->e_phentsize,
-		libc_ehdr->e_phnum);
-	LIBC_OBJECT->symbolic_resolution = false;
-	LIBC_OBJECT->rtld_loaded = false;
-	LIBC_OBJECT->tls_offset = (LIBC_OBJECT->tls_size + LIBC_OBJECT->tls_align - 1) & ~(LIBC_OBJECT->tls_align - 1);
-
 	OBJECT_STORAGE.get_unsafe().initialize();
 	OBJECT_STORAGE.get_unsafe()->add_object(&*EXE_OBJECT);
 	OBJECT_STORAGE.get_unsafe()->global_scope.push_back(&*EXE_OBJECT);
@@ -251,6 +270,13 @@ extern "C" [[gnu::used]] uintptr_t start(uintptr_t* sp) {
 	OBJECT_STORAGE.get_unsafe()->global_scope.push_back(&*LIBC_OBJECT);
 	OBJECT_STORAGE.get_unsafe()->initial_tls_size = LIBC_OBJECT->tls_offset;
 	__ensure(OBJECT_STORAGE.get_unsafe()->load_dependencies(&*EXE_OBJECT, true) == LoadError::Success);
+
+	// relocate libc again to take into account preloads
+	SAVED_LIBC_REL_ADDENDS = libc_addends;
+	LIBC_OBJECT->relocate();
+	SAVED_LIBC_REL_ADDENDS = nullptr;
+
+	LIBC_OBJECT->late_relocate();
 
 	__ensure(sys_mprotect(
 		reinterpret_cast<void*>((exe_base + exe_dynamic_offset) & ~0xFFF),
@@ -273,6 +299,16 @@ extern "C" [[gnu::used]] uintptr_t start(uintptr_t* sp) {
 	_dl_debug_state();
 
 	hzlibc_env_init(argv + argc + 1);
+
+	if (EXE_OBJECT->preinit_array) {
+		for (auto* fn = EXE_OBJECT->preinit_array; fn != EXE_OBJECT->preinit_array_end; ++fn) {
+			(*fn)();
+		}
+	}
+
+	OBJECT_STORAGE.get_unsafe()->destruct_list.push_back(&*LIBC_OBJECT);
+	LIBC_OBJECT->run_init();
+
 	OBJECT_STORAGE.get_unsafe()->init_objects();
 
 	return exe_entry;
