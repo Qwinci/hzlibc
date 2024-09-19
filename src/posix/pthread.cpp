@@ -110,6 +110,11 @@ EXPORT int pthread_setcanceltype(int state, int* old_state) {
 	return 0;
 }
 
+EXPORT int pthread_cancel(pthread_t thread) {
+	println("pthread_cancel: pthread cancellation is not implemented");
+	return 0;
+}
+
 extern "C" int __register_atfork(
 	void (*prepare)(),
 	void (*parent)(),
@@ -329,6 +334,10 @@ namespace {
 	}
 }
 
+EXPORT int pthread_rwlock_tryrdlock(pthread_rwlock_t* lock) {
+	__ensure(!"pthread_rwlock_tryrdlock is not implemented");
+}
+
 EXPORT int pthread_rwlock_rdlock(pthread_rwlock_t* lock) {
 	auto* ptr = reinterpret_cast<RwLock*>(lock);
 
@@ -337,6 +346,10 @@ EXPORT int pthread_rwlock_rdlock(pthread_rwlock_t* lock) {
 	rwlock_mutex_unlock(ptr);
 
 	return 0;
+}
+
+EXPORT int pthread_rwlock_trywrlock(pthread_rwlock_t* lock) {
+	__ensure(!"pthread_rwlock_trywrlock is not implemented");
 }
 
 EXPORT int pthread_rwlock_wrlock(pthread_rwlock_t* lock) {
@@ -439,6 +452,10 @@ EXPORT int pthread_mutex_trylock(pthread_mutex_t* mutex) {
 	return reinterpret_cast<Mutex*>(mutex)->try_manual_lock();
 }
 
+EXPORT int pthread_mutex_timedlock(pthread_mutex_t* __restrict mutex, const timespec* __restrict abs_timeout) {
+	__ensure(!"pthread_mutex_timedlock is not implemented");
+}
+
 EXPORT int pthread_mutex_unlock(pthread_mutex_t* mutex) {
 	return reinterpret_cast<Mutex*>(mutex)->manual_unlock();
 }
@@ -537,8 +554,8 @@ EXPORT int pthread_cond_wait(pthread_cond_t* __restrict cond, pthread_mutex_t* _
 EXPORT int pthread_cond_timedwait(
 	pthread_cond_t* __restrict cond,
 	pthread_mutex_t* __restrict mutex,
-	const struct timespec* __restrict abs_time) {
-	if (!abs_time) {
+	const struct timespec* __restrict abs_timeout) {
+	if (!abs_timeout) {
 		return pthread_cond_wait(cond, mutex);
 	}
 	else {
@@ -551,8 +568,8 @@ EXPORT int pthread_cond_timedwait(
 			}
 
 			timespec timeout {
-				.tv_sec = abs_time->tv_sec - current.tv_sec,
-				.tv_nsec = abs_time->tv_nsec - current.tv_nsec
+				.tv_sec = abs_timeout->tv_sec - current.tv_sec,
+				.tv_nsec = abs_timeout->tv_nsec - current.tv_nsec
 			};
 			if (timeout.tv_sec < 0 || (timeout.tv_sec == 0 && timeout.tv_nsec < 0)) {
 				return ETIMEDOUT;
@@ -697,6 +714,11 @@ EXPORT int pthread_mutexattr_init(pthread_mutexattr_t* attr) {
 
 EXPORT int pthread_mutexattr_destroy(pthread_mutexattr_t* attr) {
 	return 0;
+}
+
+EXPORT int pthread_mutexattr_gettype(const pthread_mutexattr_t* __restrict attr, int* __restrict type) {
+	auto* ptr = reinterpret_cast<const MutexAttr*>(attr);
+	return ptr->type;
 }
 
 EXPORT int pthread_mutexattr_settype(pthread_mutexattr_t* attr, int type) {

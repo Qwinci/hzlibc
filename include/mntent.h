@@ -3,8 +3,12 @@
 
 #include <bits/utils.h>
 #include <stdio.h>
+#include <paths.h>
 
 __begin_decls
+
+#define MNTTAB _PATH_MNTTAB
+#define MOUNTED _PATH_MOUNTED
 
 struct mntent {
 	char* mnt_fsname;
@@ -16,6 +20,7 @@ struct mntent {
 };
 
 FILE* setmntent(const char* __file_name, const char* __type);
+struct mntent* getmntent(FILE* __file);
 int endmntent(FILE* __file);
 char* hasmntopt(const struct mntent* __restrict __mnt, const char* __restrict __option);
 

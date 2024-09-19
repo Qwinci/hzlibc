@@ -14,7 +14,7 @@ typedef enum {
 
 
 void* tsearch(const void* __key, void** __root, int (*__comp)(const void* __a, const void* __b));
-void* tfind(const void* __key, const void** __root, int (*__comp)(const void* __a, const void* __b));
+void* tfind(const void* __key, void* const* __root, int (*__comp)(const void* __a, const void* __b));
 void* tdelete(
 	const void* __restrict __key,
 	void** __restrict __root,

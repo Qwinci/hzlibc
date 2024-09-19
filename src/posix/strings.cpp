@@ -26,6 +26,10 @@ EXPORT int bcmp(const void* s1, const void* s2, size_t size) {
 	return memcmp(s1, s2, size);
 }
 
+EXPORT void bcopy(const void* src, void* dest, size_t size) {
+	memmove(dest, src, size);
+}
+
 EXPORT int ffs(int value) {
 	for (size_t i = 0; i < sizeof(int) * 8; ++i) {
 		if (value & 1 << i) {

@@ -5,6 +5,7 @@ target_sources(c PRIVATE
 
 add_library(crti OBJECT crti.S)
 add_library(crtn OBJECT crtn.S)
+add_library(crt1 OBJECT crt1.S)
 add_library(Scrt1 OBJECT scrt1.S)
 
 install(
@@ -14,6 +15,11 @@ install(
 
 install(
 	FILES $<TARGET_OBJECTS:crtn> RENAME crtn.o
+	TYPE LIB
+)
+
+install(
+	FILES $<TARGET_OBJECTS:crt1> RENAME crt1.o
 	TYPE LIB
 )
 

@@ -63,6 +63,14 @@ struct hostent {
 	int h_length;
 	char** h_addr_list;
 };
+
+struct servent {
+	char* s_name;
+	char** s_aliases;
+	int s_port;
+	char* s_proto;
+};
+
 #define h_addr h_addr_list[0]
 
 int* __h_errno_location(void);
@@ -91,6 +99,9 @@ void freeaddrinfo(struct addrinfo* __ai);
 
 __attribute__((deprecated("Use getaddrinfo instead")))
 struct hostent* gethostbyname(const char* __name);
+struct hostent* gethostbyaddr(const void* __addr, socklen_t __len, int __type);
+
+struct servent* getservbyname(const char* __name, const char* __proto);
 
 const char* gai_strerror(int __err_code);
 

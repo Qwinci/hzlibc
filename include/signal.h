@@ -25,14 +25,19 @@ int raise(int __sig);
 #define SA_NODEFER 0x40000000
 #define SA_RESETHAND 0x80000000
 
+#define SS_ONSTACK 1
+#define SS_DISABLE 2
+
 typedef void (*__sighandler)(int);
+
+typedef int sig_atomic_t;
 
 #define SIG_ERR ((__sighandler) ((void*) -1))
 #define SIG_DFL ((__sighandler) ((void*) 0))
 #define SIG_IGN ((__sighandler) ((void*) 1))
 
 #define SIG_BLOCK 0
-#define SIG_UNLOCK 1
+#define SIG_UNBLOCK 1
 #define SIG_SETMASK 2
 
 #define SIGHUP 1
@@ -70,8 +75,37 @@ typedef void (*__sighandler)(int);
 #define SIGSYS 31
 #define SIGUNUSED SIGSYS
 
+#define SI_ASYNCNL -60
+#define SI_DETHREAD -7
+#define SI_TKILL -6
+#define SI_SIGIO -5
+#define SI_ASYNCIO -4
+#define SI_MESGQ -3
+#define SI_TIMER -2
+#define SI_QUEUE -1
+#define SI_USER 0
+#define SI_KERNEL 0x80
+
+#define TRAP_BRKPT 1
+#define TRAP_TRACE 2
+#define TRAP_BRANCH 3
+#define TRAP_HWBKPT 4
+#define TRAP_UNK 5
+
 #define MINSIGSTKSZ 2048
 #define SIGSTKSZ 8192
+
+#define SI_KERNEL 0x80
+
+#define CLD_EXITED 1
+#define CLD_KILLED 2
+#define CLD_DUMPED 3
+#define CLD_TRAPPED 4
+#define CLD_STOPPED 5
+#define CLD_CONTINUED 6
+
+#define NSIG 65
+#define _NSIG NSIG
 
 typedef union sigval {
 	int sival_int;
@@ -138,6 +172,27 @@ typedef struct A {
 	} __si_fields;
 } siginfo_t;
 
+#define si_pid __si_fields.__piduid.si_pid
+#define si_uid __si_fields.__piduid.si_uid
+#define si_timerid __si_fields.__timer.si_tid
+#define si_overrun __si_fields.__timer.si_overrun
+#define si_status __si_fields.__sigchld.si_status
+#define si_utime __si_fields.__sigchld.si_utime
+#define si_stime __si_fields.__sigchld.si_stime
+#define si_value __si_fields.__rt.si_value
+#define si_int __si_fields.__rt.si_value.sival_int
+#define si_ptr __si_fields.__rt.si_value.sival_ptr
+#define si_addr __si_fields.__sigfault.si_addr
+#define si_addr_lsb __si_fields.__sigfault.si_addr_lsb
+#define si_lower __si_fields.__sigfault.si_lower
+#define si_upper __si_fields.__sigfault.si_upper
+#define si_pkey __si_fields.__sigfault.si_pkey
+#define si_band __si_fields.__sigpoll.si_band
+#define si_fd __si_fields.__sigpoll.si_fd
+#define si_call_addr __si_fields.__sigsys.si_call_addr
+#define si_syscall __si_fields.__sigsys.si_syscall
+#define si_arch __si_fields.__sigsys.si_arch
+
 struct sigaction {
 	union {
 		void (*sa_handler)(int __sig_num);
@@ -149,11 +204,15 @@ struct sigaction {
 };
 
 int kill(pid_t __pid, int __sig);
+int killpg(pid_t __pgrp, int __sig);
 int sigprocmask(int __how, const sigset_t* __restrict __set, sigset_t* __restrict __old);
 int pthread_sigmask(int __how, const sigset_t* __restrict __set, sigset_t* __restrict __old);
 int sigaction(int __sig_num, const struct sigaction* __restrict __action, struct sigaction* __restrict __old);
 int sigtimedwait(const sigset_t* __restrict __set, siginfo_t* __restrict __info, const struct timespec* __timeout);
+int sigwait(const sigset_t* __restrict __set, int* __restrict __sig);
 int sigaltstack(const stack_t* __stack, stack_t* __old_stack);
+int sigsuspend(const sigset_t* __set);
+int sigpending(sigset_t* __set);
 
 int sigemptyset(sigset_t* __set);
 int sigfillset(sigset_t* __set);

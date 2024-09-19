@@ -1,4 +1,5 @@
-#include "sigjmp.h"
+#include "setjmp.h"
+#include "utils.hpp"
 #include "signal.h"
 
 extern "C" [[gnu::returns_twice]] int __sigsetjmp(jmp_buf env, int save_mask) {
@@ -6,7 +7,7 @@ extern "C" [[gnu::returns_twice]] int __sigsetjmp(jmp_buf env, int save_mask) {
 	return 0;
 }
 
-[[gnu::noreturn]] void siglongjmp(sigjmp_buf env, int value) {
+EXPORT [[gnu::noreturn]] void siglongjmp(sigjmp_buf env, int value) {
 	if (env->__saved_mask) {
 		sigprocmask(SIG_SETMASK, &env->__sigset, nullptr);
 	}

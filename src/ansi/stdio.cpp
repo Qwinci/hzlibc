@@ -7,50 +7,51 @@
 #include "errno.h"
 #include "ctype.h"
 #include "math.h"
+#include "wchar.h"
 #include <hz/new.hpp>
 #include <hz/algorithm.hpp>
 #include <hz/string_utils.hpp>
 #include <limits.h>
 
+ssize_t fd_file_write(FILE* file, const void* data, size_t size) {
+	ssize_t written;
+	if (auto err = sys_write(file->fd, data, size, &written)) {
+		file->error = err;
+		return -1;
+	}
+	file->last_was_read = false;
+	return written;
+}
+
+ssize_t fd_file_read(FILE* file, void* data, size_t size) {
+	ssize_t unget = 0;
+	auto* ptr = static_cast<unsigned char*>(data);
+	while (size && file->ungetc_size) {
+		auto c = *file->ungetc_read_ptr++;
+		*ptr++ = c;
+		if (file->ungetc_read_ptr == file->ungetc_buffer + sizeof(file->ungetc_buffer)) {
+			file->ungetc_read_ptr = file->ungetc_buffer;
+		}
+		--file->ungetc_size;
+		--size;
+		++unget;
+	}
+	data = ptr;
+
+	ssize_t count_read;
+	if (auto err = sys_read(file->fd, data, size, &count_read)) {
+		file->error = err;
+		file->flags |= FILE_ERR_FLAG;
+		return -1;
+	}
+	else if (count_read < static_cast<ssize_t>(size)) {
+		file->flags |= FILE_EOF_FLAG;
+	}
+	file->last_was_read = true;
+	return count_read + unget;
+}
+
 namespace {
-	ssize_t fd_file_write(FILE* file, const void* data, size_t size) {
-		ssize_t written;
-		if (auto err = sys_write(file->fd, data, size, &written)) {
-			file->error = err;
-			return -1;
-		}
-		file->last_was_read = false;
-		return written;
-	}
-
-	ssize_t fd_file_read(FILE* file, void* data, size_t size) {
-		ssize_t unget = 0;
-		auto* ptr = static_cast<unsigned char*>(data);
-		while (size && file->ungetc_size) {
-			auto c = *file->ungetc_read_ptr++;
-			*ptr++ = c;
-			if (file->ungetc_read_ptr == file->ungetc_buffer + sizeof(file->ungetc_buffer)) {
-				file->ungetc_read_ptr = file->ungetc_buffer;
-			}
-			--file->ungetc_size;
-			--size;
-			++unget;
-		}
-		data = ptr;
-
-		ssize_t count_read;
-		if (auto err = sys_read(file->fd, data, size, &count_read)) {
-			file->error = err;
-			file->flags |= FILE_ERR_FLAG;
-			return -1;
-		}
-		else if (count_read < static_cast<ssize_t>(size)) {
-			file->flags |= FILE_EOF_FLAG;
-		}
-		file->last_was_read = true;
-		return count_read + unget;
-	}
-
 	FILE STDIN {
 		.write = fd_file_write,
 		.read = fd_file_read,
@@ -218,9 +219,13 @@ EXPORT int vfprintf(FILE* __restrict file, const char* __restrict fmt, va_list a
 		auto* start = fmt;
 		for (; *fmt && *fmt != '%'; ++fmt);
 		size_t len = fmt - start;
-		for (; *fmt && fmt[1] == '%'; fmt += 2) ++len;
-		if (len && !write(start, len)) {
-			return -1;
+		for (; *fmt == '%' && fmt[1] == '%'; fmt += 2) ++len;
+		if (len) {
+			if (!write(start, len)) {
+				return -1;
+			}
+
+			continue;
 		}
 
 		if (!*fmt) {
@@ -379,64 +384,75 @@ EXPORT int vfprintf(FILE* __restrict file, const char* __restrict fmt, va_list a
 			case 'i':
 			{
 				++fmt;
-				if (state == State::l) {
-					long value = va_arg(ap, long);
-					if (value < 0) {
-						value *= -1;
-						if (!write("-", 1)) {
-							return -1;
-						}
-					}
-					else if ((flags & flags::SIGN) && !write("+", 1)) {
+
+				intmax_t value;
+				if (state == State::None ||
+				    state == State::hh ||
+				    state == State::h) {
+					value = va_arg(ap, int);
+				}
+				else if (state == State::l) {
+					value = va_arg(ap, long);
+				}
+				else if (state == State::ll) {
+					value = va_arg(ap, long long);
+				}
+				else if (state == State::j) {
+					value = va_arg(ap, intmax_t);
+				}
+				else if (state == State::z) {
+					value = va_arg(ap, ssize_t);
+				}
+				else if (state == State::t) {
+					value = va_arg(ap, ptrdiff_t);
+				}
+				else {
+					println("state ", static_cast<int>(state));
+					__ensure(false && "unimplemented printf %d state");
+				}
+
+				if (value < 0) {
+					value *= -1;
+					if (!write("-", 1)) {
 						return -1;
 					}
+				}
+				else if ((flags & flags::SIGN) && !write("+", 1)) {
+					return -1;
+				}
 
-					if (has_width && !has_precision) {
-						if (!write_int(value, 10, width, (flags & flags::ZERO) ? '0': ' ')) {
-							return -1;
-						}
-					}
-					else {
-						if (!write_int(value, 10)) {
-							return -1;
-						}
+				if (has_width && !has_precision) {
+					if (!write_int(value, 10, width, (flags & flags::ZERO) ? '0': ' ')) {
+						return -1;
 					}
 				}
 				else {
-					__ensure(state == State::None);
-
-					int value = va_arg(ap, int);
-					if (value < 0) {
-						value *= -1;
-						if (!write("-", 1)) {
-							return -1;
-						}
-					}
-					else if ((flags & flags::SIGN) && !write("+", 1)) {
+					if (!write_int(value, 10)) {
 						return -1;
-					}
-
-					if (has_width && !has_precision) {
-						if (!write_int(value, 10, width, (flags & flags::ZERO) ? '0': ' ')) {
-							return -1;
-						}
-					}
-					else {
-						if (!write_int(value, 10)) {
-							return -1;
-						}
 					}
 				}
 
 				break;
 			}
 			case 'f':
+			case 'F':
 			case 'g':
 			{
+				bool g = *fmt == 'g';
 				++fmt;
-				__ensure(state == State::None);
 
-				double value = va_arg(ap, double);
+				long double value;
+				if (state == State::L) {
+					value = va_arg(ap, long double);
+				}
+				else {
+					if (state != State::None) {
+						println("unimplemented printf f/g state ", static_cast<int>(state));
+					}
+					__ensure(state == State::None);
+					value = va_arg(ap, double);
+				}
+
 				if (value < 0) {
 					value *= -1;
 					if (!write("-", 1)) {
@@ -460,8 +476,13 @@ EXPORT int vfprintf(FILE* __restrict file, const char* __restrict fmt, va_list a
 					break;
 				}
 
+				if (g) {
+					println("printf: g modifier acts like f");
+				}
+				__ensure(!has_width);
+
 				auto int_part = static_cast<long long>(value);
-				auto dec_part = value - static_cast<double>(int_part);
+				auto dec_part = value - static_cast<long double>(int_part);
 
 				if (!write_int(int_part, 10)) {
 					return -1;
@@ -470,80 +491,145 @@ EXPORT int vfprintf(FILE* __restrict file, const char* __restrict fmt, va_list a
 					precision = 6;
 				}
 
-				for (int i = 0; i < precision; ++i) {
-					dec_part *= 10;
-				}
-
-				auto dec_part_int = static_cast<long long>(dec_part);
-				if (dec_part_int || (!dec_part_int && (flags & flags::ALT))) {
+				if (precision > 0 || (flags & flags::ALT)) {
 					if (!write(".", 1)) {
 						return -1;
 					}
 				}
 
-				if (dec_part_int) {
-					if (!write_int(dec_part_int, 10)) {
+				dec_part *= 10;
+				auto dec_part_int = static_cast<long long>(dec_part);
+				dec_part -= dec_part_int;
+
+				int i = 0;
+				for (; i < precision; ++i) {
+					if (!write(&CHARS[dec_part_int], 1)) {
+						return -1;
+					}
+					dec_part *= 10;
+					dec_part_int = static_cast<long long>(dec_part);
+					dec_part -= dec_part_int;
+				}
+
+				break;
+			}
+			case 'e':
+			{
+				++fmt;
+
+				println("printf: e is implemented incorrectly as f");
+
+				long double value;
+				if (state == State::L) {
+					value = va_arg(ap, long double);
+				}
+				else {
+					if (state != State::None) {
+						println("unimplemented printf f/g state ", static_cast<int>(state));
+					}
+					__ensure(state == State::None);
+					value = va_arg(ap, double);
+				}
+
+				if (value < 0) {
+					value *= -1;
+					if (!write("-", 1)) {
 						return -1;
 					}
 				}
+				else if ((flags & flags::SIGN) && !write("+", 1)) {
+					return -1;
+				}
+
+				if (isinf(value)) {
+					if (!write("inf", 3)) {
+						return -1;
+					}
+					break;
+				}
+				else if (isnan(value)) {
+					if (!write("nan", 3)) {
+						return -1;
+					}
+					break;
+				}
+
+				__ensure(!has_width);
+
+				auto int_part = static_cast<long long>(value);
+				auto dec_part = value - static_cast<long double>(int_part);
+
+				if (!write_int(int_part, 10)) {
+					return -1;
+				}
+				if (!has_precision) {
+					precision = 6;
+				}
+
+				if (precision > 0 || (flags & flags::ALT)) {
+					if (!write(".", 1)) {
+						return -1;
+					}
+				}
+
+				dec_part *= 10;
+				auto dec_part_int = static_cast<long long>(dec_part);
+				dec_part -= dec_part_int;
+
+				int i = 0;
+				for (; i < precision; ++i) {
+					if (!write(&CHARS[dec_part_int], 1)) {
+						return -1;
+					}
+					dec_part *= 10;
+					dec_part_int = static_cast<long long>(dec_part);
+					dec_part -= dec_part_int;
+				}
+
 				break;
 			}
 			case 'u':
 			{
 				++fmt;
-				if (state == State::None) {
-					unsigned int value = va_arg(ap, unsigned int);
-					if ((flags & flags::SIGN) && !write("+", 1)) {
-						return -1;
-					}
 
-					if (has_width && !has_precision) {
-						if (!write_int(value, 10, width, (flags & flags::ZERO) ? '0': ' ')) {
-							return -1;
-						}
-					}
-					else {
-						if (!write_int(value, 10)) {
-							return -1;
-						}
-					}
+				uintmax_t value;
+
+				if (state == State::None ||
+				    state == State::hh ||
+				    state == State::h) {
+					value = va_arg(ap, unsigned int);
 				}
-				else if (state == State::l) {
-					auto value = va_arg(ap, unsigned long);
-					if ((flags & flags::SIGN) && !write("+", 1)) {
-						return -1;
-					}
-
-					if (has_width && !has_precision) {
-						if (!write_int(value, 10, width, (flags & flags::ZERO) ? '0': ' ')) {
-							return -1;
-						}
-					}
-					else {
-						if (!write_int(value, 10)) {
-							return -1;
-						}
-					}
+				else if (state == State::l ||
+				         state == State::t) {
+					value = va_arg(ap, unsigned long);
+				}
+				else if (state == State::ll) {
+					value = va_arg(ap, unsigned long long);
+				}
+				else if (state == State::j) {
+					value = va_arg(ap, uintmax_t);
 				}
 				else if (state == State::z) {
-					size_t value = va_arg(ap, size_t);
-					if ((flags & flags::SIGN) && !write("+", 1)) {
-						return -1;
-					}
+					value = va_arg(ap, size_t);
+				}
+				else {
+					println("state ", static_cast<int>(state));
+					__ensure(false && "unimplemented printf %u state");
+				}
 
-					if (has_width && !has_precision) {
-						if (!write_int(value, 10, width, (flags & flags::ZERO) ? '0': ' ')) {
-							return -1;
-						}
-					}
-					else {
-						if (!write_int(value, 10)) {
-							return -1;
-						}
+				if ((flags & flags::SIGN) && !write("+", 1)) {
+					return -1;
+				}
+
+				if (has_width && !has_precision) {
+					if (!write_int(value, 10, width, (flags & flags::ZERO) ? '0': ' ')) {
+						return -1;
 					}
 				}
 				else {
-					__ensure(false && "unimplemented printf %u state");
+					if (!write_int(value, 10)) {
+						return -1;
+					}
 				}
 
 				break;
@@ -551,49 +637,98 @@ EXPORT int vfprintf(FILE* __restrict file, const char* __restrict fmt, va_list a
 			case 'x':
 			case 'X':
 			{
-				if (state == State::l) {
-					unsigned long value = va_arg(ap, unsigned long);
-					if ((flags & flags::SIGN) && !write("+", 1)) {
+				uintmax_t value;
+
+				if (state == State::None ||
+				    state == State::hh ||
+				    state == State::h) {
+					value = va_arg(ap, unsigned int);
+				}
+				else if (state == State::l ||
+					state == State::t) {
+					value = va_arg(ap, unsigned long);
+				}
+				else if (state == State::ll) {
+					value = va_arg(ap, unsigned long long);
+				}
+				else if (state == State::j) {
+					value = va_arg(ap, uintmax_t);
+				}
+				else if (state == State::z) {
+					value = va_arg(ap, size_t);
+				}
+				else {
+					println("state ", static_cast<int>(state));
+					__ensure(false && "unimplemented printf %x state");
+				}
+
+				if ((flags & flags::SIGN) && !write("+", 1)) {
+					return -1;
+				}
+				if (flags & flags::ALT) {
+					if (!write("0x", 2)) {
 						return -1;
 					}
-					if (flags & flags::ALT) {
-						if (!write("0x", 2)) {
-							return -1;
-						}
-					}
+				}
 
-					if (has_width && !has_precision) {
-						if (!write_int(value, 16, width, (flags & flags::ZERO) ? '0': ' ', *fmt == 'x')) {
-							return -1;
-						}
-					}
-					else {
-						if (!write_int(value, 16, 0, 0, *fmt == 'x')) {
-							return -1;
-						}
+				if (has_width && !has_precision) {
+					if (!write_int(value, 16, width, (flags & flags::ZERO) ? '0': ' ', *fmt == 'x')) {
+						return -1;
 					}
 				}
 				else {
-					__ensure(state == State::None);
-					unsigned int value = va_arg(ap, int);
-					if ((flags & flags::SIGN) && !write("+", 1)) {
+					if (!write_int(value, 16, 0, 0, *fmt == 'x')) {
 						return -1;
 					}
-					if (flags & flags::ALT) {
-						if (!write("0x", 2)) {
-							return -1;
-						}
-					}
+				}
 
-					if (has_width && !has_precision) {
-						if (!write_int(value, 16, width, (flags & flags::ZERO) ? '0': ' ', *fmt == 'x')) {
-							return -1;
-						}
+				++fmt;
+				break;
+			}
+			case 'o':
+			{
+				uintmax_t value;
+
+				if (state == State::None ||
+					state == State::hh ||
+					state == State::h) {
+					value = va_arg(ap, unsigned int);
+				}
+				else if (state == State::l ||
+					state == State::t) {
+					value = va_arg(ap, unsigned long);
+				}
+				else if (state == State::ll) {
+					value = va_arg(ap, unsigned long long);
+				}
+				else if (state == State::j) {
+					value = va_arg(ap, uintmax_t);
+				}
+				else if (state == State::z) {
+					value = va_arg(ap, size_t);
+				}
+				else {
+					println("state ", static_cast<int>(state));
+					__ensure(false && "unimplemented printf %o state");
+				}
+
+				if ((flags & flags::SIGN) && !write("+", 1)) {
+					return -1;
+				}
+				if (flags & flags::ALT) {
+					if (!write("0", 1)) {
+						return -1;
 					}
-					else {
-						if (!write_int(value, 16, 0, 0, *fmt == 'x')) {
-							return -1;
-						}
+				}
+
+				if (has_width && !has_precision) {
+					if (!write_int(value, 8, width, (flags & flags::ZERO) ? '0': ' ', false)) {
+						return -1;
+					}
+				}
+				else {
+					if (!write_int(value, 8, 0, 0, false)) {
+						return -1;
 					}
 				}
 
@@ -629,38 +764,18 @@ EXPORT int vfprintf(FILE* __restrict file, const char* __restrict fmt, va_list a
 			{
 				++fmt;
 				__ensure(flags == 0);
-				__ensure(state == State::None);
-				char c = static_cast<char>(va_arg(ap, int));
-				if (file) {
-					auto tmp = file->write(file, &c, 1);
-					if (tmp < 0) {
-						file->mutex.manual_unlock();
-						return -1;
+
+				if (state == State::l) {
+					auto c = static_cast<wchar_t>(va_arg(ap, int));
+					char buf[4];
+					auto res = wcrtomb(buf, c, nullptr);
+					if (res == static_cast<size_t>(-1)) {
+						buf[0] = '?';
+						res = 1;
 					}
-					written += static_cast<size_t>(tmp);
-				}
-				else {
-					written += 1;
-				}
-				if (written > INT_MAX) {
+
 					if (file) {
-						file->mutex.manual_unlock();
-					}
-					errno = EOVERFLOW;
-					return -1;
-				}
-				break;
-			}
-			case 's':
-			{
-				++fmt;
-				__ensure(flags == 0);
-				__ensure(state == State::None);
-				const char* str = va_arg(ap, const char*);
-				len = strlen(str);
-				if (len) {
-					if (file) {
-						auto tmp = file->write(file, str, len);
+						auto tmp = file->write(file, buf, res);
 						if (tmp < 0) {
 							file->mutex.manual_unlock();
 							return -1;
@@ -668,7 +783,7 @@ EXPORT int vfprintf(FILE* __restrict file, const char* __restrict fmt, va_list a
 						written += static_cast<size_t>(tmp);
 					}
 					else {
-						written += len;
+						written += res;
 					}
 					if (written > INT_MAX) {
 						if (file) {
@@ -678,6 +793,105 @@ EXPORT int vfprintf(FILE* __restrict file, const char* __restrict fmt, va_list a
 						return -1;
 					}
 				}
+				else {
+					__ensure(state == State::None);
+					char c = static_cast<char>(va_arg(ap, int));
+					if (file) {
+						auto tmp = file->write(file, &c, 1);
+						if (tmp < 0) {
+							file->mutex.manual_unlock();
+							return -1;
+						}
+						written += static_cast<size_t>(tmp);
+					}
+					else {
+						written += 1;
+					}
+					if (written > INT_MAX) {
+						if (file) {
+							file->mutex.manual_unlock();
+						}
+						errno = EOVERFLOW;
+						return -1;
+					}
+				}
+
+				break;
+			}
+			case 's':
+			{
+				++fmt;
+				__ensure(flags == 0);
+
+				if (state == State::l) {
+					const wchar_t* str = va_arg(ap, const wchar_t*);
+					if (has_precision) {
+						len = wcsnlen(str, precision);
+					}
+					else {
+						len = wcslen(str);
+					}
+					if (len) {
+						char buf[4];
+						for (size_t i = 0; i < len; ++i) {
+							auto res = wcrtomb(buf, str[i], nullptr);
+							if (res == static_cast<size_t>(-1)) {
+								buf[0] = '?';
+								res = 1;
+							}
+
+							if (file) {
+								auto tmp = file->write(file, buf, res);
+								if (tmp < 0) {
+									file->mutex.manual_unlock();
+									return -1;
+								}
+								written += static_cast<size_t>(tmp);
+							}
+							else {
+								written += res;
+							}
+							if (written > INT_MAX) {
+								if (file) {
+									file->mutex.manual_unlock();
+								}
+								errno = EOVERFLOW;
+								return -1;
+							}
+						}
+					}
+				}
+				else {
+					__ensure(state == State::None);
+					const char* str = va_arg(ap, const char*);
+					if (has_precision) {
+						len = strnlen(str, precision);
+					}
+					else {
+						len = strlen(str);
+					}
+					if (len) {
+						if (file) {
+							auto tmp = file->write(file, str, len);
+							if (tmp < 0) {
+								file->mutex.manual_unlock();
+								return -1;
+							}
+							written += static_cast<size_t>(tmp);
+						}
+						else {
+							written += len;
+						}
+						if (written > INT_MAX) {
+							if (file) {
+								file->mutex.manual_unlock();
+							}
+							errno = EOVERFLOW;
+							return -1;
+						}
+					}
+				}
+
 				break;
 			}
 			default:
@@ -832,7 +1046,6 @@ EXPORT int vfscanf(FILE* __restrict file, const char* __restrict fmt, va_list ap
 		}
 		else if (*fmt == '%' && fmt[1] == '%') {
 			CHECK_CONSUME(look_ahead() == '%');
-			CHECK_CONSUME(look_ahead() == '%');
 			++fmt;
 			continue;
 		}
@@ -848,7 +1061,7 @@ EXPORT int vfscanf(FILE* __restrict file, const char* __restrict fmt, va_list ap
 			assign = true;
 		}
 
-		int max_width;
+		int max_width = 0;
 		bool has_width = false;
 		if (isdigit(*fmt)) {
 			size_t count;
@@ -901,6 +1114,12 @@ EXPORT int vfscanf(FILE* __restrict file, const char* __restrict fmt, va_list ap
 
 		if (!*fmt) {
 			return EOF;
+		}
+
+		if (*fmt != '[' && *fmt != 'c' && *fmt != 'n') {
+			while (isspace(look_ahead())) {
+				consume();
+			}
 		}
 
 		char* dest = nullptr;
@@ -962,8 +1181,9 @@ EXPORT int vfscanf(FILE* __restrict file, const char* __restrict fmt, va_list ap
 			}
 			case 'u':
 			case 'd':
+			case 'i':
 			{
-				__ensure(state == State::None);
+				uintmax_t value = 0;
 
 				if (!has_width) {
 					max_width = INT_MAX;
@@ -980,7 +1200,6 @@ EXPORT int vfscanf(FILE* __restrict file, const char* __restrict fmt, va_list ap
 					--max_width;
 				}
 
-				unsigned int value = 0;
 				for (int i = 0; i < max_width; ++i) {
 					auto c = look_ahead();
 					if (!isdigit(c)) {
@@ -996,15 +1215,22 @@ EXPORT int vfscanf(FILE* __restrict file, const char* __restrict fmt, va_list ap
 				}
 
 				if (dest) {
-					*reinterpret_cast<unsigned int*>(dest) = value;
+					switch (state) {
+						case State::None:
+							*reinterpret_cast<unsigned int*>(dest) = value;
+							break;
+						case State::l:
+							*reinterpret_cast<unsigned long*>(dest) = value;
+							break;
+						default:
+							panic("unimplemented vfscanf u state ", static_cast<int>(state));
+					}
 				}
 				++consumed;
 				break;
 			}
 			case 'x':
 			{
-				__ensure(state == State::None);
-
 				if (!has_width) {
 					max_width = INT_MAX;
 				}
@@ -1032,10 +1258,7 @@ EXPORT int vfscanf(FILE* __restrict file, const char* __restrict fmt, va_list ap
 				unsigned int value = 0;
 				for (int i = 0; i < max_width; ++i) {
 					auto c = look_ahead();
-					if (!c) {
-						RETURN;
-					}
-					else if (!isxdigit(c)) {
+					if (!isxdigit(c)) {
 						break;
 					}
 					consume();
@@ -1049,7 +1272,156 @@ EXPORT int vfscanf(FILE* __restrict file, const char* __restrict fmt, va_list ap
 				}
 
 				if (dest) {
-					*reinterpret_cast<unsigned int*>(dest) = value;
+					switch (state) {
+						case State::None:
+							*reinterpret_cast<unsigned int*>(dest) = value;
+							break;
+						case State::l:
+							*reinterpret_cast<unsigned long*>(dest) = value;
+							break;
+						default:
+							panic("unimplemented vfscanf x state ", static_cast<int>(state));
+					}
+				}
+				++consumed;
+				break;
+			}
+			case 'a':
+			case 'A':
+			case 'e':
+			case 'E':
+			case 'f':
+			case 'F':
+			case 'g':
+			case 'G':
+			{
+				if (!has_width) {
+					max_width = INT_MAX;
+				}
+
+				bool sign = false;
+				if (max_width && look_ahead() == '-') {
+					consume();
+					sign = true;
+					--max_width;
+				}
+				else if (max_width && look_ahead() == '+') {
+					consume();
+					--max_width;
+				}
+
+				int base = 10;
+				if (max_width && look_ahead() == '0') {
+					consume();
+					--max_width;
+					if (look_ahead() == 'x' || look_ahead() == 'X') {
+						consume();
+						--max_width;
+						base = 16;
+					}
+				}
+
+				long double value = 0;
+				int index = 0;
+				for (; index < max_width; ++index) {
+					auto c = look_ahead();
+					if (c < '0' || c > CHARS[base - 1]) {
+						break;
+					}
+					auto digit = c <= '9' ? (c - '0') : (tolower(c) - 'a' + 10);
+					consume();
+					value *= base;
+					value += digit;
+				}
+
+				max_width -= index;
+
+				if (max_width && look_ahead() == '.') {
+					consume();
+					--max_width;
+
+					long double decimal {1};
+
+					index = 0;
+					for (; index < max_width; ++index) {
+						auto c = look_ahead();
+						if (c < '0' || c > CHARS[base - 1]) {
+							break;
+						}
+						auto digit = c <= '9' ? (c - '0') : (tolower(c) - 'a' + 10);
+						consume();
+						decimal /= base;
+						value += decimal * digit;
+					}
+
+					max_width -= index;
+				}
+
+				char exponent_char;
+				if (base == 10) {
+					exponent_char = 'e';
+				}
+				else {
+					exponent_char = 'p';
+				}
+
+				if (max_width && tolower(look_ahead()) == exponent_char) {
+					consume();
+					--max_width;
+
+					bool exponent_sign = false;
+					if (max_width && look_ahead() == '-') {
+						consume();
+						exponent_sign = true;
+						--max_width;
+					}
+					else if (max_width && look_ahead() == '+') {
+						consume();
+						--max_width;
+					}
+
+					int exponent = 0;
+					for (int i = 0; i < max_width; ++i) {
+						auto c = look_ahead();
+						if (!isdigit(c)) {
+							break;
+						}
+						consume();
+						exponent *= 10;
+						exponent += c - '0';
+					}
+
+					int exponent_value = base == 10 ? 10 : 2;
+					if (exponent_sign) {
+						for (int i = 0; i < exponent; ++i) {
+							value /= exponent_value;
+						}
+					}
+					else {
+						for (int i = 0; i < exponent; ++i) {
+							value *= exponent_value;
+						}
+					}
+				}
+
+				if (sign) {
+					value *= -1;
+				}
+
+				if (dest) {
+					switch (state) {
+						case State::None:
+							*reinterpret_cast<float*>(dest) = static_cast<float>(value);
+							break;
+						case State::l:
+							*reinterpret_cast<double*>(dest) = static_cast<double>(value);
+							break;
+						case State::L:
+							*reinterpret_cast<long double*>(dest) = value;
+							break;
+						default:
+							panic("unimplemented vfscanf f state ", static_cast<int>(state));
+					}
 				}
 				++consumed;
 				break;
@@ -1128,7 +1500,7 @@ int parse_file_mode(const char* mode) {
 		if (*mode == 'e') {
 			flags |= O_CLOEXEC;
 		}
-		else if (*mode != '+' && *mode != 'b') {
+		else if (*mode != '+' && *mode != 'b' && *mode != 't') {
 			return -EINVAL;
 		}
 		++mode;
@@ -1211,36 +1583,8 @@ EXPORT int getchar() {
 }
 
 EXPORT char* fgets(char* __restrict str, int count, FILE* __restrict file) {
-	if (!count) {
-		errno = EINVAL;
-		return nullptr;
-	}
-
 	auto lock = file->mutex.lock();
-
-	for (int i = 0;; ++i) {
-		if (i == count - 1) {
-			str[i] = 0;
-			return str;
-		}
-
-		int c = fgetc_unlocked(file);
-		if (c == EOF) {
-			if (i) {
-				str[i] = 0;
-				return str;
-			}
-			else {
-				return nullptr;
-			}
-		}
-		str[i] = static_cast<char>(c);
-
-		if (c == '\n') {
-			str[i + 1] = 0;
-			return str;
-		}
-	}
+	return fgets_unlocked(str, count, file);
 }
 
 EXPORT int ungetc(int ch, FILE* file) {
@@ -1394,6 +1738,11 @@ EXPORT int setvbuf(
 }
 
 EXPORT int fflush(FILE* file) {
+	if (!file) {
+		println("fflush flushing all is not implemented");
+		return 0;
+	}
+
 	if (file->flush) {
 		file->flush(file);
 	}
@@ -1428,6 +1777,7 @@ ALIAS(fopen, fopen64);
 ALIAS(scanf, __isoc23_scanf);
 ALIAS(sscanf, __isoc99_sscanf);
 ALIAS(sscanf, __isoc23_sscanf);
+ALIAS(vsscanf, __isoc99_vsscanf);
 ALIAS(vsscanf, __isoc23_vsscanf);
 ALIAS(vfscanf, __isoc23_vfscanf);
 ALIAS(fscanf, __isoc99_fscanf);

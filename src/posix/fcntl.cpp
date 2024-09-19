@@ -3,6 +3,10 @@
 #include "sys.hpp"
 #include "errno.h"
 
+EXPORT int creat(const char* path, mode_t mode) {
+	return open(path, O_CREAT | O_WRONLY | O_TRUNC, mode);
+}
+
 EXPORT int open(const char* path, int flags, ...) {
 	mode_t mode = 0;
 	if ((flags & O_CREAT) || (flags & O_TMPFILE)) {

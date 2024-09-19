@@ -42,7 +42,7 @@ EXPORT int sem_post(sem_t* sem) {
 
 	auto state = ptr->state.exchange(count + 1, hz::memory_order::release);
 	if (state & SEMAPHORE_WAITERS) {
-		__ensure(sys_futex_wake(ptr->state.data(), ptr->pshared) == 0);
+		__ensure(sys_futex_wake_all(ptr->state.data(), ptr->pshared) == 0);
 	}
 	return 0;
 }
@@ -51,19 +51,21 @@ EXPORT int sem_wait(sem_t* sem) {
 	auto* ptr = reinterpret_cast<Semaphore*>(sem);
 	int state = 0;
 	while (true) {
-		if (ptr->state.compare_exchange_weak(
-			state,
-			SEMAPHORE_WAITERS,
-			hz::memory_order::acquire)) {
-			int err = sys_futex_wait(ptr->state.data(), state, nullptr, ptr->pshared);
+		if (!(state & SEMAPHORE_COUNT_MASK)) {
+			if (ptr->state.compare_exchange_weak(
+				state,
+				SEMAPHORE_WAITERS,
+				hz::memory_order::acquire)) {
+				int err = sys_futex_wait(ptr->state.data(), state, nullptr, ptr->pshared);
 
-			if (err == ETIMEDOUT || err == EINTR) {
-				errno = err;
-				return -1;
-			}
-			else {
-				__ensure(!err || err == EAGAIN);
-				continue;
+				if (err == ETIMEDOUT || err == EINTR) {
+					errno = err;
+					return -1;
+				}
+				else {
+					__ensure(!err || err == EAGAIN);
+					continue;
+				}
 			}
 		}
 		else {
@@ -82,7 +84,7 @@ EXPORT int sem_trywait(sem_t* sem) {
 	auto* ptr = reinterpret_cast<Semaphore*>(sem);
 	while (true) {
 		auto state = ptr->state.load(hz::memory_order::acquire);
-		if (state & SEMAPHORE_WAITERS) {
+		if ((state & SEMAPHORE_WAITERS) || !state) {
 			errno = EAGAIN;
 			return -1;
 		}
@@ -101,39 +103,41 @@ EXPORT int sem_timedwait(sem_t* __restrict sem, const struct timespec* __restric
 	auto* ptr = reinterpret_cast<Semaphore*>(sem);
 	int state = 0;
 	while (true) {
-		if (ptr->state.compare_exchange_weak(
-			state,
-			SEMAPHORE_WAITERS,
-			hz::memory_order::acquire)) {
-			int err;
-			if (abs_timeout) {
-				timespec current {};
-				if (clock_gettime(CLOCK_REALTIME, &current)) {
-					return -1;
+		if (!(state & SEMAPHORE_COUNT_MASK)) {
+			if (ptr->state.compare_exchange_weak(
+				state,
+				SEMAPHORE_WAITERS,
+				hz::memory_order::acquire)) {
+				int err;
+				if (abs_timeout) {
+					timespec current {};
+					if (clock_gettime(CLOCK_REALTIME, &current)) {
+						return -1;
+					}
+
+					timespec timeout {
+						.tv_sec = abs_timeout->tv_sec - current.tv_sec,
+						.tv_nsec = abs_timeout->tv_nsec - current.tv_nsec
+					};
+					if (timeout.tv_sec < 0 || (timeout.tv_sec == 0 && timeout.tv_nsec < 0)) {
+						errno = ETIMEDOUT;
+						return -1;
+					}
+
+					err = sys_futex_wait(ptr->state.data(), state, &timeout, ptr->pshared);
+				}
+				else {
+					err = sys_futex_wait(ptr->state.data(), state, nullptr, ptr->pshared);
 				}
 
-				timespec timeout {
-					.tv_sec = abs_timeout->tv_sec - current.tv_sec,
-					.tv_nsec = abs_timeout->tv_nsec - current.tv_nsec
-				};
-				if (timeout.tv_sec < 0 || (timeout.tv_sec == 0 && timeout.tv_nsec < 0)) {
-					errno = ETIMEDOUT;
+				if (err == ETIMEDOUT || err == EINTR) {
+					errno = err;
 					return -1;
 				}
-
-				err = sys_futex_wait(ptr->state.data(), state, &timeout, ptr->pshared);
-			}
-			else {
-				err = sys_futex_wait(ptr->state.data(), state, nullptr, ptr->pshared);
-			}
-
-			if (err == ETIMEDOUT || err == EINTR) {
-				errno = err;
-				return -1;
-			}
-			else {
-				__ensure(!err || err == EAGAIN);
-				continue;
+				else {
+					__ensure(!err || err == EAGAIN);
+					continue;
+				}
 			}
 		}
 		else {

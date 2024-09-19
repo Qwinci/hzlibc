@@ -10,14 +10,21 @@ EXPORT size_t mbrtoc32(
 	if (!str) {
 		return 0;
 	}
-	__ensure(n);
+	else if (!n) {
+		return static_cast<size_t>(-2);
+	}
 
 	auto first = static_cast<uint8_t>(*str);
 	if (!(first & 1 << 7)) {
 		if (pc32) {
 			*pc32 = first;
 		}
-		return 1;
+		if (!first) {
+			return 0;
+		}
+		else {
+			return 1;
+		}
 	}
 	else if ((first & 0b11100000) == 0b11000000) {
 		if (n == 1) {

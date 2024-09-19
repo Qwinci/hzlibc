@@ -72,6 +72,7 @@ __attribute__((__format__(__scanf__, 1, 0))) int vscanf(const char* __restrict _
 __attribute__((__format__(__scanf__, 1, 2))) int scanf(const char* __restrict __fmt, ...);
 
 FILE* fopen(const char* __restrict __filename, const char* __restrict __mode);
+FILE* fopen64(const char* __restrict __filename, const char* __restrict __mode);
 FILE* freopen(const char* __restrict __filename, const char* __restrict __mode, FILE* __restrict __file);
 size_t fread(void* __restrict __buffer, size_t __size, size_t __count, FILE* __file);
 size_t fwrite(const void* __restrict __buffer, size_t __size, size_t __count, FILE* __restrict __file);
@@ -105,6 +106,11 @@ int fseeko(FILE* __file, off_t __offset, int __whence);
 int fseeko64(FILE* __file, off64_t __offset, int __whence);
 off_t ftello(FILE* __file);
 off64_t ftello64(FILE* __file);
+__attribute__((__format__(__printf__, 2, 0))) int vdprintf(int __fd, const char* __fmt, va_list __ap);
+__attribute__((__format__(__printf__, 2, 3))) int dprintf(int __fd, const char* __fmt, ...);
+
+void flockfile(FILE* __file);
+void funlockfile(FILE* __file);
 
 ssize_t getline(char** __restrict __line, size_t* __restrict __size, FILE* __restrict __file);
 ssize_t getdelim(char** __restrict __line, size_t* __restrict __size, int __delim, FILE* __restrict __file);
@@ -113,6 +119,10 @@ FILE* popen(const char* __cmd, const char* __type);
 int pclose(FILE* __file);
 
 FILE* open_memstream(char** __ptr, size_t* __size_ptr);
+FILE* fmemopen(void* __buf, size_t __size, const char* __mode);
+
+#define L_ctermid 9
+char* ctermid(char* __str);
 
 // glibc
 size_t fread_unlocked(void* __restrict __buffer, size_t __size, size_t __count, FILE* __restrict __file);
@@ -120,6 +130,9 @@ size_t fwrite_unlocked(const void* __restrict __buffer, size_t __size, size_t __
 int fputc_unlocked(int __ch, FILE* __file);
 int fputs_unlocked(const char* __restrict __str, FILE* __restrict __file);
 int fgetc_unlocked(FILE* __file);
+int getc_unlocked(FILE* __file);
+int getchar_unlocked(void);
+char* fgets_unlocked(char* __restrict __str, int __count, FILE* __restrict __file);
 int ferror_unlocked(FILE* __file);
 int feof_unlocked(FILE* __file);
 void clearerr_unlocked(FILE* __file);
@@ -132,6 +145,13 @@ int asprintf(char** __restrict __ptr, const char* __fmt, ...);
 
 int remove(const char* __path);
 int rename(const char* __old_path, const char* __new_path);
+
+// bsd
+#define P_tmpdir "/tmp"
+
+int fdclose(FILE* __file, int* __fd_ptr);
+
+void setlinebuf(FILE* __file);
 
 __end_decls
 

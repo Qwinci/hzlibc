@@ -35,9 +35,21 @@ EXPORT char* nl_langinfo(nl_item item) {
 	int category = _NL_ITEM_CATEGORY(item);
 	int index = _NL_ITEM_INDEX(item);
 
+	if (category < 0 || category == LC_ALL || category >= 13) {
+		return const_cast<char*>("");
+	}
+
 	if (category == LC_CTYPE) {
 		if (index == _NL_ITEM_INDEX(_NL_CTYPE_CODESET_NAME)) {
 			return const_cast<char*>("UTF-8");
+		}
+	}
+	else if (category == LC_NUMERIC) {
+		if (index == _NL_ITEM_INDEX(__DECIMAL_POINT)) {
+			return const_cast<char*>(".");
+		}
+		else if (index == _NL_ITEM_INDEX(__THOUSANDS_SEP)) {
+			return const_cast<char*>("");
 		}
 	}
 	else if (category == LC_TIME) {
@@ -49,6 +61,7 @@ EXPORT char* nl_langinfo(nl_item item) {
 		}
 	}
 
+	println("nl_langinfo: category ", category, " index ", index, " is not implemented");
 	__ensure(!"nl_langinfo is not implemented");
 }
 

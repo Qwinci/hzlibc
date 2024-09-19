@@ -3,12 +3,26 @@
 #include "errno.h"
 #include "uchar.h"
 #include "string.h"
-#include "ansi/stdio_internal.hpp"
+#include "stdio_internal.hpp"
 #include "stdio.h"
 #include "internal/time.hpp"
+#include "str_to_int.hpp"
 
 EXPORT int mbsinit(const mbstate_t*) {
 	return 1;
+}
+
+EXPORT size_t mbrlen(const char* __restrict str, size_t len, mbstate_t* __restrict ps) {
+	if (!str) {
+		return 0;
+	}
+
+	auto size = mbrtowc(nullptr, str, len, ps);
+	if (size == static_cast<size_t>(-1) ||
+	    size == static_cast<size_t>(-2)) {
+		return -1;
+	}
+	return *str == 0 ? 0 : static_cast<int>(size);
 }
 
 EXPORT size_t wcrtomb(char* __restrict str, wchar_t wc, mbstate_t* __restrict) {
@@ -80,10 +94,74 @@ EXPORT wint_t btowc(int ch) {
 	}
 }
 
+EXPORT size_t wcsrtombs(char* __restrict dest, const wchar_t** __restrict src, size_t len, mbstate_t* __restrict ps) {
+	if (!dest) {
+		len = SIZE_MAX;
+	}
+
+	auto* ptr = *src;
+
+	size_t size = 0;
+	while (true) {
+		char buf[4];
+		size_t ret = wcrtomb(buf, *ptr, nullptr);
+		if (ret == static_cast<size_t>(-1)) {
+			*src = ptr;
+			return ret;
+		}
+		else if (ret > len) {
+			*src = ptr;
+			return size;
+		}
+
+		if (dest) {
+			memcpy(dest, buf, ret);
+			dest += ret;
+		}
+
+		size += ret;
+		len -= ret;
+
+		if (!*ptr++) {
+			*src = nullptr;
+			break;
+		}
+	}
+
+	return size - 1;
+}
+
 EXPORT size_t wcslen(const wchar_t* str) {
 	size_t len = 0;
 	while (*str++) ++len;
 	return len;
+}
+
+EXPORT wchar_t* wcscat(wchar_t* __restrict dest, const wchar_t* __restrict src) {
+	size_t len = wcslen(dest);
+	size_t src_len = wcslen(src);
+	memcpy(dest + len, src, (src_len + 1) * sizeof(wchar_t));
+	return dest;
+}
+
+EXPORT wchar_t* wcscpy(wchar_t* __restrict dest, const wchar_t* __restrict src) {
+	wchar_t* orig_dest = dest;
+	for (; *src;) {
+		*dest++ = *src++;
+	}
+	*dest = 0;
+	return orig_dest;
+}
+
+EXPORT wchar_t* wcsncpy(wchar_t* __restrict dest, const wchar_t* __restrict src, size_t count) {
+	wchar_t* orig_dest = dest;
+	for (; count && *src; --count) {
+		*dest++ = *src++;
+	}
+	if (count) {
+		*dest = 0;
+	}
+	return orig_dest;
 }
 
 EXPORT int wcscmp(const wchar_t* lhs, const wchar_t* rhs) {
@@ -93,6 +171,27 @@ EXPORT int wcscmp(const wchar_t* lhs, const wchar_t* rhs) {
 			return res;
 		}
 	}
+}
+
+EXPORT int wcsncmp(const wchar_t* lhs, const wchar_t* rhs, size_t count) {
+	for (; count; --count, ++lhs, ++rhs) {
+		int res = *lhs - *rhs;
+		if (res != 0 || !*lhs) {
+			return res;
+		}
+	}
+	return 0;
+}
+
+EXPORT wchar_t* wcsrchr(const wchar_t* str, wchar_t ch) {
+	auto size = wcslen(str) + 1;
+	for (size_t i = size; i > 0; --i) {
+		if (str[i - 1] == ch) {
+			return const_cast<wchar_t*>(&str[i - 1]);
+		}
+	}
+
+	return nullptr;
 }
 
 EXPORT wchar_t* wmemchr(const wchar_t* ptr, wchar_t ch, size_t count) {
@@ -147,6 +246,62 @@ EXPORT size_t wcsxfrm(wchar_t* __restrict dest, const wchar_t* __restrict src, s
 		}
 	}
 	return len;
+}
+
+EXPORT wchar_t* wcschr(const wchar_t* str, wchar_t ch) {
+	for (; *str; ++str) {
+		if (*str == ch) {
+			return const_cast<wchar_t*>(str);
+		}
+	}
+
+	return ch == 0 ? const_cast<wchar_t*>(str) : nullptr;
+}
+
+EXPORT wchar_t* wcsstr(const wchar_t* str, const wchar_t* substr) {
+	hz::wstring_view a {str};
+	if (auto pos = a.find(substr); pos != hz::string_view::npos) {
+		return const_cast<wchar_t*>(str + pos);
+	}
+	return nullptr;
+}
+
+EXPORT wchar_t* wcstok(wchar_t* __restrict str, const wchar_t* __restrict delim, wchar_t** __restrict save_ptr) {
+	if (str) {
+		*save_ptr = str;
+	}
+
+	hz::wstring_view str_view {*save_ptr};
+	hz::wstring_view delim_str {delim};
+
+	auto* start = *save_ptr;
+
+	auto start_pos = str_view.find_first_not_of(delim_str);
+	if (start_pos == hz::wstring_view::npos) {
+		return nullptr;
+	}
+
+	auto end_pos = str_view.find_first_of(delim_str, start_pos);
+	if (end_pos != hz::wstring_view::npos) {
+		(*save_ptr)[end_pos] = 0;
+		*save_ptr += end_pos + 1;
+	}
+	else {
+		*save_ptr += end_pos;
+	}
+	return start + start_pos;
+}
+
+EXPORT wchar_t* wcspbrk(const wchar_t* str, const wchar_t* break_set) {
+	hz::wstring_view str_view {str};
+	if (auto pos = str_view.find_first_of(break_set); pos != hz::string_view::npos) {
+		return const_cast<wchar_t*>(str + pos);
+	}
+	return nullptr;
+}
+
+EXPORT long wcstol(const wchar_t* __restrict str, wchar_t** __restrict end, int base) {
+	return str_to_int<long, unsigned long, wchar_t>(str, end, base);
 }
 
 static constexpr wchar_t CHARS[] = L"0123456789ABCDEF";
@@ -787,6 +942,10 @@ EXPORT wint_t putwc(wint_t ch, FILE* file) {
 	return fputwc(ch, file);
 }
 
+EXPORT wint_t putwchar(wchar_t ch) {
+	return putwc(ch, stdout);
+}
+
 EXPORT wint_t ungetwc(wint_t ch, FILE* file) {
 	char buf[4];
 	size_t bytes = wcrtomb(buf, static_cast<wchar_t>(ch), nullptr);
@@ -802,6 +961,16 @@ EXPORT wint_t ungetwc(wint_t ch, FILE* file) {
 		}
 	}
 	return ch;
+}
+
+EXPORT int fputws(const wchar_t* __restrict str, FILE* __restrict file) {
+	for (; *str; ++str) {
+		auto res = fputwc(*str, file);
+		if (res == WEOF) {
+			return EOF;
+		}
+	}
+	return 1;
 }
 
 EXPORT int vswprintf(

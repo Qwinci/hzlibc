@@ -2,6 +2,7 @@
 #define _LOCALE_H
 
 #include <bits/utils.h>
+#include <stddef.h>
 
 __begin_decls
 

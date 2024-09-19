@@ -6,7 +6,6 @@
 #include <locale.h>
 #include <stddef.h>
 #include <stdint.h>
-#include <wchar.h>
 
 __begin_decls
 
@@ -26,15 +25,20 @@ typedef struct {
 } lldiv_t;
 
 #define RAND_MAX 2147483647
+#define MB_CUR_MAX 4
 
 #define EXIT_SUCCESS 0
 #define EXIT_FAILURE 1
+
+#if !defined(__cplusplus) && !defined(_WCHAR_H)
+typedef __WCHAR_TYPE__ wchar_t;
+#endif
 
 void* malloc(size_t __size);
 void* realloc(void* __old, size_t __new_size);
 void* aligned_alloc(size_t __alignment, size_t __size);
 void* calloc(size_t __num, size_t __size);
-void free(void* __ptr);
+void free(void* __ptr) __nothrow;
 
 char* getenv(const char* __name);
 
@@ -67,6 +71,8 @@ size_t mbstowcs(wchar_t* __restrict __dest, const char* __restrict __src, size_t
 int mbtowc(wchar_t* __restrict __pwc, const char* __restrict __str, size_t __len);
 int wctomb(char* __str, wchar_t __wc);
 
+size_t wcstombs(char* __dest, const wchar_t* __restrict __src, size_t __len);
+
 void srand(unsigned int __seed);
 int rand(void);
 
@@ -87,8 +93,13 @@ void* bsearch(
 // posix
 int posix_memalign(void** __ptr, size_t __alignment, size_t __size);
 
+int grantpt(int __fd);
+int unlockpt(int __fd);
+char* ptsname(int __fd);
+
 int setenv(const char* __name, const char* __value, int __overwrite);
 int unsetenv(const char* __name);
+int putenv(char* __string);
 
 char* realpath(const char* __restrict __path, char* __restrict __resolved_path);
 
@@ -97,12 +108,21 @@ double strtod_l(const char* __restrict __ptr, char** __restrict __end_ptr, local
 long double strtold_l(const char* __restrict __ptr, char** __restrict __end_ptr, locale_t __locale);
 
 int mkstemp(char* __template);
+char* mkdtemp(char* __template);
+
+char* initstate(unsigned int __seed, char* __state, size_t __size);
+char* setstate(char* __state);
+void srandom(unsigned int __seed);
+long random(void);
 
 // glibc
 void* reallocarray(void* __old, size_t __num_blocks, size_t __size);
 char* secure_getenv(const char* __name);
 int clearenv(void);
 
+char* canonicalize_file_name(const char* __path);
+
+char* mktemp(char* __template);
 int mkostemp(char* __template, int __flags);
 
 struct random_data {
@@ -120,6 +140,8 @@ int initstate_r(
 	char* __restrict __state_buf,
 	size_t __state_len,
 	struct random_data* __restrict __buf);
+int setstate_r(char* __state_buf, struct random_data* __buf);
+int srandom_r(unsigned int __seed, struct random_data* __buf);
 int random_r(struct random_data* __restrict __buf, int32_t* __restrict __result);
 
 void qsort_r(

@@ -2,11 +2,19 @@
 #include "utils.hpp"
 
 EXPORT void* tsearch(const void* key, void** root, int (*comp)(const void* a, const void* b)) {
-	__ensure(!"tsearch is not implemented");
+	// todo
+	//println("tsearch is not implemented");
+	return nullptr;
 }
 
-EXPORT void* tfind(const void* key, const void** root, int (*comp)(const void* a, const void* b)) {
-	__ensure(!"tfind is not implemented");
+EXPORT void* tfind(const void* key, void* const* root, int (*comp)(const void* a, const void* b)) {
+	if (!root) {
+		return nullptr;
+	}
+
+	// todo
+	//println("tfind is not implemented");
+	return nullptr;
 }
 
 EXPORT void* tdelete(

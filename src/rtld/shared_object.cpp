@@ -1,6 +1,6 @@
 #include "shared_object.hpp"
-#include "log.hpp"
 #include "object_storage.hpp"
+#include "opts.hpp"
 
 #define memcpy __builtin_memcpy
 
@@ -299,11 +299,14 @@ static bool process_relocation(Relocation reloc, hz::optional<ObjectSymbol> reso
 					reloc.apply(resolved_sym->object->base + resolved_sym->sym->st_value + reloc.rela.r_addend);
 				}
 				else {
-					println(
-						"rtld: unresolved weak symbol ",
-						reloc.object->strtab + sym->st_name,
-						" in object ",
-						reloc.object->name);
+					if constexpr (LOG_MISSING_WEAK_SYMS) {
+						println(
+							"rtld: unresolved weak symbol ",
+							reloc.object->strtab + sym->st_name,
+							" in object ",
+							reloc.object->name);
+					}
+
 					reloc.apply(0);
 				}
 			}
@@ -330,11 +333,14 @@ static bool process_relocation(Relocation reloc, hz::optional<ObjectSymbol> reso
 					reloc.apply(resolved_sym->object->base + resolved_sym->sym->st_value);
 				}
 				else {
-					println(
-						"rtld: unresolved weak symbol ",
-						reloc.object->strtab + sym->st_name,
-						" in object ",
-						reloc.object->name);
+					if constexpr (LOG_MISSING_WEAK_SYMS) {
+						println(
+							"rtld: unresolved weak symbol ",
+							reloc.object->strtab + sym->st_name,
+							" in object ",
+							reloc.object->name);
+					}
+
 					reloc.apply(0);
 				}
 			}

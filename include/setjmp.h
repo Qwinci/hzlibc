@@ -20,7 +20,7 @@ struct __jmp_buf_tag {
 	sigset_t __sigset;
 };
 
-typedef __jmp_buf_tag jmp_buf[1];
+typedef struct __jmp_buf_tag jmp_buf[1];
 
 __attribute__((__returns_twice__)) int setjmp(jmp_buf __env);
 __attribute__((__noreturn__)) void longjmp(jmp_buf __env, int __value);
@@ -29,7 +29,7 @@ __attribute__((__noreturn__)) void longjmp(jmp_buf __env, int __value);
 __attribute__((__returns_twice__)) int _setjmp(jmp_buf __env);
 __attribute__((__noreturn__)) void _longjmp(jmp_buf __env, int __value);
 
-typedef __jmp_buf_tag sigjmp_buf[1];
+typedef struct __jmp_buf_tag sigjmp_buf[1];
 
 __attribute__((__returns_twice__)) int sigsetjmp(sigjmp_buf __env, int __save_mask);
 __attribute__((__noreturn__)) void siglongjmp(sigjmp_buf __env, int __value);

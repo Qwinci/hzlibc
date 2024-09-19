@@ -8,6 +8,11 @@
 
 __begin_decls
 
+#define SHM_W 0x80
+#define SHM_R 0x100
+
+#define SHM_RDONLY 0x1000
+
 typedef unsigned long shmatt_t;
 
 struct shmid_ds {

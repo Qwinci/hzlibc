@@ -3,7 +3,6 @@
 #include "ansi/stdio_internal.hpp"
 #include "errno.h"
 #include "string.h"
-#include "sys.hpp"
 #include "stdlib.h"
 
 extern "C" EXPORT int __overflow(FILE* file, int ch) {
@@ -40,7 +39,7 @@ EXPORT size_t fwrite_unlocked(const void* __restrict buffer, size_t size, size_t
 	if (ret < 0) {
 		return 0;
 	}
-	return static_cast<size_t>(ret);
+	return static_cast<size_t>(ret) / size;
 }
 
 EXPORT int fputc_unlocked(int ch, FILE* file) {
@@ -60,17 +59,51 @@ EXPORT int fputs_unlocked(const char* __restrict str, FILE* __restrict file) {
 
 EXPORT int fgetc_unlocked(FILE* file) {
 	unsigned char c;
-	ssize_t count_read;
-	if (auto err = sys_read(file->fd, &c, sizeof(c), &count_read)) {
-		file->flags |= FILE_ERR_FLAG;
-		errno = err;
-		return EOF;
-	}
+	ssize_t count_read = file->read(file, &c, 1);
 	if (count_read != 1) {
-		file->flags |= FILE_EOF_FLAG;
 		return EOF;
 	}
+
 	return c;
+}
+
+EXPORT int getc_unlocked(FILE* file) {
+	return fgetc_unlocked(file);
+}
+
+EXPORT int getchar_unlocked() {
+	return getc_unlocked(stdin);
+}
+
+EXPORT char* fgets_unlocked(char* __restrict str, int count, FILE* __restrict file) {
+	if (!count) {
+		errno = EINVAL;
+		return nullptr;
+	}
+
+	for (int i = 0;; ++i) {
+		if (i == count - 1) {
+			str[i] = 0;
+			return str;
+		}
+
+		int c = fgetc_unlocked(file);
+		if (c == EOF) {
+			if (i) {
+				str[i] = 0;
+				return str;
+			}
+			else {
+				return nullptr;
+			}
+		}
+		str[i] = static_cast<char>(c);
+
+		if (c == '\n') {
+			str[i + 1] = 0;
+			return str;
+		}
+	}
 }
 
 EXPORT int ferror_unlocked(FILE* file) {

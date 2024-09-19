@@ -28,3 +28,11 @@ EXPORT void* mremap(void* old_addr, size_t old_size, size_t new_size, int flags,
 	}
 	return ret;
 }
+
+EXPORT int mincore(void* addr, size_t size, unsigned char* vec) {
+	if (auto err = sys_mincore(addr, size, vec)) {
+		errno = err;
+		return -1;
+	}
+	return 0;
+}

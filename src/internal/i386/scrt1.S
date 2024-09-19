@@ -14,7 +14,7 @@ _start:
 	push %ecx
 
 	// argc
-	mov (%esp), %edx
+	mov 4(%esp), %edx
 	push %edx
 
 	push main@GOT(%eax)

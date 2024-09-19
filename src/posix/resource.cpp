@@ -3,7 +3,16 @@
 #include "sys.hpp"
 #include "errno.h"
 
-EXPORT int setpriority(int which, int who, int prio) {
+EXPORT int getpriority(int which, id_t who) {
+	int ret;
+	if (auto err = sys_getpriority(which, who, &ret)) {
+		errno = err;
+		return -1;
+	}
+	return ret;
+}
+
+EXPORT int setpriority(int which, id_t who, int prio) {
 	if (auto err = sys_setpriority(which, who, prio)) {
 		errno = err;
 		return -1;

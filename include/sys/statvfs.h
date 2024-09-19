@@ -40,6 +40,7 @@ struct statvfs64 {
 
 int statvfs(const char* __restrict __path, struct statvfs* __restrict __buf);
 int statvfs64(const char* __restrict __path, struct statvfs64* __restrict __buf);
+int fstatvfs(int __fd, struct statvfs* __buf);
 
 __end_decls
 

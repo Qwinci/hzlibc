@@ -6,8 +6,29 @@
 
 __begin_decls
 
+#define IPPROTO_IP 0
+#define IPPROTO_TCP 6
+#define IPPROTO_UDP 17
+
+#define INADDR_ANY ((in_addr_t) 0)
+#define INADDR_LOOPBACK ((in_addr_t) 0x7F000001)
+#define INADDR_BROADCAST ((in_addr_t) 0xFFFFFFFF)
+#define INADDR_NONE ((in_addr_t) 0xFFFFFFFF)
+
 #define IN6ADDR_LOOPBACK_INIT {{{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1}}}
 #define IN6ADDR_ANY_INIT {{{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}}}
+
+#define __ARE_4BYTE_EQUAL(a, b) ((a)[0] == (b)[0] && (a)[1] == (b)[1] && (a)[2] == (b)[2] && (a)[3] == (b)[3])
+#define IN6_ARE_ADDR_EQUAL(a, b) __ARE_4BYTE_EQUAL((const uint32_t*) (a), (const uint32_t*) (b))
+# define IN6_IS_ADDR_LOOPBACK(a) \
+	(((const uint32_t*) (a))[0] == 0 && \
+	((const uint32_t*) (a))[1] == 0 && \
+	((const uint32_t*) (a))[2] == 0 && \
+	((const uint32_t*) (a))[3] == htonl (1))
+# define IN6_IS_ADDR_V4MAPPED(a) \
+	((((const uint32_t*) (a))[0] == 0) && \
+	(((const uint32_t*) (a))[1] == 0) && \
+	(((const uint32_t*) (a))[2] == htonl (0xFFFF)))
 
 typedef uint16_t in_port_t;
 typedef uint32_t in_addr_t;
@@ -48,9 +69,16 @@ struct sockaddr_in6 {
 };
 
 extern struct in6_addr in6addr_loopback;
+extern struct in6_addr in6addr_any;
 
 #define INET_ADDRSTRLEN 16
 #define INET6_ADDRSTRLEN 46
+
+uint16_t htons(uint16_t __host_short);
+uint32_t htonl(uint32_t __host_long);
+
+uint16_t ntohs(uint16_t __net_short);
+uint32_t ntohl(uint32_t __net_long);
 
 __end_decls
 

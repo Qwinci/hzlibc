@@ -76,6 +76,7 @@ typedef struct {
 #define EI_VERSION 6
 #define EV_CURRENT 1
 
+#define EM_NONE 0
 #define EM_386 3
 #define EM_X86_64 0x3E
 
@@ -221,8 +222,11 @@ typedef struct {
 #define AT_EUID 12
 #define AT_GID 13
 #define AT_EGID 14
+#define AT_HWCAP 16
 #define AT_RANDOM 25
 #define AT_EXECFN 31
+
+#define NT_X86_XSTATE 0x202
 
 typedef struct {
 	Elf64_Addr r_offset;

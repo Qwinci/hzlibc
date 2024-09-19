@@ -1,7 +1,24 @@
 #include "wchar.h"
 #include "utils.hpp"
+#include "stdlib.h"
+#include "wctype.h"
 
 #define memcpy __builtin_memcpy
+
+EXPORT size_t wcsnlen(const wchar_t* str, size_t max_len) {
+	size_t len = 0;
+	for (; max_len && *str; ++str, --max_len) ++len;
+	return len;
+}
+
+EXPORT int wcscasecmp(const wchar_t* s1, const wchar_t* s2) {
+	for (;; ++s1, ++s2) {
+		wint_t res = towlower(*s1) - towlower(*s2);
+		if (res != 0 || !*s1) {
+			return static_cast<int>(res);
+		}
+	}
+}
 
 EXPORT int wcwidth(wchar_t ch) {
 	if (ch > 0x7F) {
@@ -10,9 +27,31 @@ EXPORT int wcwidth(wchar_t ch) {
 	return 1;
 }
 
+EXPORT int wcswidth(const wchar_t* str, size_t len) {
+	int columns = 0;
+	for (size_t i = 0; i < len && *str; ++i) {
+		int width = wcwidth(*str++);
+		if (width < 0) {
+			return -1;
+		}
+		columns += width;
+	}
+	return columns;
+}
+
 EXPORT int wcscoll_l(const wchar_t* lhs, const wchar_t* rhs, locale_t locale) {
 	println("wcscoll_l ignores locale");
 	return wcscoll(lhs, rhs);
+}
+
+EXPORT wchar_t* wcsdup(const wchar_t* str) {
+	size_t len = wcslen(str);
+	auto* mem = static_cast<wchar_t*>(malloc((len + 1) * sizeof(wchar_t)));
+	if (!mem) {
+		return nullptr;
+	}
+	memcpy(mem, str, (len + 1) * sizeof(wchar_t));
+	return mem;
 }
 
 EXPORT size_t wcsxfrm_l(
@@ -98,8 +137,6 @@ EXPORT size_t mbsnrtowcs(
 			}
 		}
 
-		++written;
-
 		if (buf == 0) {
 			*src = nullptr;
 			break;
@@ -108,6 +145,8 @@ EXPORT size_t mbsnrtowcs(
 			*src += bytes_used;
 			i += bytes_used;
 		}
+
+		++written;
 	}
 
 	return written;

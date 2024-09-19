@@ -7,6 +7,7 @@
 
 __begin_decls
 
+#define O_ACCMODE 3
 #define O_RDONLY 0
 #define O_WRONLY 1
 #define O_RDWR 2
@@ -16,7 +17,7 @@ __begin_decls
 #define O_TRUNC 0x200
 #define O_APPEND 0x400
 #define O_NONBLOCK 0x800
-#define O_DSYNC 0x10000
+#define O_DSYNC 0x1000
 #define FASYNC 0x2000
 #define O_DIRECT 0x4000
 #define O_LARGEFILE 0x8000
@@ -24,8 +25,12 @@ __begin_decls
 #define O_NOFOLLOW 0x20000
 #define O_NOATIME 0x40000
 #define O_CLOEXEC 0x80000
+#define O_PATH 0x200000
 #define __O_TMPFILE 0x400000
 #define O_TMPFILE (__O_TMPFILE | O_DIRECTORY)
+
+#define __O_SYNC 0x100000
+#define O_SYNC (O_DSYNC | __O_SYNC)
 
 #define AT_FDCWD -100
 
@@ -47,6 +52,9 @@ __begin_decls
 #define F_GETOWN 9
 #define F_SETSIG 10
 #define F_GETSIG 11
+#define F_DUPFD_CLOEXEC 1030
+#define F_SETPIPE_SZ 1031
+#define F_GETPIPE_SZ 1032
 
 #if UINTPTR_MAX == UINT32_MAX
 #define F_GETLK64 12
@@ -75,10 +83,21 @@ __begin_decls
 #define F_EXLCK 4
 #define F_SHLCK 8
 
+#ifndef FIONREAD
+#define FIONREAD 0x541B
+#endif
+
 #define LOCK_SH 1
 #define LOCK_EX 2
 #define LOCK_NB 4
 #define LOCK_UN 8
+
+#define POSIX_FADV_NORMAL 0
+#define POSIX_FADV_RANDOM 1
+#define POSIX_FADV_SEQUENTIAL 2
+#define POSIX_FADV_WILLNEED 3
+#define POSIX_FADV_DONTNEED 4
+#define POSIX_FADV_NOREUSE 5
 
 struct flock {
 	short l_type;
@@ -96,6 +115,7 @@ struct flock64 {
 	pid_t l_pid;
 };
 
+int creat(const char* __path, mode_t __mode);
 int open(const char* __path, int __flags, ...);
 int open64(const char* __path, int __flags, ...);
 int openat(int __dir_fd, const char* __path, int __flags, ...);

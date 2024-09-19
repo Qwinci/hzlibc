@@ -21,5 +21,6 @@ target_sources(c PRIVATE
 	stdlib.cpp
 	string.cpp
 	sysinfo.cpp
+	syslog.cpp
 	unistd.cpp
 )

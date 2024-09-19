@@ -5,15 +5,21 @@ target_sources(c PRIVATE
 	ifaddrs.cpp
 	inotify.cpp
 	io.cpp
+	klog.cpp
 	mman.cpp
+	mount.cpp
 	personality.cpp
 	poll.cpp
 	prctl.cpp
+	ptrace.cpp
 	random.cpp
 	sched.cpp
 	sendfile.cpp
+	signalfd.cpp
 	socket.cpp
 	stat.cpp
+	swap.cpp
+	uio.cpp
 	unistd.cpp
 	wait.cpp
 	xattr.cpp

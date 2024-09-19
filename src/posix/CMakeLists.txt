@@ -1,19 +1,23 @@
 target_sources(c PRIVATE
+	ctype.cpp
 	dirent.cpp
 	dlfcn.cpp
 	fcntl.cpp
 	fnmatch.cpp
 	getopt.cpp
+	glob.cpp
 	grp.cpp
 	iconv.cpp
 	if.cpp
 	inet.cpp
 	ioctl.cpp
+	ipc.cpp
 	langinfo.cpp
 	libgen.cpp
 	locale.cpp
 	mman.cpp
 	mntent.cpp
+	mqueue.cpp
 	net_utils.cpp
 	netdb.cpp
 	poll.cpp
@@ -27,7 +31,7 @@ target_sources(c PRIVATE
 	sem.cpp
 	semaphore.cpp
 	shm.cpp
-	sigjmp.cpp
+	setjmp.cpp
 	signal.cpp
 	socket.cpp
 	spawn.cpp

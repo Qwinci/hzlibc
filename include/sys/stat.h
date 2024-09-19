@@ -4,6 +4,7 @@
 #include <bits/utils.h>
 #include <sys/types.h>
 #include <time.h>
+#include <features.h>
 
 __begin_decls
 
@@ -12,7 +13,7 @@ __begin_decls
 #define S_IFCHR 0x2000
 #define S_IFDIR 0x4000
 #define S_IFBLK 0x6000
-#define S_IFREQ 0x8000
+#define S_IFREG 0x8000
 #define S_IFLNK 0xA000
 #define S_IFSOCK 0xC000
 
@@ -31,7 +32,7 @@ __begin_decls
 #define S_ISCHR(mode) __S_ISTYPE((mode), S_IFCHR)
 #define S_ISDIR(mode) __S_ISTYPE((mode), S_IFDIR)
 #define S_ISBLK(mode) __S_ISTYPE((mode), S_IFBLK)
-#define S_ISREQ(mode) __S_ISTYPE((mode), S_IFREQ)
+#define S_ISREG(mode) __S_ISTYPE((mode), S_IFREG)
 #define S_ISLNK(mode) __S_ISTYPE((mode), S_IFLNK)
 #define S_ISSOCK(mode) __S_ISTYPE((mode), S_IFSOCK)
 
@@ -69,6 +70,11 @@ struct stat {
 	struct timespec st_atim;
 	struct timespec st_mtim;
 	struct timespec st_ctim;
+
+#define st_atime st_atim.tv_sec
+#define st_mtime st_mtim.tv_sec
+#define st_ctime st_ctim.tv_sec
+
 #else
 	time_t st_atime;
 	unsigned long st_atimensec;
@@ -98,6 +104,11 @@ struct stat64 {
 	struct timespec st_atim;
 	struct timespec st_mtim;
 	struct timespec st_ctim;
+
+#define st_atime st_atim.tv_sec
+#define st_mtime st_mtim.tv_sec
+#define st_ctime st_ctim.tv_sec
+
 #else
 	time_t st_atime;
 	unsigned long st_atimensec;
@@ -130,6 +141,11 @@ struct stat {
 	struct timespec st_atim;
 	struct timespec st_mtim;
 	struct timespec st_ctim;
+
+#define st_atime st_atim.tv_sec
+#define st_mtime st_mtim.tv_sec
+#define st_ctime st_ctim.tv_sec
+
 #else
 	time_t st_atime;
 	unsigned long st_atimensec;
@@ -160,6 +176,11 @@ struct stat64 {
 	struct timespec st_atim;
 	struct timespec st_mtim;
 	struct timespec st_ctim;
+
+#define st_atime st_atim.tv_sec
+#define st_mtime st_mtim.tv_sec
+#define st_ctime st_ctim.tv_sec
+
 #else
 	time_t st_atime;
 	unsigned long st_atimensec;
@@ -175,6 +196,8 @@ struct stat64 {
 #else
 #error missing architecture specific code
 #endif
+
+#define STATX_MNT_ID 0x1000
 
 struct statx_timestamp {
 	int64_t tv_sec;
@@ -225,6 +248,8 @@ int utimensat(int __dir_fd, const char* __path, const struct timespec __times[2]
 int futimens(int __fd, const struct timespec __times[2]);
 int mkdir(const char* __path, mode_t __mode);
 int mknod(const char* __path, mode_t __mode, dev_t __dev);
+int mknodat(int __dir_fd, const char* __path, mode_t __mode, dev_t __dev);
+int mkfifo(const char* __path, mode_t __mode);
 int mkfifoat(int __dir_fd, const char* __path, mode_t __mode);
 
 mode_t umask(mode_t __mask);

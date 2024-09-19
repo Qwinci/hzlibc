@@ -176,12 +176,12 @@ namespace {
 	char* STRTOK_SAVE_PTR = nullptr;
 }
 
-EXPORT char* strtok(char* __restrict str, const char* delim) {
+EXPORT char* strtok(char* __restrict str, const char* __restrict delim) {
 	return strtok_r(str, delim, &STRTOK_SAVE_PTR);
 }
 
 EXPORT int strcoll(const char* lhs, const char* rhs) {
-	println("strcoll ignores locale");
+	//println("strcoll ignores locale");
 	return strcmp(lhs, rhs);
 }
 

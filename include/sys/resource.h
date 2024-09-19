@@ -4,8 +4,19 @@
 #include <bits/utils.h>
 #include <sys/time.h>
 #include <stdint.h>
+#include <features.h>
 
 __begin_decls
+
+typedef int __priority_which_t;
+
+#define RUSAGE_CHILDREN -1
+#define RUSAGE_SELF 0
+#define RUSAGE_THREAD 1
+
+#define PRIO_PROCESS 0
+#define PRIO_PGRP 1
+#define PRIO_USER 2
 
 struct rusage {
 	struct timeval ru_utime;
@@ -57,10 +68,13 @@ struct rlimit64 {
 #define RLIMIT_RTTIME 15
 #define RLIMIT_NLIMITS 16
 
+#define RLIM_NLIMITS RLIMIT_NLIMITS
+
 #define RLIM_INFINITY ((rlim_t) ~0UL)
 #define RLIM64_INFINITY ((rlim_t) ~0ULL)
 
-int setpriority(int __which, int __who, int __prio);
+int getpriority(int __which, id_t __who);
+int setpriority(int __which, id_t __who, int __prio);
 
 int getrlimit(int __resource, struct rlimit* __rlim);
 int getrlimit64(int __resource, struct rlimit64* __rlim);

@@ -4,11 +4,16 @@
 #include <bits/utils.h>
 #include <bits/seek.h>
 #include <sys/types.h>
+#include <sys/select.h>
 #include <termios.h>
 
 __begin_decls
 
+#ifndef _XOPEN_VERSION
 #define _XOPEN_VERSION 700
+#endif
+
+#define _POSIX_VERSION 200809L
 #define _POSIX_ADVISORY_INFO 200809L
 #define _POSIX_ASYNCHRONOUS_IO 200809L
 #define _POSIX_BARRIERS 200809L
@@ -46,6 +51,7 @@ __begin_decls
 #define _POSIX_THREADS 200809L
 #define _POSIX_TIMEOUTS 200809L
 #define _POSIX_TIMERS 200809L
+#define _POSIX_VDISABLE 0
 #define _XOPEN_SHM 1
 #define _XOPEN_UNIX 1
 
@@ -178,15 +184,43 @@ __begin_decls
 #define _SC_TRACE_INHERIT 183
 #define _SC_TRACE_LOG 184
 
-#define F_OK 0
-#define X_OK 1
-#define W_OK 2
-#define R_OK 4
+#define _PC_LINK_MAX 0
+#define _PC_MAX_CANON 1
+#define _PC_MAX_INPUT 2
+#define _PC_NAME_MAX 3
+#define _PC_PATH_MAX 4
+#define _PC_PIPE_BUF 5
+#define _PC_CHOWN_RESTRICTED 6
+#define _PC_NO_TRUNC 7
+#define _PC_VDISABLE 8
+#define _PC_SYNC_IO 9
+#define _PC_ASYNC_IO 10
+#define _PC_PRIO_IO 11
+#define _PC_SOCK_MAXBUF 12
+#define _PC_FILESIZEBITS 13
+#define _PC_REC_INCR_XFER_SIZE 14
+#define _PC_REC_MAX_XFER_SIZE 15
+#define _PC_REC_MIN_XFER_SIZE 16
+#define _PC_REC_XFER_ALIGN 17
+#define _PC_ALLOC_SIZE_MIN 18
+#define _PC_SYMLINK_MAX 19
+#define _PC_2_SYMLINKS 20
+
+#define _CS_PATH 0
 
 #define _SC_PAGESIZE 30
 #define _SC_LOGIN_NAME_MAX 71
 #define _SC_NPROCESSORS_CONF 83
 #define _SC_PHYS_PAGES 85
+
+#define F_OK 0
+#define X_OK 1
+#define W_OK 2
+#define R_OK 4
+
+#define STDIN_FILENO 0
+#define STDOUT_FILENO 1
+#define STDERR_FILENO 2
 
 __attribute__((noreturn)) void _exit(int __status);
 
@@ -205,8 +239,10 @@ int dup2(int __old_fd, int __new_fd);
 
 int access(const char* __path, int __mode);
 int faccessat(int __dir_fd, const char* __path, int __mode, int __flags);
-int readlink(const char* __restrict __path, char* __restrict __buf, size_t __buf_size);
+ssize_t readlink(const char* __restrict __path, char* __restrict __buf, size_t __buf_size);
+int readlinkat(int __dir_fd, const char* __restrict __path, char* __restrict __buf, size_t __buf_size);
 int chown(const char* __path, uid_t __owner, gid_t __group);
+int lchown(const char* __path, uid_t __owner, gid_t __group);
 int fchown(int __fd, uid_t __owner, gid_t __group);
 int fchownat(int __dir_fd, const char* __path, uid_t __owner, gid_t __group, int __flags);
 int link(const char* __old_path, const char* __new_path);
@@ -225,13 +261,30 @@ int fdatasync(int __fd);
 int pathconf(const char* __path, int __name);
 int fpathconf(int __fd, int __name);
 
+size_t confstr(int __name, char* __buffer, size_t __size);
+
 int isatty(int __fd);
+char* ttyname(int __fd);
+int ttyname_r(int __fd, char* __buffer, size_t __size);
+
+pid_t getpgid(pid_t __pid);
+pid_t getpgrp(void);
+
+char* getlogin(void);
 
 pid_t tcgetpgrp(int __fd);
+int tcsetpgrp(int __fd, pid_t __pgrp);
 int tcgetattr(int __fd, struct termios* __termios);
 int tcsetattr(int __fd, int __optional_actions, const struct termios* __termios);
+int tcsendbreak(int __fd, int __duration);
+int tcdrain(int __fd);
 int tcflush(int __fd, int __queue_selector);
+int tcflow(int __fd, int __action);
+void cfmakeraw(struct termios* __termios);
+speed_t cfgetispeed(const struct termios* __termios);
+int cfsetispeed(struct termios* __termios, speed_t __speed);
 speed_t cfgetospeed(const struct termios* __termios);
+int cfsetospeed(struct termios* __termios, speed_t __speed);
 
 int getentropy(void* __buffer, size_t __size);
 long gethostid(void);
@@ -261,10 +314,13 @@ int execvp(const char* __file, char* const __argv[]);
 pid_t fork(void);
 pid_t vfork(void);
 pid_t getpid(void);
+pid_t getppid(void);
 
 unsigned int sleep(unsigned int __seconds);
 int usleep(useconds_t __usec);
 unsigned int alarm(unsigned int __seconds);
+
+int pause(void);
 
 extern char** environ;
 
@@ -273,16 +329,21 @@ extern int optind;
 extern int opterr;
 extern int optopt;
 
-int getgroups(size_t __size, gid_t* __list);
+int getopt(int __argc, char* const __argv[], const char* __opt_string);
+
+int getgroups(int __size, gid_t* __list);
 
 // linux
 int pipe2(int __pipe_fd[2], int __flags);
+int dup3(int __old_fd, int __new_fd, int __flags);
 ssize_t copy_file_range(int __fd_in, off64_t* __off_in, int __fd_out, off64_t* __off_out, size_t __len, unsigned int __flags);
 int close_range(unsigned int __first, unsigned int __last, int __flags);
 
 int execvpe(const char* __file, char* const __argv[], char* const __envp[]);
 
+int setresuid(uid_t __ruid, uid_t __euid, uid_t __suid);
 int getresuid(uid_t* __ruid, uid_t* __euid, uid_t* __suid);
+int setresgid(uid_t __rgid, uid_t __egid, uid_t __sgid);
 int getresgid(gid_t* __rgid, gid_t* __egid, gid_t* __sgid);
 
 // glibc

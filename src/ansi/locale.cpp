@@ -43,6 +43,7 @@ namespace {
 	};
 }
 
+// todo fix for perl
 EXPORT char* setlocale(int category, const char* locale) {
 	if (!locale) {
 		return LOCALE.data();

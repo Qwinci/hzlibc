@@ -189,7 +189,7 @@ namespace {
 			if (service_name == name) {
 				size_t count;
 				auto real_port = hz::to_integer<uint16_t>(port, 10, &count);
-				auto end = port.substr(count);
+				auto end = port.substr(count + 1);
 				if ((end == "/tcp" && tcp) || (end == "/udp" && !tcp)) {
 					fclose(file);
 					return hz::pair {real_port, end == "/tcp"};
@@ -226,6 +226,49 @@ namespace {
 				else {
 					offset = alias_end + 1;
 				}
+			}
+		}
+
+		fclose(file);
+		return hz::nullopt;
+	}
+
+	hz::optional<hz::string<Allocator>> resolve_port_in_services(uint16_t port) {
+		FILE* file = fopen("/etc/services", "r");
+		if (!file) {
+			return hz::nullopt;
+		}
+
+		char line_buf[256];
+		while (fgets(line_buf, 256, file)) {
+			hz::string_view line {line_buf};
+			if (auto comment_start = line.find('#'); comment_start != hz::string_view::npos) {
+				line = line.substr_abs(0, comment_start);
+			}
+
+			auto name_end = line.find([](char c) {
+				return isspace(c);
+			});
+
+			auto service_name = line.substr_abs(0, name_end);
+
+			auto port_start = line.find([](char c) {
+				return !isspace(c);
+			}, name_end);
+			if (port_start == hz::string_view::npos) {
+				continue;
+			}
+			auto port_end = line.find([](char c) {
+				return isspace(c);
+			}, port_start);
+			auto port_str = line.substr_abs(port_start, port_end);
+
+			size_t count;
+			auto real_port = hz::to_integer<uint16_t>(port_str, 10, &count);
+			if (real_port == port) {
+				hz::string<Allocator> res {Allocator {}};
+				res = service_name;
+				return {std::move(res)};
 			}
 		}
 
@@ -378,6 +421,7 @@ EXPORT int getnameinfo(
 	socklen_t serv_len,
 	int flags) {
 	uint8_t addr_buf[16];
+	uint16_t port;
 	switch (addr->sa_family) {
 		case AF_INET:
 		{
@@ -385,6 +429,7 @@ EXPORT int getnameinfo(
 				return EAI_FAMILY;
 			}
 			memcpy(addr_buf, &reinterpret_cast<const sockaddr_in*>(addr)->sin_addr, 4);
+			port = reinterpret_cast<const sockaddr_in*>(addr)->sin_port;
 			break;
 		}
 		case AF_INET6:
@@ -393,20 +438,40 @@ EXPORT int getnameinfo(
 				return EAI_FAMILY;
 			}
 			memcpy(addr_buf, &reinterpret_cast<const sockaddr_in6*>(addr)->sin6_addr, 16);
+			port = reinterpret_cast<const sockaddr_in6*>(addr)->sin6_port;
 			break;
 		}
 		default:
 			return EAI_FAMILY;
 	}
 
-	char addr_str[INET6_ADDRSTRLEN];
-	__ensure(inet_ntop(addr->sa_family, addr_buf, addr_str, sizeof(addr_str)));
-
 	if (serv && serv_len) {
-		panic("getnameinfo doesn't support services");
+		if (flags & NI_NUMERICSERV) {
+			size_t size = snprintf(serv, serv_len, "%u", port);
+			if (serv_len < size + 1) {
+				return EAI_OVERFLOW;
+			}
+		}
+		else {
+			if (auto res = resolve_port_in_services(port)) {
+				if (serv_len < res->size() + 1) {
+					return EAI_OVERFLOW;
+				}
+				memcpy(serv, res->data(), res->size() + 1);
+			}
+			else {
+				size_t size = snprintf(serv, serv_len, "%u", port);
+				if (serv_len < size + 1) {
+					return EAI_OVERFLOW;
+				}
+			}
+		}
 	}
 
 	if (host && host_len) {
+		char addr_str[INET6_ADDRSTRLEN];
+		__ensure(inet_ntop(addr->sa_family, addr_buf, addr_str, sizeof(addr_str)));
+
 		hz::string_view addr_str_view {addr_str};
 
 		if (!(flags & NI_NUMERICHOST)) {
@@ -602,7 +667,7 @@ EXPORT int getaddrinfo(
 		}
 	}
 
-	uint16_t port;
+	uint16_t port = 0;
 
 	if (service_name) {
 		hz::string_view service_view {service_name};
@@ -614,14 +679,21 @@ EXPORT int getaddrinfo(
 			}
 		}
 		else {
-			if (auto resolved = resolve_name_in_services(
-				service_view,
-				socket_type == SOCK_STREAM || !socket_type)) {
-				port = resolved->first;
-				socket_type = resolved->second ? SOCK_STREAM : SOCK_DGRAM;
+			size_t count = 0;
+			auto value = hz::to_integer<uint16_t>(service_view, 10, &count);
+			if (count == service_view.size()) {
+				port = value;
 			}
 			else {
-				return EAI_SERVICE;
+				if (auto resolved = resolve_name_in_services(
+					service_view,
+					socket_type == SOCK_STREAM || !socket_type)) {
+					port = resolved->first;
+					socket_type = resolved->second ? SOCK_STREAM : SOCK_DGRAM;
+				}
+				else {
+					return EAI_SERVICE;
+				}
 			}
 		}
 	}
@@ -813,6 +885,126 @@ EXPORT hostent* gethostbyname(const char* name) {
 	}
 
 	return &entry;
+}
+
+EXPORT struct hostent* gethostbyaddr(const void* addr, socklen_t len, int type) {
+	__ensure(!"gethostbyaddr is not implemented");
+}
+
+EXPORT servent* getservbyname(const char* name, const char* proto) {
+	static servent entry {};
+
+	delete[] entry.s_name;
+	entry.s_name = nullptr;
+
+	if (entry.s_aliases) {
+		for (auto* ptr = entry.s_aliases; *ptr; ++ptr) {
+			delete[] *ptr;
+		}
+		delete entry.s_aliases;
+		entry.s_aliases = nullptr;
+	}
+
+	delete entry.s_proto;
+	entry.s_proto = nullptr;
+
+	hz::string_view name_view {name};
+	hz::string_view proto_view {};
+	if (proto) {
+		proto_view = proto;
+	}
+
+	FILE* file = fopen("/etc/services", "r");
+	if (!file) {
+		return nullptr;
+	}
+
+	char line_buf[256];
+	while (fgets(line_buf, 256, file)) {
+		hz::string_view line {line_buf};
+		if (auto comment_start = line.find('#'); comment_start != hz::string_view::npos) {
+			line = line.substr_abs(0, comment_start);
+		}
+
+		auto name_end = line.find([](char c) {
+			return isspace(c);
+		});
+
+		auto service_name = line.substr_abs(0, name_end);
+
+		auto port_start = line.find([](char c) {
+			return !isspace(c);
+		}, name_end);
+		if (port_start == hz::string_view::npos) {
+			continue;
+		}
+		auto port_end = line.find([](char c) {
+			return isspace(c);
+		}, port_start);
+		auto port = line.substr_abs(port_start, port_end);
+
+		if (service_name == name_view) {
+			size_t count;
+			auto real_port = hz::to_integer<uint16_t>(port, 10, &count);
+			auto end = port.substr(count + 1);
+
+			if (!proto_view.size() || (proto_view == "tcp" && end == "tcp") || (proto_view == "udp" && end == "udp")) {
+				fclose(file);
+
+				entry.s_name = new char[name_view.size() + 1];
+				memcpy(entry.s_name, name_view.data(), name_view.size() + 1);
+
+				size_t alias_count = 0;
+
+				size_t offset = port_end;
+				while (true) {
+					auto alias_start = line.find([](char c) {
+						return !isspace(c);
+					}, offset);
+					auto alias_end = line.find([](char c) {
+						return isspace(c);
+					}, alias_start);
+
+					auto alias = line.substr_abs(alias_start, alias_end);
+					if (alias.size() == 0) {
+						break;
+					}
+
+					if (!alias_count) {
+						entry.s_aliases = new char*[2];
+						entry.s_aliases[1] = nullptr;
+					}
+					else {
+						auto* new_aliases = new char*[alias_count + 2];
+						memcpy(new_aliases, entry.s_aliases, alias_count * sizeof(char*));
+						entry.s_aliases = new_aliases;
+						entry.s_aliases[alias_count + 1] = nullptr;
+					}
+
+					entry.s_aliases[alias_count++] = new char[alias.size() + 1];
+					memcpy(entry.s_aliases[alias_count - 1], alias.data(), alias.size());
+					entry.s_aliases[alias_count - 1][alias.size()] = 0;
+
+					if (alias_end == hz::string_view::npos) {
+						break;
+					}
+					else {
+						offset = alias_end + 1;
+					}
+				}
+
+				entry.s_port = real_port;
+				entry.s_proto = new char[end.size() + 1];
+				memcpy(entry.s_proto, end.data(), end.size());
+				entry.s_proto[end.size()] = 0;
+
+				return &entry;
+			}
+		}
+	}
+
+	fclose(file);
+	return nullptr;
 }
 
 namespace {

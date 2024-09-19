@@ -1,5 +1,6 @@
 #include "string.h"
 #include "utils.hpp"
+#include "signal.h"
 
 EXPORT size_t strnlen(const char* str, size_t max_len) {
 	size_t len = 0;
@@ -15,7 +16,7 @@ EXPORT char* stpcpy(char* __restrict dest, const char* src) {
 	return dest;
 }
 
-EXPORT char* strtok_r(char* __restrict str, const char* delim, char** __restrict save_ptr) {
+EXPORT char* strtok_r(char* __restrict str, const char* __restrict delim, char** __restrict save_ptr) {
 	if (str) {
 		*save_ptr = str;
 	}
@@ -57,7 +58,47 @@ EXPORT char* strerror_l(int err_num, locale_t locale) {
 }
 
 EXPORT char* strsignal(int sig) {
-	__ensure(!"strsignal is not implemented");
+	const char* str;
+#define CASE(name) case name: str = #name; break
+	switch (sig) {
+		CASE(SIGHUP);
+		CASE(SIGINT);
+		CASE(SIGQUIT);
+		CASE(SIGILL);
+		CASE(SIGTRAP);
+		CASE(SIGABRT);
+		CASE(SIGBUS);
+		CASE(SIGFPE);
+		CASE(SIGKILL);
+		CASE(SIGUSR1);
+		CASE(SIGSEGV);
+		CASE(SIGUSR2);
+		CASE(SIGPIPE);
+		CASE(SIGALRM);
+		CASE(SIGTERM);
+		CASE(SIGSTKFLT);
+		CASE(SIGCHLD);
+		CASE(SIGCONT);
+		CASE(SIGSTOP);
+		CASE(SIGTSTP);
+		CASE(SIGTTIN);
+		CASE(SIGTTOU);
+		CASE(SIGURG);
+		CASE(SIGXCPU);
+		CASE(SIGXFSZ);
+		CASE(SIGVTALRM);
+		CASE(SIGPROF);
+		CASE(SIGWINCH);
+		CASE(SIGIO);
+		CASE(SIGPWR);
+		CASE(SIGSYS);
+		default:
+			println("Unknown signal number ", sig);
+			str = "Unknown signal number";
+			break;
+	}
+#undef CASE
+	return const_cast<char*>(str);
 }
 
 ALIAS(strtok_r, __strtok_r);

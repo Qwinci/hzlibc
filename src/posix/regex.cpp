@@ -19,3 +19,11 @@ EXPORT int regexec(
 	int flags) {
 	panic("regexec is not implemented");
 }
+
+EXPORT size_t regerror(
+	int err_code,
+	const regex_t* regex,
+	char* err_buf,
+	size_t err_buf_size) {
+	panic("regerror is not implemented");
+}

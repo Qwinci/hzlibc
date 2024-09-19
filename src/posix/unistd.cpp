@@ -4,6 +4,7 @@
 #include "errno.h"
 #include "fcntl.h"
 #include "limits.h"
+#include "stdio.h"
 #include "sys/ioctl.h"
 #include "allocator.hpp"
 #include <hz/vector.hpp>
@@ -133,8 +134,8 @@ EXPORT int faccessat(int dir_fd, const char* path, int mode, int flags) {
 	return 0;
 }
 
-EXPORT int readlink(const char* __restrict path, char* __restrict buf, size_t buf_size) {
-	int ret;
+EXPORT ssize_t readlink(const char* __restrict path, char* __restrict buf, size_t buf_size) {
+	ssize_t ret;
 	if (auto err = sys_readlinkat(AT_FDCWD, path, buf, buf_size, &ret)) {
 		errno = err;
 		return -1;
@@ -142,8 +143,25 @@ EXPORT int readlink(const char* __restrict path, char* __restrict buf, size_t bu
 	return ret;
 }
 
+EXPORT int readlinkat(int dir_fd, const char* __restrict path, char* __restrict buf, size_t buf_size) {
+	ssize_t ret;
+	if (auto err = sys_readlinkat(dir_fd, path, buf, buf_size, &ret)) {
+		errno = err;
+		return -1;
+	}
+	return static_cast<int>(ret);
+}
+
 EXPORT int chown(const char* path, uid_t owner, gid_t group) {
 	if (auto err = sys_fchownat(AT_FDCWD, path, owner, group, 0)) {
+		errno = err;
+		return -1;
+	}
+	return 0;
+}
+
+EXPORT int lchown(const char* path, uid_t owner, gid_t group) {
+	if (auto err = sys_fchownat(AT_FDCWD, path, owner, group, AT_SYMLINK_NOFOLLOW)) {
 		errno = err;
 		return -1;
 	}
@@ -263,11 +281,44 @@ EXPORT int fdatasync(int fd) {
 }
 
 EXPORT int pathconf(const char* path, int name) {
-	__ensure(!"pathconf is not implemented");
+	switch (name) {
+		case _PC_NAME_MAX:
+		{
+			return NAME_MAX;
+		}
+		case _PC_PATH_MAX:
+		{
+			return PATH_MAX;
+		}
+		default:
+			println("pathconf ", name);
+			__ensure(!"pathconf is not implemented");
+	}
 }
 
 EXPORT int fpathconf(int fd, int name) {
-	__ensure(!"fpathconf is not implemented");
+	switch (name) {
+		case _PC_NAME_MAX:
+		{
+			return NAME_MAX;
+		}
+		case _PC_PATH_MAX:
+		{
+			return PATH_MAX;
+		}
+		default:
+			println("pathconf ", name);
+			__ensure(!"pathconf is not implemented");
+	}
+}
+
+EXPORT size_t confstr(int name, char* buffer, size_t size) {
+	if (name == _CS_PATH) {
+		return static_cast<size_t>(snprintf(buffer, size, "/bin:/usr/bin")) + 1;
+	}
+	else {
+		panic("confstr ", name, " is not implemented");
+	}
 }
 
 EXPORT int isatty(int fd) {
@@ -278,12 +329,49 @@ EXPORT int isatty(int fd) {
 	return 1;
 }
 
+namespace {
+	char TTY_NAME_BUF[128];
+}
+
+EXPORT char* ttyname(int fd) {
+	if (auto err = sys_ttyname(fd, TTY_NAME_BUF, sizeof(TTY_NAME_BUF))) {
+		errno = err;
+		return nullptr;
+	}
+	return TTY_NAME_BUF;
+}
+
+EXPORT int ttyname_r(int fd, char* buffer, size_t size) {
+	return sys_ttyname(fd, buffer, size);
+}
+
+EXPORT pid_t getpgid(pid_t pid) {
+	pid_t ret;
+	if (auto err = sys_getpgid(pid, &ret)) {
+		errno = err;
+		return -1;
+	}
+	return ret;
+}
+
+EXPORT pid_t getpgrp() {
+	return getpgid(0);
+}
+
+EXPORT char* getlogin() {
+	return getenv("LOGNAME");
+}
+
 EXPORT pid_t tcgetpgrp(int fd) {
 	pid_t pid;
 	if (ioctl(fd, TIOCGPGRP, &pid) < 0) {
 		return -1;
 	}
 	return pid;
+}
+
+EXPORT int tcsetpgrp(int fd, pid_t pgrp) {
+	return ioctl(fd, TIOCSPGRP, &pgrp);
 }
 
 EXPORT int tcgetattr(int fd, termios* termios) {
@@ -316,6 +404,17 @@ EXPORT int tcsetattr(int fd, int optional_actions, const termios* termios) {
 	return 0;
 }
 
+EXPORT int tcsendbreak(int fd, int duration) {
+	if (ioctl(fd, TCSBRK, duration) < 0) {
+		return -1;
+	}
+	return 0;
+}
+
+EXPORT int tcdrain(int fd) {
+	return tcsendbreak(fd, 1);
+}
+
 EXPORT int tcflush(int fd, int queue_selector) {
 	if (ioctl(fd, TCFLSH, queue_selector) < 0) {
 		return -1;
@@ -323,8 +422,49 @@ EXPORT int tcflush(int fd, int queue_selector) {
 	return 0;
 }
 
-EXPORT speed_t cfgetospeed(const struct termios* termios) {
+EXPORT int tcflow(int fd, int action) {
+	if (ioctl(fd, TCXONC, action) < 0) {
+		return -1;
+	}
+	return 0;
+}
+
+EXPORT void cfmakeraw(struct termios* termios) {
+	termios->c_iflag &= ~(IGNBRK | BRKINT | PARMRK | ISTRIP | INLCR | IGNCR | ICRNL | IXON);
+	termios->c_oflag &= ~OPOST;
+	termios->c_lflag &= ~(ECHO | ECHONL | ICANON | ISIG | IEXTEN);
+	termios->c_cflag &= ~(CSIZE | PARENB);
+	termios->c_cflag |= CS8;
+	termios->c_cc[VMIN] = 1;
+	termios->c_cc[VTIME] = 0;
+}
+
+EXPORT speed_t cfgetispeed(const termios* termios) {
 	return termios->c_cflag & CBAUD;
+}
+
+EXPORT int cfsetispeed(termios* termios, speed_t speed) {
+	if (speed) {
+		return cfsetospeed(termios, speed);
+	}
+	else {
+		return 0;
+	}
+}
+
+EXPORT speed_t cfgetospeed(const termios* termios) {
+	return termios->c_cflag & CBAUD;
+}
+
+EXPORT int cfsetospeed(termios* termios, speed_t speed) {
+	if (speed & ~CBAUD) {
+		errno = EINVAL;
+		return -1;
+	}
+
+	termios->c_cflag &= ~CBAUD;
+	termios->c_cflag |= speed;
+	return 0;
 }
 
 EXPORT int getentropy(void* buffer, size_t size) {
@@ -460,15 +600,55 @@ extern "C" int __sched_cpucount(size_t set_size, const cpu_set_t* set);
 
 EXPORT long sysconf(int name) {
 	switch (name) {
+		case _SC_ARG_MAX:
+		{
+			return 2097152;
+		}
+		case _SC_CHILD_MAX:
+		{
+			rlimit limit {};
+			if (getrlimit(RLIMIT_NPROC, &limit) < 0) {
+				println("sysconf: _SC_CHILD_MAX returns fallback value 25 because getrlimit failed");
+				return 25;
+			}
+			return static_cast<long>(limit.rlim_cur);
+		}
+		case _SC_CLK_TCK:
+		{
+			// todo use the value from aux
+			return 100;
+		}
+		case _SC_NGROUPS_MAX:
+		{
+			return 65536;
+		}
+		case _SC_OPEN_MAX:
+		{
+			rlimit limit {};
+			if (getrlimit(RLIMIT_NOFILE, &limit) < 0) {
+				println("sysconf: _SC_OPEN_MAX returns fallback value 256 because getrlimit failed");
+				return 256;
+			}
+			return static_cast<long>(limit.rlim_cur);
+		}
 		case _SC_PAGESIZE:
 		{
 			return sys_getpagesize();
+		}
+		case _SC_LINE_MAX:
+		{
+			return 2048;
+		}
+		case _SC_IOV_MAX:
+		{
+			return IOV_MAX;
 		}
 		case _SC_LOGIN_NAME_MAX:
 		{
 			return LOGIN_NAME_MAX;
 		}
 		case _SC_NPROCESSORS_CONF:
+		case _SC_NPROCESSORS_ONLN:
 		{
 			cpu_set_t set {};
 			long count = 1;
@@ -488,6 +668,25 @@ EXPORT long sysconf(int name) {
 				info.mem_unit = 1;
 			}
 			auto total = static_cast<uint64_t>(info.totalram) * info.mem_unit;
+			uint64_t pages = total / sys_getpagesize();
+			if (pages > LONG_MAX) {
+				return LONG_MAX;
+			}
+			else {
+				return static_cast<long>(pages);
+			}
+		}
+		case _SC_AVPHYS_PAGES:
+		{
+			struct sysinfo info {};
+			if (auto err = sys_sysinfo(&info)) {
+				errno = err;
+				return -1;
+			}
+			if (!info.mem_unit) {
+				info.mem_unit = 1;
+			}
+			auto total = static_cast<uint64_t>(info.freeram + info.bufferram) * info.mem_unit;
 			uint64_t pages = total / sys_getpagesize();
 			if (pages > LONG_MAX) {
 				return LONG_MAX;
@@ -577,6 +776,10 @@ EXPORT pid_t getpid() {
 	return sys_get_process_id();
 }
 
+EXPORT pid_t getppid() {
+	return sys_getppid();
+}
+
 EXPORT unsigned int sleep(unsigned int seconds) {
 	timespec duration {
 		.tv_sec = static_cast<time_t>(seconds),
@@ -601,7 +804,13 @@ EXPORT unsigned int alarm(unsigned int seconds) {
 	return sys_alarm(seconds);
 }
 
-EXPORT int getgroups(size_t size, gid_t* list) {
+EXPORT int pause() {
+	sigset_t set {};
+	sigprocmask(SIG_BLOCK, nullptr, &set);
+	return sigsuspend(&set);
+}
+
+EXPORT int getgroups(int size, gid_t* list) {
 	int ret;
 	if (auto err = sys_getgroups(size, list, &ret)) {
 		errno = err;

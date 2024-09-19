@@ -61,6 +61,31 @@ EXPORT off64_t ftello64(FILE* file) {
 	return tmp;
 }
 
+EXPORT int vdprintf(int fd, const char* fmt, va_list ap) {
+	FILE file {
+		.write = fd_file_write,
+		.read = fd_file_read,
+		.fd = fd
+	};
+	return vfprintf(&file, fmt, ap);
+}
+
+EXPORT int dprintf(int fd, const char* fmt, ...) {
+	va_list ap;
+	va_start(ap, fmt);
+	int ret = vdprintf(fd, fmt, ap);
+	va_end(ap);
+	return ret;
+}
+
+EXPORT void flockfile(FILE* file) {
+	file->mutex.manual_lock();
+}
+
+EXPORT void funlockfile(FILE* file) {
+	file->mutex.manual_unlock();
+}
+
 EXPORT ssize_t getline(char** __restrict line, size_t* __restrict size, FILE* __restrict file) {
 	return getdelim(line, size, '\n', file);
 }
@@ -238,6 +263,14 @@ struct MemStreamData {
 
 EXPORT FILE* open_memstream(char** ptr, size_t* size_ptr) {
 	__ensure(!"open_memstream is not implemented");
+}
+
+EXPORT FILE* fmemopen(void* buf, size_t size, const char* mode) {
+	__ensure(!"fmemopen is not implemented");
+}
+
+EXPORT char* ctermid(char* str) {
+	return str ? strcpy(str, "/dev/tty") : const_cast<char*>("/dev/tty");
 }
 
 ALIAS(getdelim, __getdelim);

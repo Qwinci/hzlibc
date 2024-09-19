@@ -20,12 +20,6 @@
 
 #define memcpy __builtin_memcpy
 
-#if defined(__x86_64__) || defined(__i386__) || defined(__aarch64__)
-#define _NSIG 65
-#else
-#error missing architecture specific code
-#endif
-
 void sys_libc_log(hz::string_view str) {
 	syscall(SYS_write, 2, str.data(), str.size());
 }
@@ -85,6 +79,19 @@ int sys_munlock(const void* addr, size_t length) {
 
 int sys_msync(void* addr, size_t length, int flags) {
 	return syscall_error(syscall(SYS_msync, addr, length, flags));
+}
+
+int sys_mincore(void* addr, size_t size, unsigned char* vec) {
+	return syscall_error(syscall(SYS_mincore, addr, size, vec));
+}
+
+int sys_klogctl(int type, char* buf, int len, int* ret) {
+	auto res = syscall(SYS_syslog, type, buf, len);
+	if (int err = syscall_error(res)) {
+		return err;
+	}
+	*ret = static_cast<int>(res);
+	return 0;
 }
 
 int sys_shmat(int shm_id, const void* shm_addr, int shm_flag, void** ret) {
@@ -207,6 +214,14 @@ int sys_ioctl(int fd, unsigned long op, void* arg, int* ret) {
 	return 0;
 }
 
+int sys_mount(const char* source, const char* target, const char* fs_type, unsigned long flags, const void* data) {
+	return syscall_error(syscall(SYS_mount, source, target, fs_type, flags, data));
+}
+
+int sys_umount2(const char* target, int flags) {
+	return syscall_error(syscall(SYS_umount2, target, flags));
+}
+
 #ifndef SYS_fcntl64
 #define SYS_fcntl64 SYS_fcntl
 #endif
@@ -314,6 +329,68 @@ int sys_isatty(int fd) {
 	return 0;
 }
 
+int sys_ttyname(int fd, char* buffer, size_t size) {
+	if (sys_isatty(fd)) {
+		return ENOTTY;
+	}
+
+	char fd_buf[PATH_MAX];
+	snprintf(fd_buf, sizeof(fd_buf), "/proc/self/fd/%d", fd);
+
+	ssize_t len;
+	if (auto err = sys_readlinkat(AT_FDCWD, fd_buf, buffer, size, &len)) {
+		return err;
+	}
+	else if (static_cast<size_t>(len) == size) {
+		return ERANGE;
+	}
+
+	struct stat64 s1 {};
+	struct stat64 s2 {};
+	if (auto err = sys_stat(StatTarget::Path, 0, buffer, 0, &s1)) {
+		return err;
+	}
+	else if ((err = sys_stat(StatTarget::Fd, fd, "", 0, &s2))) {
+		return err;
+	}
+	else if (s1.st_dev != s2.st_dev || s1.st_ino != s2.st_ino) {
+		return ENOENT;
+	}
+	else {
+		return 0;
+	}
+}
+
+int sys_ptsname(int fd, char* buffer, size_t size) {
+	int index;
+	int dumb;
+	if (auto err = sys_ioctl(fd, TIOCGPTN, &index, &dumb)) {
+		return err;
+	}
+	size_t len = snprintf(buffer, size, "/dev/pts/%d", index);
+	if (len >= size) {
+		return ERANGE;
+	}
+	else {
+		return 0;
+	}
+}
+
+int sys_unlockpt(int fd) {
+	int unlock = 0;
+	int dumb;
+	return sys_ioctl(fd, TIOCSPTLCK, &unlock, &dumb);
+}
+
+int sys_getpgid(pid_t pid, pid_t* ret) {
+	auto res = syscall(SYS_getpgid, pid);
+	if (int err = syscall_error(res)) {
+		return err;
+	}
+	*ret = static_cast<int>(res);
+	return 0;
+}
+
 int sys_pipe2(int pipe_fd[2], int flags) {
 	return syscall_error(syscall(SYS_pipe2, pipe_fd, flags));
 }
@@ -370,6 +447,52 @@ int sys_select(
 	return 0;
 }
 
+int sys_pselect(
+	int num_fds,
+	fd_set* __restrict read_fds,
+	fd_set* __restrict write_fds,
+	fd_set* __restrict except_fds,
+	const timespec64* __restrict timeout,
+	const sigset_t* __restrict sig_mask,
+	int* ret) {
+	struct {
+		const sigset_t* set;
+		size_t ss_len;
+	} data {};
+	data.set = sig_mask;
+	data.ss_len = NSIG / 8;
+
+	timespec64 local_timeout {};
+	if (timeout) {
+		local_timeout = *timeout;
+	}
+#ifdef SYS_pselect6_time64
+	auto res = syscall(
+		SYS_pselect6_time64,
+		num_fds,
+		read_fds,
+		write_fds,
+		except_fds,
+		timeout ? &local_timeout : nullptr,
+		&data);
+#else
+	auto res = syscall(
+		SYS_pselect6,
+		num_fds,
+		read_fds,
+		write_fds,
+		except_fds,
+		timeout ? &local_timeout : nullptr,
+		&data);
+#endif
+	if (int err = syscall_error(res)) {
+		return err;
+	}
+
+	*ret = static_cast<int>(res);
+	return 0;
+}
+
 int sys_readv(int fd, const iovec* iov, int iov_count, ssize_t* ret) {
 	auto res = syscall(SYS_readv, fd, iov, iov_count);
 	if (int err = syscall_error(res)) {
@@ -386,6 +509,60 @@ int sys_writev(int fd, const iovec* iov, int iov_count, ssize_t* ret) {
 	}
 	*ret = static_cast<ssize_t>(res);
 	return 0;
+}
+
+int sys_process_vm_readv(
+	pid_t pid,
+	const iovec* local_iov,
+	unsigned long local_iov_count,
+	const iovec* remote_iov,
+	unsigned long remote_iov_count,
+	unsigned long flags,
+	ssize_t* ret) {
+	auto res = syscall(
+		SYS_process_vm_readv,
+		pid,
+		local_iov,
+		local_iov_count,
+		remote_iov,
+		remote_iov_count,
+		flags);
+	if (int err = syscall_error(res)) {
+		return err;
+	}
+	*ret = static_cast<ssize_t>(res);
+	return 0;
+}
+
+int sys_process_vm_writev(
+	pid_t pid,
+	const iovec* local_iov,
+	unsigned long local_iov_count,
+	const iovec* remote_iov,
+	unsigned long remote_iov_count,
+	unsigned long flags,
+	ssize_t* ret) {
+	auto res = syscall(
+		SYS_process_vm_writev,
+		pid,
+		local_iov,
+		local_iov_count,
+		remote_iov,
+		remote_iov_count,
+		flags);
+	if (int err = syscall_error(res)) {
+		return err;
+	}
+	*ret = static_cast<ssize_t>(res);
+	return 0;
+}
+
+int sys_swapon(const char* path, int flags) {
+	return syscall_error(syscall(SYS_swapon, path, flags));
+}
+
+int sys_swapoff(const char* path) {
+	return syscall_error(syscall(SYS_swapoff, path));
 }
 
 int sys_pread(int fd, void* buf, size_t count, off64_t offset, ssize_t* ret) {
@@ -424,10 +601,15 @@ int sys_poll(pollfd* fds, nfds_t num_fds, int timeout, int* ret) {
 }
 
 int sys_ppoll(pollfd* fds, nfds_t num_fds, const timespec64* timeout, const sigset_t* sig_mask, int* ret) {
+	timespec64 copy {};
+	if (timeout) {
+		copy = *timeout;
+	}
+
 #ifdef SYS_ppoll_time64
-	auto res = syscall(SYS_ppoll_time64, fds, num_fds, timeout, sig_mask);
+	auto res = syscall(SYS_ppoll_time64, fds, num_fds, timeout ? &copy : nullptr, sig_mask, NSIG / 8);
 #else
-	auto res = syscall(SYS_ppoll, fds, num_fds, timeout, sig_mask);
+	auto res = syscall(SYS_ppoll, fds, num_fds, timeout ? &copy : nullptr, sig_mask, NSIG / 8);
 #endif
 	if (int err = syscall_error(res)) {
 		return err;
@@ -461,6 +643,45 @@ int sys_epoll_create1(int flags, int* ret) {
 	}
 	*ret = static_cast<int>(res);
 	return 0;
+}
+
+int sys_epoll_ctl(int epfd, int op, int fd, epoll_event* event) {
+	return syscall_error(syscall(SYS_epoll_ctl, epfd, op, fd, event));
+}
+
+int sys_epoll_wait(int epfd, epoll_event* events, int max_events, int timeout, int* ret) {
+	auto res = syscall(SYS_epoll_wait, epfd, events, max_events, timeout);
+	if (int err = syscall_error(res)) {
+		return err;
+	}
+	*ret = static_cast<int>(res);
+	return 0;
+}
+
+int sys_signalfd(int fd, const sigset_t* mask, int flags, int* ret) {
+	auto res = syscall(SYS_signalfd4, fd, mask, NSIG / 8, flags);
+	if (int err = syscall_error(res)) {
+		return err;
+	}
+	*ret = static_cast<int>(res);
+	return 0;
+}
+
+int sys_mq_open(const char* name, int oflag, mode_t mode, mq_attr* attr, mqd_t* ret) {
+	auto res = syscall(SYS_mq_open, name, oflag, mode, attr);
+	if (int err = syscall_error(res)) {
+		return err;
+	}
+	*ret = static_cast<int>(res);
+	return 0;
+}
+
+int sys_mq_close(mqd_t mq) {
+	return syscall_error(syscall(SYS_close, mq));
+}
+
+int sys_mq_unlink(const char* name) {
+	return syscall_error(syscall(SYS_mq_unlink, name));
 }
 
 int sys_stat(StatTarget target, int dir_fd, const char* path, int flags, struct stat64* s) {
@@ -508,12 +729,12 @@ int sys_faccessat(int dir_fd, const char* path, int mode, int flags) {
 	return syscall_error(syscall(SYS_faccessat, dir_fd, path, mode, flags));
 }
 
-int sys_readlinkat(int dir_fd, const char* path, char* buf, size_t buf_size, int* ret) {
+int sys_readlinkat(int dir_fd, const char* path, char* buf, size_t buf_size, ssize_t* ret) {
 	auto res = syscall(SYS_readlinkat, dir_fd, path, buf, buf_size);
 	if (int err = syscall_error(res)) {
 		return err;
 	}
-	*ret = static_cast<int>(res);
+	*ret = static_cast<ssize_t>(res);
 	return 0;
 }
 
@@ -610,7 +831,7 @@ int sys_dup(int old_fd, int* ret) {
 }
 
 int sys_dup2(int old_fd, int new_fd, int flags) {
-	return syscall_error(syscall(SYS_dup2, old_fd, new_fd, flags));
+	return syscall_error(syscall(SYS_dup3, old_fd, new_fd, flags));
 }
 
 int sys_sync() {
@@ -638,6 +859,15 @@ int sys_getxattr(const char* path, const char* name, void* value, size_t size, s
 	return 0;
 }
 
+int sys_lgetxattr(const char* path, const char* name, void* value, size_t size, ssize_t* ret) {
+	auto res = syscall(SYS_lgetxattr, path, name, value, size);
+	if (int err = syscall_error(res)) {
+		return err;
+	}
+	*ret = static_cast<ssize_t>(res);
+	return 0;
+}
+
 int sys_fgetxattr(int fd, const char* name, void* value, size_t size, ssize_t* ret) {
 	auto res = syscall(SYS_fgetxattr, fd, name, value, size);
 	if (int err = syscall_error(res)) {
@@ -651,6 +881,10 @@ int sys_setxattr(const char* path, const char* name, const void* value, size_t s
 	return syscall_error(syscall(SYS_setxattr, path, name, value, size, flags));
 }
 
+int sys_lsetxattr(const char* path, const char* name, const void* value, size_t size, int flags) {
+	return syscall_error(syscall(SYS_lsetxattr, path, name, value, size, flags));
+}
+
 int sys_fsetxattr(int fd, const char* name, const void* value, size_t size, int flags) {
 	return syscall_error(syscall(SYS_fsetxattr, fd, name, value, size, flags));
 }
@@ -659,12 +893,34 @@ int sys_removexattr(const char* path, const char* name) {
 	return syscall_error(syscall(SYS_removexattr, path, name));
 }
 
+int sys_lremovexattr(const char* path, const char* name) {
+	return syscall_error(syscall(SYS_lremovexattr, path, name));
+}
+
 int sys_fremovexattr(int fd, const char* name) {
 	return syscall_error(syscall(SYS_removexattr, fd, name));
 }
 
 int sys_listxattr(const char* path, char* list, size_t size, ssize_t* ret) {
 	auto res = syscall(SYS_listxattr, path, list, size);
+	if (int err = syscall_error(res)) {
+		return err;
+	}
+	*ret = static_cast<ssize_t>(res);
+	return 0;
+}
+
+int sys_llistxattr(const char* path, char* list, size_t size, ssize_t* ret) {
+	auto res = syscall(SYS_llistxattr, path, list, size);
+	if (int err = syscall_error(res)) {
+		return err;
+	}
+	*ret = static_cast<ssize_t>(res);
+	return 0;
+}
+
+int sys_flistxattr(int fd, char* list, size_t size, ssize_t* ret) {
+	auto res = syscall(SYS_flistxattr, fd, list, size);
 	if (int err = syscall_error(res)) {
 		return err;
 	}
@@ -764,7 +1020,7 @@ int sys_capset(cap_user_header_t hdr, cap_user_data_t data) {
 	return syscall_error(syscall(SYS_capset, hdr, data));
 }
 
-int sys_getgroups(size_t size, gid_t* list, int* ret) {
+int sys_getgroups(int size, gid_t* list, int* ret) {
 	auto res = syscall(SYS_getgroups, size, list);
 	if (int err = syscall_error(res)) {
 		return err;
@@ -816,7 +1072,15 @@ int sys_sched_setaffinity(pid_t pid, size_t cpu_set_size, const cpu_set_t* mask)
 }
 
 int sys_sched_getaffinity(pid_t pid, size_t cpu_set_size, cpu_set_t* mask) {
-	return syscall_error(syscall(SYS_sched_getaffinity, pid, cpu_set_size, mask));
+	auto res = syscall(SYS_sched_getaffinity, pid, cpu_set_size, mask);
+	if (int err = syscall_error(res)) {
+		return err;
+	}
+	auto written = static_cast<size_t>(res);
+	if (written < cpu_set_size) {
+		memset(&mask->__bits[written / sizeof(__cpu_mask)], 0, cpu_set_size - written);
+	}
+	return 0;
 }
 
 int sys_sched_get_priority_min(int policy, int* ret) {
@@ -889,7 +1153,7 @@ int sys_waitid(idtype_t id_type, id_t id, siginfo_t* info, int options) {
 }
 
 int sys_fork(pid_t* ret) {
-	auto res = syscall(SYS_clone, SIGCHLD);
+	auto res = syscall(SYS_clone, SIGCHLD, nullptr);
 	if (int err = syscall_error(res)) {
 		return err;
 	}
@@ -897,7 +1161,20 @@ int sys_fork(pid_t* ret) {
 	return 0;
 }
 
-int sys_setpriority(int which, int who, int prio) {
+int sys_unshare(int flags) {
+	return syscall_error(syscall(SYS_unshare, flags));
+}
+
+int sys_getpriority(int which, id_t who, int* ret) {
+	auto res = syscall(SYS_getpriority, which, who);
+	if (int err = syscall_error(res)) {
+		return err;
+	}
+	*ret = static_cast<int>(res);
+	return 0;
+}
+
+int sys_setpriority(int which, id_t who, int prio) {
 	return syscall_error(syscall(SYS_setpriority, which, who, prio));
 }
 
@@ -920,6 +1197,20 @@ int sys_personality(unsigned long persona, int* ret) {
 	}
 	*ret = static_cast<int>(res);
 	return 0;
+}
+
+int sys_ptrace(__ptrace_request op, pid_t pid, void* addr, void* data, long* ret) {
+	auto res = syscall(SYS_ptrace, op, pid, addr, data);
+	if (int err = syscall_error(res)) {
+		return err;
+	}
+
+	*ret = res;
+	return 0;
+}
+
+int sys_setns(int fd, int ns_type) {
+	return syscall_error(syscall(SYS_setns, fd, ns_type));
 }
 
 #define FUTEX_WAIT 0
@@ -951,40 +1242,46 @@ int sys_futex_wake_all(int* addr, bool pshared) {
 		INT_MAX));
 }
 
-int sys_get_thread_id() {
+pid_t sys_get_thread_id() {
 	auto res = syscall(SYS_gettid);
 	__ensure(!syscall_error(res));
-	return static_cast<int>(res);
+	return static_cast<pid_t>(res);
 }
 
-int sys_get_process_id() {
+pid_t sys_get_process_id() {
 	auto res = syscall(SYS_getpid);
 	__ensure(!syscall_error(res));
+	return static_cast<pid_t>(res);
+}
+
+pid_t sys_getppid() {
+	auto res = syscall(SYS_getppid);
+	__ensure(!syscall_error(res));
 	return static_cast<int>(res);
 }
 
-int sys_getuid() {
+uid_t sys_getuid() {
 	auto res = syscall(SYS_getuid);
 	__ensure(!syscall_error(res));
-	return static_cast<int>(res);
+	return static_cast<uid_t>(res);
 }
 
-int sys_geteuid() {
+uid_t sys_geteuid() {
 	auto res = syscall(SYS_geteuid);
 	__ensure(!syscall_error(res));
-	return static_cast<int>(res);
+	return static_cast<uid_t>(res);
 }
 
-int sys_getgid() {
+gid_t sys_getgid() {
 	auto res = syscall(SYS_getgid);
 	__ensure(!syscall_error(res));
-	return static_cast<int>(res);
+	return static_cast<gid_t>(res);
 }
 
-int sys_getegid() {
+gid_t sys_getegid() {
 	auto res = syscall(SYS_getegid);
 	__ensure(!syscall_error(res));
-	return static_cast<int>(res);
+	return static_cast<gid_t>(res);
 }
 
 int sys_getsid(pid_t pid, pid_t* ret) {
@@ -997,12 +1294,22 @@ int sys_getsid(pid_t pid, pid_t* ret) {
 }
 
 #ifndef SYS_getresuid32
+#define SYS_setresuid32 SYS_setresuid
 #define SYS_getresuid32 SYS_getresuid
+#define SYS_setresgid32 SYS_setresgid
 #define SYS_getresgid32 SYS_getresgid
 #endif
 
+int sys_setresuid(uid_t ruid, uid_t euid, uid_t suid) {
+	return syscall_error(syscall(SYS_setresuid32, ruid, euid, suid));
+}
+
 int sys_getresuid(uid_t* ruid, uid_t* euid, uid_t* suid) {
 	return syscall_error(syscall(SYS_getresuid32, ruid, euid, suid));
+}
+
+int sys_setresgid(gid_t rgid, gid_t egid, gid_t sgid) {
+	return syscall_error(syscall(SYS_setresgid32, rgid, egid, sgid));
 }
 
 int sys_getresgid(gid_t* rgid, gid_t* egid, gid_t* sgid) {
@@ -1134,6 +1441,14 @@ int sys_sigaltstack(const stack_t* stack, stack_t* old_stack) {
 	return syscall_error(syscall(SYS_sigaltstack, stack, old_stack));
 }
 
+int sys_sigsuspend(const sigset_t* set) {
+	return syscall_error(syscall(SYS_rt_sigsuspend, set, NSIG / 8));
+}
+
+int sys_sigpending(sigset_t* set) {
+	return syscall_error(syscall(SYS_rt_sigpending, set, NSIG / 8));
+}
+
 int sys_kill(pid_t pid, int sig) {
 	return syscall_error(syscall(SYS_kill, pid, sig));
 }
@@ -1155,6 +1470,14 @@ int sys_clock_gettime(clockid_t id, timespec* tp) {
 	tp->tv_sec = static_cast<decltype(tp->tv_sec)>(kernel.tv_sec);
 	tp->tv_nsec = static_cast<decltype(tp->tv_nsec)>(kernel.tv_nsec);
 	return 0;
+}
+
+int sys_clock_settime(clockid_t id, const timespec* tp) {
+	KernelTimespec kernel {
+		.tv_sec = tp->tv_sec,
+		.tv_nsec = tp->tv_nsec
+	};
+	return syscall_error(syscall(SYS_clock_settime, id, &kernel));
 }
 
 int sys_clock_getres(clockid_t id, timespec* res) {

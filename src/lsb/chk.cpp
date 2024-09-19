@@ -4,7 +4,7 @@
 #include "sys/select.h"
 #include "string.h"
 #include "stdlib.h"
-#include "sigjmp.h"
+#include "setjmp.h"
 #include "fcntl.h"
 #include "wchar.h"
 

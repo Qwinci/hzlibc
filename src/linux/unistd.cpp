@@ -14,6 +14,18 @@ EXPORT int pipe2(int pipe_fd[2], int flags) {
 	return 0;
 }
 
+EXPORT int dup3(int old_fd, int new_fd, int flags) {
+	if (old_fd == new_fd) {
+		errno = EINVAL;
+		return -1;
+	}
+	if (auto err = sys_dup2(old_fd, new_fd, flags)) {
+		errno = err;
+		return -1;
+	}
+	return new_fd;
+}
+
 EXPORT int execvpe(const char* file, char* const argv[], char* const envp[]) {
 	char* empty[] {
 		nullptr
@@ -94,8 +106,24 @@ EXPORT int close_range(unsigned int first, unsigned int last, int flags) {
 	return 0;
 }
 
+EXPORT int setresuid(uid_t ruid, uid_t euid, uid_t suid) {
+	if (auto err = sys_setresuid(ruid, euid, suid)) {
+		errno = err;
+		return -1;
+	}
+	return 0;
+}
+
 EXPORT int getresuid(uid_t* ruid, uid_t* euid, uid_t* suid) {
 	if (auto err = sys_getresuid(ruid, euid, suid)) {
+		errno = err;
+		return -1;
+	}
+	return 0;
+}
+
+EXPORT int setresgid(gid_t rgid, gid_t egid, gid_t sgid) {
+	if (auto err = sys_setresgid(rgid, egid, sgid)) {
 		errno = err;
 		return -1;
 	}

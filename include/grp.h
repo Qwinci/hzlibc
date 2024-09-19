@@ -36,6 +36,7 @@ struct group* getgrent(void);
 void endgrent(void);
 
 // bsd
+int initgroups(const char* __user, gid_t __group);
 int setgroups(size_t __size, const gid_t* __list);
 
 // glibc

@@ -7,6 +7,7 @@
 #include "string.h"
 #include "sys.hpp"
 #include "fcntl.h"
+#include "stdio.h"
 #include <hz/vector.hpp>
 #include <hz/string_view.hpp>
 #include <hz/string.hpp>
@@ -37,6 +38,30 @@ EXPORT int posix_memalign(void** ptr, size_t alignment, size_t size) {
 	__ensure((reinterpret_cast<uintptr_t>(p) & (alignment - 1)) == 0);
 	*ptr = p;
 	return 0;
+}
+
+EXPORT int grantpt(int) {
+	return 0;
+}
+
+EXPORT int unlockpt(int fd) {
+	if (auto err = sys_unlockpt(fd)) {
+		errno = err;
+		return -1;
+	}
+	return 0;
+}
+
+namespace {
+	char PTS_NAME[128];
+}
+
+EXPORT char* ptsname(int fd) {
+	if (auto err = sys_ptsname(fd, PTS_NAME, sizeof(PTS_NAME))) {
+		errno = err;
+		return nullptr;
+	}
+	return PTS_NAME;
 }
 
 EXPORT int setenv(const char* name, const char* value, int overwrite) {
@@ -129,6 +154,35 @@ EXPORT int unsetenv(const char* name) {
 	return 0;
 }
 
+EXPORT int putenv(char* string) {
+	hz::string_view string_view {string};
+	if (!string_view.contains('=')) {
+		return unsetenv(string);
+	}
+
+	auto string_name_end = string_view.find('=');
+	auto name = string_view.substr(0, string_name_end);
+
+	for (size_t i = 0; i < ENV.size() - 1; ++i) {
+		hz::string_view str {ENV[i]};
+		size_t name_end = str.find('=');
+		if (name_end == hz::string_view::npos) {
+			panic("setenv: environment contains string without '='");
+		}
+		auto var_name = str.substr(0, name_end);
+
+		if (var_name == name) {
+			ENV[i] = string;
+			return 0;
+		}
+	}
+
+	ENV.back() = string;
+	ENV.push_back(nullptr);
+	environ = ENV.data();
+	return 0;
+}
+
 EXPORT char* realpath(const char* __restrict path, char* __restrict resolved_path) {
 	if (!path || *path == 0) {
 		errno = EINVAL;
@@ -136,6 +190,7 @@ EXPORT char* realpath(const char* __restrict path, char* __restrict resolved_pat
 	}
 
 	hz::string<Allocator> resolved {Allocator {}};
+	resolved += '/';
 	hz::string_view path_str {path};
 
 	if (!path_str.starts_with('/')) {
@@ -166,7 +221,9 @@ EXPORT char* realpath(const char* __restrict path, char* __restrict resolved_pat
 		}
 
 		auto old_resolved_size = resolved.size();
-		resolved += '/';
+		if (!resolved.as_view().ends_with('/')) {
+			resolved += '/';
+		}
 		resolved += component;
 
 		struct stat64 s {};
@@ -175,7 +232,7 @@ EXPORT char* realpath(const char* __restrict path, char* __restrict resolved_pat
 		}
 
 		if (S_ISLNK(s.st_mode)) {
-			int link_size;
+			ssize_t link_size;
 			if (auto err = sys_readlinkat(AT_FDCWD, resolved.data(), link_buf, sizeof(link_buf), &link_size)) {
 				return err;
 			}
@@ -266,6 +323,71 @@ EXPORT long double strtold_l(const char* __restrict ptr, char** __restrict end_p
 
 EXPORT int mkstemp(char* template_str) {
 	return mkostemp(template_str, 0);
+}
+
+EXPORT char* mkdtemp(char* template_str) {
+	hz::string_view str {template_str};
+	if (!str.ends_with("XXXXXX")) {
+		errno = EINVAL;
+		return nullptr;
+	}
+
+	for (size_t i = 0; i < 999999; ++i) {
+		__ensure(sprintf(template_str + str.size() - 6, "%06zu", i) == 6);
+
+		if (auto err = sys_mkdirat(AT_FDCWD, template_str, S_IRWXU); !err) {
+			return template_str;
+		}
+		else if (err != EEXIST) {
+			errno = err;
+			return nullptr;
+		}
+	}
+
+	errno = EEXIST;
+	return nullptr;
+}
+
+namespace {
+	char RANDOM_STATE[32] {};
+	random_data RANDOM_DATA {};
+	bool INITIALIZED {};
+}
+
+EXPORT char* initstate(unsigned int seed, char* state, size_t size) {
+	char* prev = reinterpret_cast<char*>(RANDOM_DATA.state);
+	initstate_r(seed, state, size, &RANDOM_DATA);
+	return prev;
+}
+
+EXPORT char* setstate(char* state) {
+	char* prev = reinterpret_cast<char*>(RANDOM_DATA.state);
+	if (setstate_r(state, &RANDOM_DATA) != 0) {
+		return nullptr;
+	}
+	INITIALIZED = true;
+	return prev;
+}
+
+EXPORT void srandom(unsigned int seed) {
+	if (!INITIALIZED) {
+		initstate_r(seed, RANDOM_STATE, sizeof(RANDOM_STATE), &RANDOM_DATA);
+		INITIALIZED = true;
+	}
+	else {
+		srandom_r(seed, &RANDOM_DATA);
+	}
+}
+
+EXPORT long random() {
+	if (!INITIALIZED) {
+		initstate_r(0xCAFEBABE, RANDOM_STATE, sizeof(RANDOM_STATE), &RANDOM_DATA);
+		INITIALIZED = true;
+	}
+
+	int32_t value;
+	random_r(&RANDOM_DATA, &value);
+	return value;
 }
 
 // this is glibc but to avoid needing to make the environment vector global its here

@@ -6,6 +6,10 @@
 
 __begin_decls
 
+#define GRND_NONBLOCK 1
+#define GRND_RANDOM 2
+#define GRND_INSECURE 4
+
 ssize_t getrandom(void* __buf, size_t __buf_size, unsigned int __flags);
 
 __end_decls

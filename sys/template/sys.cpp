@@ -20,11 +20,11 @@ int sys_mmap(void* addr, size_t length, int prot, int flags, int fd, off64_t off
 }
 
 int sys_munmap(void* addr, size_t length) {
-	STUB_ENOSYS
+	STUB_ENOSYS;
 }
 
 int sys_mremap(void* old_addr, size_t old_size, size_t new_size, int flags, void* new_addr, void** ret) {
-	STUB_ENOSYS
+	STUB_ENOSYS;
 }
 
 int sys_mprotect(void* addr, size_t length, int prot) {
@@ -44,6 +44,14 @@ int sys_munlock(const void* addr, size_t length) {
 }
 
 int sys_msync(void* addr, size_t length, int flags) {
+	STUB_ENOSYS;
+}
+
+int sys_mincore(void* addr, size_t size, unsigned char* vec) {
+	STUB_ENOSYS;
+}
+
+int sys_klogctl(int type, char* buf, int len, int* ret) {
 	STUB_ENOSYS;
 }
 
@@ -99,6 +107,14 @@ int sys_ioctl(int fd, unsigned long op, void* arg, int* ret) {
 	STUB_ENOSYS;
 }
 
+int sys_mount(const char* source, const char* target, const char* fs_type, unsigned long flags, const void* data) {
+	STUB_ENOSYS;
+}
+
+int sys_umount2(const char* target, int flags) {
+	STUB_ENOSYS;
+}
+
 int sys_fcntl(int fd, int cmd, va_list args, int* ret) {
 	STUB_ENOSYS;
 }
@@ -108,6 +124,22 @@ int sys_fadvise(int fd, off64_t offset, off64_t len, int advice) {
 }
 
 int sys_isatty(int fd) {
+	STUB_ENOSYS;
+}
+
+int sys_ttyname(int fd, char* buffer, size_t size) {
+	STUB_ENOSYS;
+}
+
+int sys_ptsname(int fd, char* buffer, size_t size) {
+	STUB_ENOSYS;
+}
+
+int sys_unlockpt(int fd) {
+	STUB_ENOSYS;
+}
+
+int sys_getpgid(pid_t pid, pid_t* ret) {
 	STUB_ENOSYS;
 }
 
@@ -148,11 +180,52 @@ int sys_select(
 	STUB_ENOSYS;
 }
 
+int sys_pselect(
+	int num_fds,
+	fd_set* __restrict read_fds,
+	fd_set* __restrict write_fds,
+	fd_set* __restrict except_fds,
+	const timespec64* __restrict timeout,
+	const sigset_t* __restrict sig_mask,
+	int* ret) {
+	STUB_ENOSYS;
+}
+
 int sys_readv(int fd, const iovec* iov, int iov_count, ssize_t* ret) {
 	STUB_ENOSYS;
 }
 
 int sys_writev(int fd, const iovec* iov, int iov_count, ssize_t* ret) {
+	STUB_ENOSYS;
+}
+
+int sys_process_vm_readv(
+	pid_t pid,
+	const iovec* local_iov,
+	unsigned long local_iov_count,
+	const iovec* remote_iov,
+	unsigned long remote_iov_count,
+	unsigned long flags,
+	ssize_t* ret) {
+	STUB_ENOSYS;
+}
+
+int sys_process_vm_writev(
+	pid_t pid,
+	const iovec* local_iov,
+	unsigned long local_iov_count,
+	const iovec* remote_iov,
+	unsigned long remote_iov_count,
+	unsigned long flags,
+	ssize_t* ret) {
+	STUB_ENOSYS;
+}
+
+int sys_swapon(const char* path, int flags) {
+	STUB_ENOSYS;
+}
+
+int sys_swapoff(const char* path) {
 	STUB_ENOSYS;
 }
 
@@ -184,6 +257,30 @@ int sys_epoll_create1(int flags, int* ret) {
 	STUB_ENOSYS;
 }
 
+int sys_epoll_ctl(int epfd, int op, int fd, epoll_event* event) {
+	STUB_ENOSYS;
+}
+
+int sys_epoll_wait(int epfd, epoll_event* events, int max_events, int timeout, int* ret) {
+	STUB_ENOSYS;
+}
+
+int sys_signalfd(int fd, const sigset_t* mask, int flags, int* ret) {
+	STUB_ENOSYS;
+}
+
+int sys_mq_open(const char* name, int oflag, mode_t mode, mq_attr* attr, mqd_t* ret) {
+	STUB_ENOSYS;
+}
+
+int sys_mq_close(mqd_t mq) {
+	STUB_ENOSYS;
+}
+
+int sys_mq_unlink(const char* name) {
+	STUB_ENOSYS;
+}
+
 int sys_stat(StatTarget target, int dir_fd, const char* path, int flags, struct stat64* s) {
 	STUB_ENOSYS;
 }
@@ -209,7 +306,7 @@ int sys_faccessat(int dir_fd, const char* path, int mode, int flags) {
 	STUB_ENOSYS;
 }
 
-int sys_readlinkat(int dir_fd, const char* path, char* buf, size_t buf_size, int* ret) {
+int sys_readlinkat(int dir_fd, const char* path, char* buf, size_t buf_size, ssize_t* ret) {
 	STUB_ENOSYS;
 }
 
@@ -259,7 +356,7 @@ int sys_utimensat(int dir_fd, const char* path, const timespec64 times[2], int f
 }
 
 int sys_rmdir(const char* path) {
-	STUB_ENOSYS
+	STUB_ENOSYS;
 }
 
 int sys_renameat(int old_dir_fd, const char* old_path, int new_dir_fd, const char* new_path) {
@@ -302,11 +399,19 @@ int sys_getxattr(const char* path, const char* name, void* value, size_t size, s
 	STUB_ENOSYS;
 }
 
+int sys_lgetxattr(const char* path, const char* name, void* value, size_t size, ssize_t* ret) {
+	STUB_ENOSYS;
+}
+
 int sys_fgetxattr(int fd, const char* name, void* value, size_t size, ssize_t* ret) {
 	STUB_ENOSYS;
 }
 
 int sys_setxattr(const char* path, const char* name, const void* value, size_t size, int flags) {
+	STUB_ENOSYS;
+}
+
+int sys_lsetxattr(const char* path, const char* name, const void* value, size_t size, int flags) {
 	STUB_ENOSYS;
 }
 
@@ -318,11 +423,23 @@ int sys_removexattr(const char* path, const char* name) {
 	STUB_ENOSYS;
 }
 
+int sys_lremovexattr(const char* path, const char* name) {
+	STUB_ENOSYS;
+}
+
 int sys_fremovexattr(int fd, const char* name) {
 	STUB_ENOSYS;
 }
 
 int sys_listxattr(const char* path, char* list, size_t size, ssize_t* ret) {
+	STUB_ENOSYS;
+}
+
+int sys_llistxattr(const char* path, char* list, size_t size, ssize_t* ret) {
+	STUB_ENOSYS;
+}
+
+int sys_flistxattr(int fd, char* list, size_t size, ssize_t* ret) {
 	STUB_ENOSYS;
 }
 
@@ -370,7 +487,7 @@ int sys_capset(cap_user_header_t hdr, cap_user_data_t data) {
 	STUB_ENOSYS;
 }
 
-int sys_getgroups(size_t size, gid_t* list, int* ret) {
+int sys_getgroups(int size, gid_t* list, int* ret) {
 	STUB_ENOSYS;
 }
 
@@ -458,7 +575,15 @@ int sys_fork(pid_t* ret) {
 	STUB_ENOSYS;
 }
 
-int sys_setpriority(int which, int who, int prio) {
+int sys_unshare(int flags) {
+	STUB_ENOSYS;
+}
+
+int sys_getpriority(int which, id_t who, int* ret) {
+	STUB_ENOSYS;
+}
+
+int sys_setpriority(int which, id_t who, int prio) {
 	STUB_ENOSYS;
 }
 
@@ -478,6 +603,18 @@ int sys_personality(unsigned long persona, int* ret) {
 	STUB_ENOSYS;
 }
 
+int sys_ptrace(__ptrace_request op, pid_t pid, void* addr, void* data, long* ret) {
+	STUB_ENOSYS;
+}
+
+int sys_setns(int fd, int ns_type) {
+	STUB_ENOSYS;
+}
+
+int sys_sysconf(int num, long* ret) {
+	STUB_ENOSYS;
+}
+
 int sys_futex_wait(int* addr, int value, const timespec* timeout, bool pshared) {
 	STUB_ENOSYS;
 }
@@ -490,32 +627,37 @@ int sys_futex_wake_all(int* addr, bool pshared) {
 	STUB_ENOSYS;
 }
 
-int sys_get_thread_id() {
+pid_t sys_get_thread_id() {
 	println("sys_get_thread_id is a stub");
 	return 0;
 }
 
-int sys_get_process_id() {
+pid_t sys_get_process_id() {
 	println("sys_get_process_id is a stub");
 	return 0;
 }
 
-int sys_getuid() {
+pid_t sys_getppid() {
+	println("sys_getppid is a stub");
+	return 0;
+}
+
+uid_t sys_getuid() {
 	println("sys_getuid is a stub");
 	return 0;
 }
 
-int sys_geteuid() {
+uid_t sys_geteuid() {
 	println("sys_geteuid is a stub");
 	return 0;
 }
 
-int sys_getgid() {
+gid_t sys_getgid() {
 	println("sys_getgid is a stub");
 	return 0;
 }
 
-int sys_getegid() {
+gid_t sys_getegid() {
 	println("sys_getegid is a stub");
 	return 0;
 }
@@ -524,7 +666,15 @@ int sys_getsid(pid_t pid, pid_t* ret) {
 	STUB_ENOSYS;
 }
 
+int sys_setresuid(uid_t ruid, uid_t euid, uid_t suid) {
+	STUB_ENOSYS;
+}
+
 int sys_getresuid(uid_t* ruid, uid_t* euid, uid_t* suid) {
+	STUB_ENOSYS;
+}
+
+int sys_setresgid(gid_t rgid, gid_t egid, gid_t sgid) {
 	STUB_ENOSYS;
 }
 
@@ -557,6 +707,14 @@ int sys_sigtimedwait(const sigset_t* __restrict set, siginfo_t* __restrict info,
 }
 
 int sys_sigaltstack(const stack_t* stack, stack_t* old_stack) {
+	STUB_ENOSYS;
+}
+
+int sys_sigsuspend(const sigset_t* set) {
+	STUB_ENOSYS;
+}
+
+int sys_sigpending(sigset_t* set) {
 	STUB_ENOSYS;
 }
 

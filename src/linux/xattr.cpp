@@ -13,6 +13,15 @@ EXPORT ssize_t getxattr(const char* path, const char* name, void* value, size_t 
 	return ret;
 }
 
+EXPORT ssize_t lgetxattr(const char* path, const char* name, void* value, size_t size) {
+	ssize_t ret;
+	if (auto err = sys_lgetxattr(path, name, value, size, &ret)) {
+		errno = err;
+		return -1;
+	}
+	return ret;
+}
+
 EXPORT ssize_t fgetxattr(int fd, const char* name, void* value, size_t size) {
 	ssize_t ret;
 	if (auto err = sys_fgetxattr(fd, name, value, size, &ret)) {
@@ -24,6 +33,14 @@ EXPORT ssize_t fgetxattr(int fd, const char* name, void* value, size_t size) {
 
 EXPORT int setxattr(const char* path, const char* name, const void* value, size_t size, int flags) {
 	if (auto err = sys_setxattr(path, name, value, size, flags)) {
+		errno = err;
+		return -1;
+	}
+	return 0;
+}
+
+EXPORT int lsetxattr(const char* path, const char* name, const void* value, size_t size, int flags) {
+	if (auto err = sys_lsetxattr(path, name, value, size, flags)) {
 		errno = err;
 		return -1;
 	}
@@ -46,6 +63,14 @@ EXPORT int removexattr(const char* path, const char* name) {
 	return 0;
 }
 
+EXPORT int lremovexattr(const char* path, const char* name) {
+	if (auto err = sys_lremovexattr(path, name)) {
+		errno = err;
+		return -1;
+	}
+	return 0;
+}
+
 EXPORT int fremovexattr(int fd, const char* name) {
 	if (auto err = sys_fremovexattr(fd, name)) {
 		errno = err;
@@ -57,6 +82,24 @@ EXPORT int fremovexattr(int fd, const char* name) {
 EXPORT ssize_t listxattr(const char* path, char* list, size_t size) {
 	ssize_t ret;
 	if (auto err = sys_listxattr(path, list, size, &ret)) {
+		errno = err;
+		return -1;
+	}
+	return ret;
+}
+
+EXPORT ssize_t llistxattr(const char* path, char* list, size_t size) {
+	ssize_t ret;
+	if (auto err = sys_llistxattr(path, list, size, &ret)) {
+		errno = err;
+		return -1;
+	}
+	return ret;
+}
+
+EXPORT ssize_t flistxattr(int fd, char* list, size_t size) {
+	ssize_t ret;
+	if (auto err = sys_flistxattr(fd, list, size, &ret)) {
 		errno = err;
 		return -1;
 	}

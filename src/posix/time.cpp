@@ -9,8 +9,31 @@
 #include "limits.h"
 #endif
 
+EXPORT char* strptime(const char* __restrict str, const char* __restrict fmt, struct tm* __restrict time) {
+	__ensure(!"strptime is not implemented");
+}
+
+EXPORT char* asctime_r(const struct tm* time, char* buffer) {
+	strftime(buffer, 26, "%a %b %d %T %Y\n", time);
+	return buffer;
+}
+
+EXPORT char* ctime_r(const time_t* time, char* buffer) {
+	tm t {};
+	localtime_r(time, &t);
+	return asctime_r(&t, buffer);
+}
+
 EXPORT int clock_gettime(clockid_t id, timespec* tp) {
 	if (auto err = sys_clock_gettime(id, tp)) {
+		errno = err;
+		return -1;
+	}
+	return 0;
+}
+
+EXPORT int clock_settime(clockid_t id, const struct timespec* tp) {
+	if (auto err = sys_clock_settime(id, tp)) {
 		errno = err;
 		return -1;
 	}

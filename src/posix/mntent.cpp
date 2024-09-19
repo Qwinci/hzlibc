@@ -5,6 +5,10 @@ EXPORT FILE* setmntent(const char* file_name, const char* type) {
 	__ensure(!"setmntent is not implemented");
 }
 
+EXPORT mntent* getmntent(FILE* file) {
+	__ensure(!"getmntent is not implemented");
+}
+
 EXPORT int endmntent(FILE* file) {
 	__ensure(!"endmntent is not implemented");
 }

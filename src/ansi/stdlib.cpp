@@ -10,8 +10,11 @@
 #include "math.h"
 #include "wchar.h"
 #include "signal.h"
+#include "str_to_int.hpp"
 #include <hz/bit.hpp>
 #include <hz/algorithm.hpp>
+
+#define memcpy __builtin_memcpy
 
 EXPORT void* malloc(size_t size) {
 	if (!size) {
@@ -53,6 +56,11 @@ EXPORT void* aligned_alloc(size_t alignment, size_t size) {
 }
 
 EXPORT void* calloc(size_t num, size_t size) {
+	if (size && num > SIZE_MAX / size) {
+		errno = ENOMEM;
+		return nullptr;
+	}
+
 	if (!size || !num) {
 		num = 1;
 		size = 1;
@@ -79,7 +87,9 @@ EXPORT char* getenv(const char* name) {
 	for (auto* env = environ; *env; ++env) {
 		hz::string_view env_str {*env};
 		auto sep = env_str.find('=');
-		__ensure(sep != hz::string_view::npos);
+		if (sep == hz::string_view::npos) {
+			continue;
+		}
 		if (env_str.substr(0, sep) == name_str) {
 			return *env + sep + 1;
 		}
@@ -384,92 +394,6 @@ EXPORT long long atoll(const char* str) {
 	return value;
 }
 
-template<typename T, typename U>
-static T str_to_int(const char* __restrict ptr, char** __restrict end_ptr, int base) {
-	while (isspace(*ptr)) {
-		++ptr;
-	}
-
-	bool sign = false;
-	if (*ptr == '-') {
-		++ptr;
-		sign = true;
-	}
-	else if (*ptr == '+') {
-		++ptr;
-	}
-
-	if (base == 0) {
-		if (ptr[0] == '0' && tolower(ptr[1]) == 'x' && (ptr[2] >= '0' && tolower(ptr[2]) <= CHARS[16 - 1])) {
-			base = 16;
-			ptr += 2;
-		}
-		else if (ptr[0] == '0') {
-			base = 8;
-			++ptr;
-		}
-		else {
-			base = 10;
-		}
-	}
-	else if (base == 8) {
-		if (*ptr == '0') {
-			++ptr;
-		}
-	}
-	else if (base == 16) {
-		if (ptr[0] == '0' && tolower(ptr[1]) == 'x') {
-			ptr += 2;
-		}
-	}
-
-	U max_value;
-	if constexpr (hz::is_signed_v<T>) {
-		if (sign) {
-			max_value = static_cast<U>(-(hz::numeric_limits<T>::min() + 1)) + 1;
-		}
-		else {
-			max_value = static_cast<U>(hz::numeric_limits<T>::max());
-		}
-	}
-	else {
-		max_value = static_cast<U>(hz::numeric_limits<T>::max());
-	}
-
-	U value = 0;
-	bool overflow = false;
-	if (base <= 36) {
-		for (; *ptr >= '0' && tolower(*ptr) <= CHARS[base - 1]; ++ptr) {
-			auto old = value;
-			value *= base;
-			if (value / base != old || value > max_value) {
-				overflow = true;
-			}
-			old = value;
-			value += *ptr <= '9' ? (*ptr - '0') : (tolower(*ptr) - 'a' + 10);
-			if (value < old || value > max_value) {
-				overflow = true;
-			}
-		}
-	}
-
-	if (end_ptr) {
-		*end_ptr = const_cast<char*>(ptr);
-	}
-
-	if (overflow) {
-		errno = ERANGE;
-		return sign ? hz::numeric_limits<T>::min() : hz::numeric_limits<T>::max();
-	}
-
-	if (sign) {
-		return -static_cast<T>(value);
-	}
-	else {
-		return static_cast<T>(value);
-	}
-}
-
 template<typename T>
 T str_to_float(const char* __restrict ptr, char** __restrict end_ptr) {
 	while (isspace(*ptr)) {
@@ -700,6 +624,38 @@ EXPORT int wctomb(char* str, wchar_t wc) {
 		return -1;
 	}
 	return static_cast<int>(size);
+}
+
+EXPORT size_t wcstombs(char* dest, const wchar_t* __restrict src, size_t len) {
+	if (!dest) {
+		len = SIZE_MAX;
+	}
+
+	size_t size = 0;
+	while (true) {
+		char buf[4];
+		size_t ret = wcrtomb(buf, *src, nullptr);
+		if (ret == static_cast<size_t>(-1)) {
+			return ret;
+		}
+		else if (ret > len) {
+			return size;
+		}
+
+		if (dest) {
+			memcpy(dest, buf, ret);
+			dest += ret;
+		}
+
+		size += ret;
+		len -= ret;
+
+		if (!*src++) {
+			break;
+		}
+	}
+
+	return size - 1;
 }
 
 namespace {

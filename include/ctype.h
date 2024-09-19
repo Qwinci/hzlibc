@@ -41,6 +41,9 @@ int iscntrl(int __ch);
 int ispunct(int __ch);
 int isalnum(int __ch);
 
+// posix
+int isascii(int __ch);
+
 __end_decls
 
 #endif

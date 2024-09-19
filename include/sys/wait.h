@@ -10,13 +10,17 @@ __begin_decls
 
 #define WNOHANG 1
 #define WUNTRACED 2
+
+#define WSTOPPED 2
+#define WEXITED 4
 #define WCONTINUED 8
+#define WNOWAIT 0x1000000
 
 #define WEXITSTATUS(status) (((status) >> 8) & 0xFF)
 #define WTERMSIG(status) ((status) & 0x7F)
 #define WSTOPSIG(status) WEXITSTATUS(status)
 #define WIFEXITED(status) (WTERMSIG(status) == 0)
-#define WIFSIGNALED(status) ((signed char) (((status) & 0x7F) + 1) >> 1) > 0)
+#define WIFSIGNALED(status) (((signed char) (((status) & 0x7F) + 1) >> 1) > 0)
 #define WIFSTOPPED(status) (((status) & 0xFF) == 0x7F)
 #define WIFCONTINUED(status) ((status) == __W_CONTINUED)
 

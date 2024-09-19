@@ -38,3 +38,6 @@ struct FILE {
 };
 
 FILE* create_fd_file(int fd);
+
+ssize_t fd_file_write(FILE* file, const void* data, size_t size);
+ssize_t fd_file_read(FILE* file, void* data, size_t size);

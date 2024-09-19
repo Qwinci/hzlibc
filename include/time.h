@@ -2,14 +2,17 @@
 #define _TIME_H
 
 #include <bits/utils.h>
+#include <bits/time_t.h>
 #include <stddef.h>
 #include <stdint.h>
 #include <locale.h>
 
 __begin_decls
 
-typedef long time_t;
+#ifndef _SYS_TIMES_H
 typedef long clock_t;
+#endif
+
 typedef int clockid_t;
 
 struct timespec {
@@ -66,7 +69,12 @@ int timespec_get(struct timespec* __ts, int __base);
 
 #define TIMER_ABSTIME 1
 
+char* strptime(const char* __restrict __str, const char* __restrict __fmt, struct tm* __restrict __time);
+char* asctime_r(const struct tm* __time, char* __buffer);
+char* ctime_r(const time_t* __time, char* __buffer);
+
 int clock_gettime(clockid_t __id, struct timespec* __tp);
+int clock_settime(clockid_t __id, const struct timespec* __tp);
 int clock_getres(clockid_t __id, struct timespec* __res);
 int clock_nanosleep(clockid_t __id, int __flags, const struct timespec* __req, struct timespec* __rem);
 int nanosleep(const struct timespec* __duration, struct timespec* __rem);

@@ -89,4 +89,26 @@ EXPORT char* strchrnul(const char* str, int ch) {
 	return const_cast<char*>(str);
 }
 
+EXPORT char* strsep(char** __restrict str, const char* __restrict delim) {
+	char* token = *str;
+	if (!token) {
+		return nullptr;
+	}
+
+	auto ptr = token;
+	while (*ptr && !strchr(delim, *ptr)) {
+		++ptr;
+	}
+
+	if (*ptr) {
+		*ptr = 0;
+		*str = ptr + 1;
+	}
+	else {
+		*str = nullptr;
+	}
+
+	return token;
+}
+
 ALIAS(rawmemchr, __rawmemchr);

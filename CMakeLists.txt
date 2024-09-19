@@ -1,124 +1,140 @@
 cmake_minimum_required(VERSION 3.20)
-project(hzlibc C CXX ASM)
+project(hzlibc NONE)
 
-include(CheckCXXCompilerFlag)
+option(HEADERS_ONLY "Only install headers" OFF)
 
-set(CMAKE_CXX_STANDARD 20)
-set(CMAKE_POSITION_INDEPENDENT_CODE ON)
+if(NOT HEADERS_ONLY)
+	enable_language(C CXX ASM)
+	set(CMAKE_CXX_STANDARD 20)
+	set(CMAKE_POSITION_INDEPENDENT_CODE ON)
+	include(CheckCXXCompilerFlag)
 
-add_library(c SHARED
-	src/rtld/main.cpp
-	src/rtld/shared_object.cpp
-	src/rtld/object_storage.cpp
-	src/rtld/start.cpp
-	src/rtld/rtld.cpp
-	src/cxx.cpp
-)
-target_compile_options(c PRIVATE
-	-Wall -Wextra
-	-ffreestanding -fvisibility=hidden
-	-fno-stack-protector
-	-ftls-model=initial-exec -Wno-missing-attributes -Wno-unused-parameter
-)
-target_compile_definitions(c PRIVATE
-	__USE_XOPEN2K8
-)
-target_compile_options(c PRIVATE
-	$<$<COMPILE_LANGUAGE:CXX>: -fno-exceptions -fno-rtti -fvisibility-inlines-hidden -nostdinc++>)
-target_link_options(c PRIVATE -nostdlib -Wl,--entry=_start,--fatal-warnings,--no-undefined,-z,noexecstack)
+	add_library(c SHARED
+		src/rtld/main.cpp
+		src/rtld/shared_object.cpp
+		src/rtld/object_storage.cpp
+		src/rtld/start.cpp
+		src/rtld/rtld.cpp
+		src/cxx.cpp
+	)
 
-check_cxx_compiler_flag(-Wno-unknown-warning-option COMPILER_SUPPORTS_UNKNOWN_WARNING_OPT)
-if(COMPILER_SUPPORTS_UNKNOWN_WARNING_OPT)
-	target_compile_options(c PRIVATE -Wno-unknown-warning-option)
-endif()
+	target_compile_options(c PRIVATE
+		-Wall -Wextra
+		-ffreestanding -fvisibility=hidden
+		-fno-stack-protector
+		-ftls-model=initial-exec -Wno-missing-attributes -Wno-unused-parameter
+	)
+	target_compile_definitions(c PRIVATE
+		__USE_XOPEN2K8
+	)
+	target_compile_options(c PRIVATE
+		$<$<COMPILE_LANGUAGE:CXX>: -fno-exceptions -fno-rtti -fvisibility-inlines-hidden -nostdinc++>)
+	target_link_options(c PRIVATE -nostdlib -Wl,--entry=_start,--fatal-warnings,--no-undefined,-z,noexecstack)
 
-target_include_directories(c SYSTEM PUBLIC include)
-target_include_directories(c PRIVATE sys)
-
-option(OPTIMIZED_ASM "Use optimized assembly routines (turn off if you get compile errors)" OFF)
-
-if(CMAKE_BUILD_TYPE STREQUAL "Release" OR
-	CMAKE_BUILD_TYPE STREQUAL "RelWithDebInfo" OR
-	CMAKE_BUILD_TYPE STREQUAL "MinSizeRel")
-	set(OPTIMIZED_ASM ON)
-endif()
-
-if(OPTIMIZED_ASM)
-	message(STATUS "Using optimized assembly routines")
-	target_compile_definitions(c PRIVATE -DOPTIMIZED_ASM)
-endif()
-
-add_subdirectory(src)
-add_subdirectory(sys)
-
-add_subdirectory(hzutils)
-target_link_libraries(c PRIVATE hzutils)
-
-add_library(libunwind OBJECT
-	thirdparty/libunwind/src/UnwindRegistersRestore.S
-	thirdparty/libunwind/src/UnwindRegistersSave.S
-	thirdparty/libunwind/src/UnwindLevel1.c
-	thirdparty/libunwind/src/UnwindLevel1-gcc-ext.c
-	thirdparty/libunwind/src/libunwind.cpp
-)
-target_compile_options(libunwind PRIVATE
-	$<$<COMPILE_LANGUAGE:CXX>: -fno-exceptions -fno-rtti -fvisibility-inlines-hidden -nostdinc++>)
-target_compile_options(libunwind PRIVATE
-	-funwind-tables -fvisibility=hidden)
-target_compile_definitions(libunwind PRIVATE
-	_LIBUNWIND_IS_NATIVE_ONLY
-	_LIBUNWIND_HIDE_SYMBOLS)
-target_include_directories(libunwind PUBLIC include thirdparty/libunwind/include)
-
-target_link_libraries(c PRIVATE libunwind)
-
-add_library(dummy SHARED dummy.cpp)
-target_link_options(dummy PRIVATE -nostdlib)
-add_dependencies(c dummy)
-
-macro(dummy_lib name)
-	string(REGEX REPLACE "\\.so.*" ".so" short_name "${name}")
-	add_custom_command(TARGET dummy POST_BUILD
-		COMMAND ${CMAKE_COMMAND} -E copy_if_different $<TARGET_FILE:dummy> "${CMAKE_CURRENT_BINARY_DIR}/${name}"
-		COMMAND patchelf --set-soname "${name}" "${CMAKE_CURRENT_BINARY_DIR}/${name}")
-	if(NOT "${name}" STREQUAL "${short_name}")
-		add_custom_command(TARGET dummy POST_BUILD
-			COMMAND ${CMAKE_COMMAND} -E create_symlink "${name}" "${CMAKE_CURRENT_BINARY_DIR}/${short_name}"
-		)
-		install(FILES "${CMAKE_CURRENT_BINARY_DIR}/${short_name}" TYPE LIB)
+	check_cxx_compiler_flag(-Wno-unknown-warning-option COMPILER_SUPPORTS_UNKNOWN_WARNING_OPT)
+	if(COMPILER_SUPPORTS_UNKNOWN_WARNING_OPT)
+		target_compile_options(c PRIVATE -Wno-unknown-warning-option)
 	endif()
 
-	install(FILES "${CMAKE_CURRENT_BINARY_DIR}/${name}" TYPE LIB)
-endmacro()
+	target_include_directories(c SYSTEM PUBLIC include)
+	target_include_directories(c PRIVATE sys)
 
-add_custom_command(TARGET dummy POST_BUILD
-	COMMAND ${CMAKE_COMMAND} -E copy_if_different $<TARGET_FILE:dummy> ${CMAKE_CURRENT_BINARY_DIR}/libc.so.6
-	COMMAND patchelf --set-soname libc.so.6 ${CMAKE_CURRENT_BINARY_DIR}/libc.so.6
-)
+	option(OPTIMIZED_ASM "Use optimized assembly routines (turn off if you get compile errors)" OFF)
+	option(ENABLE_LIBC_TESTING "Enable libc testing" ON)
 
-add_custom_command(TARGET dummy POST_BUILD
-	COMMAND ${CMAKE_COMMAND} -E create_symlink libc.so "${CMAKE_CURRENT_BINARY_DIR}/ld-linux.so.2"
-	COMMAND ${CMAKE_COMMAND} -E create_symlink libc.so "${CMAKE_CURRENT_BINARY_DIR}/ld-linux-x86-64.so.2"
-)
+	if(CMAKE_BUILD_TYPE STREQUAL "Release" OR
+		CMAKE_BUILD_TYPE STREQUAL "RelWithDebInfo" OR
+		CMAKE_BUILD_TYPE STREQUAL "MinSizeRel")
+		set(OPTIMIZED_ASM ON)
+	endif()
 
-dummy_lib("libanl.so.1")
-dummy_lib("libc_malloc_debug.so.0")
-dummy_lib("libdl.so.2")
-dummy_lib("libm.so.6")
-dummy_lib("libmemusage.so")
-dummy_lib("libmvec.so.1")
-dummy_lib("libnsl.so.1")
-dummy_lib("libnss_compat.so.2")
-dummy_lib("libnss_db.so.2")
-dummy_lib("libnss_dns.so.2")
-dummy_lib("libnss_files.so.2")
-dummy_lib("libnss_hesiod.so.2")
-dummy_lib("libpcprofile.so")
-dummy_lib("libpthread.so.0")
-dummy_lib("libresolv.so.2")
-dummy_lib("librt.so.1")
-dummy_lib("libthread_db.so.1")
-dummy_lib("libutil.so.1")
+	if(OPTIMIZED_ASM)
+		message(STATUS "Using optimized assembly routines")
+		target_compile_definitions(c PRIVATE -DOPTIMIZED_ASM)
+	endif()
+
+	add_subdirectory(src)
+	add_subdirectory(sys)
+
+	add_subdirectory(hzutils)
+	target_link_libraries(c PRIVATE hzutils)
+
+	add_library(libunwind OBJECT
+		thirdparty/libunwind/src/UnwindRegistersRestore.S
+		thirdparty/libunwind/src/UnwindRegistersSave.S
+		thirdparty/libunwind/src/UnwindLevel1.c
+		thirdparty/libunwind/src/UnwindLevel1-gcc-ext.c
+		thirdparty/libunwind/src/libunwind.cpp
+	)
+	target_compile_options(libunwind PRIVATE
+		$<$<COMPILE_LANGUAGE:CXX>: -fno-exceptions -fno-rtti -fvisibility-inlines-hidden -nostdinc++>)
+	target_compile_options(libunwind PRIVATE
+		-funwind-tables -fvisibility=hidden)
+	target_compile_definitions(libunwind PRIVATE
+		_LIBUNWIND_IS_NATIVE_ONLY
+		_LIBUNWIND_HIDE_SYMBOLS)
+	target_include_directories(libunwind PUBLIC include thirdparty/libunwind/include)
+
+	target_link_libraries(c PRIVATE libunwind)
+
+	if(ENABLE_LIBC_TESTING)
+		enable_testing()
+		add_subdirectory(tests)
+	endif()
+
+	add_library(dummy SHARED dummy.cpp)
+	target_link_options(dummy PRIVATE -nostdlib)
+	add_dependencies(c dummy)
+
+	macro(dummy_lib name)
+		string(REGEX REPLACE "\\.so.*" ".so" short_name "${name}")
+		add_custom_command(TARGET dummy POST_BUILD
+			COMMAND ${CMAKE_COMMAND} -E copy_if_different $<TARGET_FILE:dummy> "${CMAKE_CURRENT_BINARY_DIR}/${name}"
+			COMMAND patchelf --set-soname "${name}" "${CMAKE_CURRENT_BINARY_DIR}/${name}")
+		if(NOT "${name}" STREQUAL "${short_name}")
+			add_custom_command(TARGET dummy POST_BUILD
+				COMMAND ${CMAKE_COMMAND} -E create_symlink "${name}" "${CMAKE_CURRENT_BINARY_DIR}/${short_name}"
+			)
+			install(FILES "${CMAKE_CURRENT_BINARY_DIR}/${short_name}" TYPE LIB)
+		endif()
+
+		install(FILES "${CMAKE_CURRENT_BINARY_DIR}/${name}" TYPE LIB)
+	endmacro()
+
+	add_custom_command(TARGET dummy POST_BUILD
+		COMMAND ${CMAKE_COMMAND} -E copy_if_different $<TARGET_FILE:dummy> ${CMAKE_CURRENT_BINARY_DIR}/libc.so.6
+		COMMAND patchelf --set-soname libc.so.6 ${CMAKE_CURRENT_BINARY_DIR}/libc.so.6
+	)
+
+	install(FILES "${CMAKE_CURRENT_BINARY_DIR}/libc.so.6" TYPE LIB)
+
+	add_custom_command(TARGET c POST_BUILD
+		COMMAND ${CMAKE_COMMAND} -E create_symlink libc.so "${CMAKE_CURRENT_BINARY_DIR}/libc.so.6"
+		COMMAND ${CMAKE_COMMAND} -E create_symlink libc.so "${CMAKE_CURRENT_BINARY_DIR}/ld-linux.so.2"
+		COMMAND ${CMAKE_COMMAND} -E create_symlink libc.so "${CMAKE_CURRENT_BINARY_DIR}/ld-linux-x86-64.so.2"
+	)
+
+	dummy_lib("libanl.so.1")
+	dummy_lib("libc_malloc_debug.so.0")
+	dummy_lib("libdl.so.2")
+	dummy_lib("libm.so.6")
+	dummy_lib("libmemusage.so")
+	dummy_lib("libmvec.so.1")
+	dummy_lib("libnsl.so.1")
+	dummy_lib("libnss_compat.so.2")
+	dummy_lib("libnss_db.so.2")
+	dummy_lib("libnss_dns.so.2")
+	dummy_lib("libnss_files.so.2")
+	dummy_lib("libnss_hesiod.so.2")
+	dummy_lib("libpcprofile.so")
+	dummy_lib("libpthread.so.0")
+	dummy_lib("libresolv.so.2")
+	dummy_lib("librt.so.1")
+	dummy_lib("libthread_db.so.1")
+	dummy_lib("libutil.so.1")
+else()
+	add_library(c INTERFACE)
+endif()
 
 target_sources(c PUBLIC FILE_SET HEADERS
 	BASE_DIRS include
@@ -132,7 +148,7 @@ target_sources(c PUBLIC FILE_SET HEADERS
 	include/inttypes.h
 	include/limits.h
 	include/math.h
-	include/sigjmp.h
+	include/setjmp.h
 	include/signal.h
 	include/stdint.h
 	include/stdio.h
@@ -152,14 +168,17 @@ target_sources(c PUBLIC FILE_SET HEADERS
 	include/fcntl.h
 	include/fnmatch.h
 	include/getopt.h
+	include/glob.h
 	include/grp.h
 	include/iconv.h
 	include/ifaddrs.h
 	include/langinfo.h
 	include/locale.h
 	include/mntent.h
+	include/mqueue.h
 	include/netdb.h
 	include/nl_types.h
+	include/paths.h
 	include/poll.h
 	include/pthread.h
 	include/pwd.h
@@ -179,8 +198,11 @@ target_sources(c PUBLIC FILE_SET HEADERS
 	include/arpa/nameser.h
 	include/net/if.h
 	include/netinet/in.h
+	include/netinet/tcp.h
 	include/sys/ioctl.h
+	include/sys/msg.h
 	include/sys/mman.h
+	include/sys/param.h
 	include/sys/poll.h
 	include/sys/resource.h
 	include/sys/select.h
@@ -189,7 +211,9 @@ target_sources(c PUBLIC FILE_SET HEADERS
 	include/sys/socket.h
 	include/sys/stat.h
 	include/sys/statvfs.h
+	include/sys/syslog.h
 	include/sys/time.h
+	include/sys/times.h
 	include/sys/types.h
 	include/sys/uio.h
 	include/sys/un.h
@@ -197,6 +221,9 @@ target_sources(c PUBLIC FILE_SET HEADERS
 	include/sys/wait.h
 
 	# glibc
+	include/alloca.h
+	include/ar.h
+	include/byteswap.h
 	include/error.h
 	include/execinfo.h
 	include/features.h
@@ -204,8 +231,15 @@ target_sources(c PUBLIC FILE_SET HEADERS
 	include/link.h
 	include/malloc.h
 	include/memory.h
+	include/values.h
 	include/stdio_ext.h
+	include/sys/mtio.h
+	include/sys/procfs.h
+	include/sys/soundcard.h
 	include/sys/sysmacros.h
+	include/sys/ttydefaults.h
+	include/sys/user.h
+	include/sys/vfs.h
 
 	# libintl
 	include/libintl.h
@@ -218,33 +252,48 @@ target_sources(c PUBLIC FILE_SET HEADERS
 	include/sys/inotify.h
 	include/sys/io.h
 	include/sys/ipc.h
+	include/sys/klog.h
+	include/sys/mount.h
 	include/sys/personality.h
 	include/sys/prctl.h
+	include/sys/ptrace.h
 	include/sys/random.h
+	include/sys/reg.h
 	include/sys/sendfile.h
+	include/sys/signalfd.h
 	include/sys/statfs.h
+	include/sys/swap.h
 	include/sys/sysinfo.h
+	include/sys/timerfd.h
 	include/sys/xattr.h
+	include/utmp.h
 
 	# internal
 	include/bits/iov.h
 	include/bits/mbstate_t.h
 	include/bits/seek.h
 	include/bits/sigset_t.h
+	include/bits/time_t.h
 	include/bits/utils.h
 
 	# bsd
+	include/err.h
+	include/pty.h
+	include/sysexits.h
 	include/bsd/stdlib.h
 	include/sys/file.h
 )
 
-install(TARGETS c)
 install(TARGETS c FILE_SET HEADERS)
 
-if(CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64")
-	install(FILES "${CMAKE_CURRENT_BINARY_DIR}/ld-linux-x86-64.so.2" TYPE LIB)
-elseif(CMAKE_SYSTEM_PROCESSOR STREQUAL "i386")
-	install(FILES "${CMAKE_CURRENT_BINARY_DIR}/ld-linux.so.2" TYPE LIB)
-else()
-	message(FATAL_ERROR "Unsupported architecture ${CMAKE_SYSTEM_PROCESSOR}")
+if(NOT HEADERS_ONLY)
+	install(TARGETS c)
+
+	if(CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64")
+		install(FILES "${CMAKE_CURRENT_BINARY_DIR}/ld-linux-x86-64.so.2" TYPE LIB)
+	elseif(CMAKE_SYSTEM_PROCESSOR STREQUAL "i386")
+		install(FILES "${CMAKE_CURRENT_BINARY_DIR}/ld-linux.so.2" TYPE LIB)
+	else()
+		message(FATAL_ERROR "Unsupported architecture ${CMAKE_SYSTEM_PROCESSOR}")
+	endif()
 endif()

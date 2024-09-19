@@ -12,6 +12,10 @@ EXPORT int kill(pid_t pid, int sig) {
 	return 0;
 }
 
+EXPORT int killpg(pid_t pgrp, int sig) {
+	return kill(-pgrp, sig);
+}
+
 EXPORT int sigprocmask(int how, const sigset_t* __restrict set, sigset_t* __restrict old) {
 	if (auto err = pthread_sigmask(how, set, old)) {
 		errno = err;
@@ -37,8 +41,34 @@ EXPORT int sigtimedwait(const sigset_t* __restrict set, siginfo_t* __restrict in
 	return ret;
 }
 
+EXPORT int sigwait(const sigset_t* __restrict set, int* __restrict sig) {
+	int err = sigtimedwait(set, nullptr, nullptr);
+	if (err < 0) {
+		return err;
+	}
+	else {
+		if (sig) {
+			*sig = err;
+		}
+		return 0;
+	}
+}
+
 EXPORT int sigaltstack(const stack_t* stack, stack_t* old_stack) {
 	if (auto err = sys_sigaltstack(stack, old_stack)) {
+		errno = err;
+		return -1;
+	}
+	return 0;
+}
+
+EXPORT int sigsuspend(const sigset_t* set) {
+	errno = sys_sigsuspend(set);
+	return -1;
+}
+
+EXPORT int sigpending(sigset_t* set) {
+	if (auto err = sys_sigpending(set)) {
 		errno = err;
 		return -1;
 	}
@@ -56,7 +86,8 @@ EXPORT int sigfillset(sigset_t* set) {
 }
 
 EXPORT int sigismember(const sigset_t* set, int sig_num) {
-	if (sig_num > 1024) {
+	sig_num -= 1;
+	if (sig_num < 0 || sig_num > 1024) {
 		errno = EINVAL;
 		return -1;
 	}
@@ -69,7 +100,8 @@ EXPORT int sigismember(const sigset_t* set, int sig_num) {
 }
 
 EXPORT int sigaddset(sigset_t* set, int sig_num) {
-	if (sig_num >= 1024) {
+	sig_num -= 1;
+	if (sig_num < 0 || sig_num >= 1024) {
 		errno = EINVAL;
 		return -1;
 	}
@@ -78,7 +110,8 @@ EXPORT int sigaddset(sigset_t* set, int sig_num) {
 }
 
 EXPORT int sigdelset(sigset_t* set, int sig_num) {
-	if (sig_num >= 1024) {
+	sig_num -= 1;
+	if (sig_num < 0 || sig_num >= 1024) {
 		errno = EINVAL;
 		return -1;
 	}

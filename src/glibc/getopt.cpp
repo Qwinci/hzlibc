@@ -11,6 +11,7 @@ namespace {
 	}
 
 	uint32_t next_char = 0;
+	int COPY_NON_OPTION_PTR = 1;
 }
 
 EXPORT int getopt_long(
@@ -35,6 +36,7 @@ EXPORT int getopt_long(
 		opterr = 1;
 		optopt = 0;
 		next_char = 0;
+		COPY_NON_OPTION_PTR = 1;
 	}
 
 	while (optind < argc) {
@@ -52,8 +54,13 @@ EXPORT int getopt_long(
 				}
 			}
 
+			for (int i = skip_start; i < optind; ++i) {
+				const_cast<char**>(argv)[COPY_NON_OPTION_PTR++] = argv[i];
+			}
+
 			if (optind == argc) {
-				optind = skip_start;
+				optind = 1;
+				const_cast<char**>(argv)[COPY_NON_OPTION_PTR] = nullptr;
 				return -1;
 			}
 			continue;
@@ -145,17 +152,10 @@ EXPORT int getopt_long(
 						next_char = 0;
 						++optind;
 					}
-					else if (optind + 1 < argc) {
-						if (!optional || !is_option(argv[optind + 1])) {
-							optarg = argv[optind + 1];
-							next_char = 0;
-							optind += 2;
-						}
-						else {
-							optarg = nullptr;
-							next_char = 0;
-							++optind;
-						}
+					else if (!optional && optind + 1 < argc && !is_option(argv[optind + 1])) {
+						optarg = argv[optind + 1];
+						next_char = 0;
+						optind += 2;
 					}
 					else {
 						if (optional) {
@@ -196,4 +196,13 @@ EXPORT int getopt_long(
 	}
 
 	return -1;
+}
+
+EXPORT int getopt_long_only(
+	int __argc,
+	char* const __argv[],
+	const char* __opt_str,
+	const struct option* __long_opts,
+	int* __long_index) {
+	__ensure(!"getopt_long_only is not implemented");
 }

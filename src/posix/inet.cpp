@@ -51,18 +51,36 @@ EXPORT const char* inet_ntop(int af, const void* __restrict src, char* dest, soc
 			}
 
 			auto* addr = static_cast<const in6_addr*>(src);
-			__ensure(snprintf(
-				dest,
-				size,
-				"%x:%x:%x:%x:%x:%x:%x:%x",
-				hz::to_ne_from_be(addr->s6_addr16[0]),
-				hz::to_ne_from_be(addr->s6_addr16[1]),
-				hz::to_ne_from_be(addr->s6_addr16[2]),
-				hz::to_ne_from_be(addr->s6_addr16[3]),
-				hz::to_ne_from_be(addr->s6_addr16[4]),
-				hz::to_ne_from_be(addr->s6_addr16[5]),
-				hz::to_ne_from_be(addr->s6_addr16[6]),
-				hz::to_ne_from_be(addr->s6_addr16[7])) != -1);
+
+			int zero_count = 0;
+			for (int i = 0; i < 8; ++i) {
+				if (!addr->s6_addr16[i]) {
+					++zero_count;
+				}
+				else {
+					break;
+				}
+			}
+
+			if (zero_count) {
+				snprintf(dest, size, "::");
+				dest += 2;
+				size -= 2;
+			}
+
+			for (int i = 0; i < 8 - zero_count; ++i) {
+				if (i == 0) {
+					int count = snprintf(dest, size, "%x", hz::to_ne_from_be(addr->s6_addr16[zero_count + i]));
+					dest += count;
+					size -= count;
+				}
+				else {
+					int count = snprintf(dest, size, ":%x", hz::to_ne_from_be(addr->s6_addr16[zero_count + i]));
+					dest += count;
+					size -= count;
+				}
+			}
+
 			return dest;
 		}
 		default:
@@ -99,6 +117,24 @@ EXPORT int inet_pton(int af, const char* __restrict src, void* __restrict dest) 
 			errno = EAFNOSUPPORT;
 			return -1;
 	}
+}
+
+EXPORT in_addr_t inet_addr(const char* str) {
+	if (auto ip = parse_ipv4(str)) {
+		return ip->s_addr;
+	}
+	else {
+		return -1;
+	}
+}
+
+namespace {
+	char INET_NTOA_BUF[INET_ADDRSTRLEN];
+}
+
+EXPORT char* inet_ntoa(struct in_addr addr) {
+	__ensure(inet_ntop(AF_INET, &addr, INET_NTOA_BUF, sizeof(INET_NTOA_BUF)));
+	return INET_NTOA_BUF;
 }
 
 EXPORT in6_addr in6addr_loopback IN6ADDR_LOOPBACK_INIT;

@@ -4,6 +4,7 @@
 #include "fcntl.h"
 #include "stdio.h"
 #include "sys/mman.h"
+#include "opts.hpp"
 
 #define memset __builtin_memset
 
@@ -227,6 +228,7 @@ hz::result<SharedObject*, LoadError> ObjectStorage::load_object_with_name(Shared
 
 		int fd;
 		if (sys_openat(dir_fd, name.data(), O_RDONLY, 0, &fd) != 0) {
+			sys_close(dir_fd);
 			continue;
 		}
 
@@ -253,6 +255,7 @@ hz::result<SharedObject*, LoadError> ObjectStorage::load_object_with_name(Shared
 
 		int fd;
 		if (sys_openat(dir_fd, name.data(), O_RDONLY, 0, &fd) != 0) {
+			sys_close(dir_fd);
 			continue;
 		}
 
@@ -317,7 +320,7 @@ LoadError ObjectStorage::load_dependencies(SharedObject* object, bool global) {
 		init_list.push_back(object);
 
 		if (object->tls_size) {
-			if (object->initial_tls_model) {
+			if (object->initial_tls_model && object->rtld_loaded) {
 				auto offset = (initial_tls_size + object->tls_size + object->tls_align - 1)
 				              & ~(object->tls_align - 1);
 				if (total_initial_tls_size && offset > total_initial_tls_size) {
@@ -355,7 +358,7 @@ LoadError ObjectStorage::load_dependencies(SharedObject* object, bool global) {
 				object->tls_offset = offset;
 				initial_tls_size = offset;
 			}
-			else {
+			else if (object->rtld_loaded) {
 				auto tls_guard = runtime_tls_map.lock();
 				object->tls_module_index = tls_guard->size();
 				tls_guard->push_back(object);
@@ -369,7 +372,7 @@ LoadError ObjectStorage::load_dependencies(SharedObject* object, bool global) {
 
 			hz::string_view name {object->strtab + dyn->d_un.d_ptr};
 			if (name == "ld-linux.so.2" || name == "ld-linux-x86-64.so.2" ||
-				name == "libc.so") {
+				name == "libc.so" || name == "libc.so.6") {
 				continue;
 			}
 
@@ -388,7 +391,9 @@ LoadError ObjectStorage::load_dependencies(SharedObject* object, bool global) {
 					continue;
 				}
 
-				println("rtld: loading ", name);
+				if constexpr (LOG_LOAD) {
+					println("rtld: loading ", name);
+				}
 
 				hz::string<Allocator> path {Allocator {}};
 				path = name;
@@ -408,7 +413,9 @@ LoadError ObjectStorage::load_dependencies(SharedObject* object, bool global) {
 					continue;
 				}
 
-				println("rtld: loading ", name);
+				if constexpr (LOG_LOAD) {
+					println("rtld: loading ", name);
+				}
 
 				result = load_object_with_name(object, name);
 			}

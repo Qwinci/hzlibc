@@ -147,43 +147,10 @@ extern "C" [[gnu::used]] uintptr_t start(uintptr_t* sp) {
 	auto* auxv = reinterpret_cast<Elf_Aux*>(envv + envc + 1);
 
 	uintptr_t libc_base = 0;
-	for (auto* aux = auxv; aux->a_type != AT_NULL; ++aux) {
-		if (aux->a_type == AT_BASE) {
-			libc_base = aux->a_un.a_val;
-			break;
-		}
-	}
-
-	auto* libc_ehdr = get_ehdr();
-	auto* libc_phdr = reinterpret_cast<Elf_Phdr*>(libc_base + libc_ehdr->e_phoff);
-
-	LIBC_OBJECT.initialize(
-		&*EXE_OBJECT,
-		hz::string<Allocator>::null(Allocator {}),
-		hz::string<Allocator>::null(Allocator {}),
-		libc_base,
-		get_dynamic(),
-		libc_phdr,
-		libc_ehdr->e_phentsize,
-		libc_ehdr->e_phnum);
-	LIBC_OBJECT->symbolic_resolution = false;
-	LIBC_OBJECT->rtld_loaded = false;
-	LIBC_OBJECT->tls_offset = (LIBC_OBJECT->tls_size + LIBC_OBJECT->tls_align - 1) & ~(LIBC_OBJECT->tls_align - 1);
-
-	intptr_t libc_addends[MAX_SAVED_LIBC_REL_ADDENDS];
-	LIBC_OBJECT->relocate_libc(libc_addends);
-
-	for (int i = 0; i < libc_ehdr->e_phnum; ++i) {
-		auto* phdr = reinterpret_cast<Elf_Phdr*>(reinterpret_cast<uintptr_t>(libc_phdr) + i * libc_ehdr->e_phentsize);
-		LIBC_OBJECT->phdrs_vec.push_back(*phdr);
-	}
-
 	Elf_Phdr* exe_phdr = nullptr;
 	uint16_t exe_phent = 0;
 	uint16_t exe_phnum = 0;
 	uintptr_t exe_entry = 0;
-
-	hz::string<Allocator> exe_path {Allocator {}};
 	for (auto* aux = auxv; aux->a_type != AT_NULL; ++aux) {
 		switch (aux->a_type) {
 			case AT_PHDR:
@@ -201,11 +168,50 @@ extern "C" [[gnu::used]] uintptr_t start(uintptr_t* sp) {
 			case AT_ENTRY:
 				exe_entry = aux->a_un.a_val;
 				break;
-			case AT_EXECFN:
-				exe_path = reinterpret_cast<const char*>(aux->a_un.a_val);
-				break;
 			default:
 				break;
+		}
+	}
+
+	auto* libc_ehdr = get_ehdr();
+	auto* libc_phdr = reinterpret_cast<Elf_Phdr*>(libc_base + libc_ehdr->e_phoff);
+
+	LIBC_OBJECT.initialize(
+		&*EXE_OBJECT,
+		hz::string<Allocator>::null(Allocator {}),
+		hz::string<Allocator>::null(Allocator {}),
+		libc_base,
+		get_dynamic(),
+		libc_phdr,
+		libc_ehdr->e_phentsize,
+		libc_ehdr->e_phnum);
+	LIBC_OBJECT->symbolic_resolution = false;
+	LIBC_OBJECT->rtld_loaded = false;
+
+	size_t exe_tls_size = 0;
+	for (int i = 0; i < exe_phnum; ++i) {
+		auto phdr = reinterpret_cast<Elf_Phdr*>(reinterpret_cast<uintptr_t>(exe_phdr) + i * exe_phent);
+		if (phdr->p_type == PT_TLS) {
+			exe_tls_size = phdr->p_memsz;
+			break;
+		}
+	}
+
+	LIBC_OBJECT->tls_offset = (exe_tls_size + LIBC_OBJECT->tls_size + LIBC_OBJECT->tls_align - 1) & ~(LIBC_OBJECT->tls_align - 1);
+
+	intptr_t libc_addends[MAX_SAVED_LIBC_REL_ADDENDS];
+	LIBC_OBJECT->relocate_libc(libc_addends);
+
+	for (int i = 0; i < libc_ehdr->e_phnum; ++i) {
+		auto* phdr = reinterpret_cast<Elf_Phdr*>(reinterpret_cast<uintptr_t>(libc_phdr) + i * libc_ehdr->e_phentsize);
+		LIBC_OBJECT->phdrs_vec.push_back(*phdr);
+	}
+
+	hz::string<Allocator> exe_path {Allocator {}};
+	for (auto* aux = auxv; aux->a_type != AT_NULL; ++aux) {
+		if (aux->a_type == AT_EXECFN) {
+			exe_path = reinterpret_cast<const char*>(aux->a_un.a_val);
+			break;
 		}
 	}
 
@@ -242,6 +248,7 @@ extern "C" [[gnu::used]] uintptr_t start(uintptr_t* sp) {
 
 	LIBC_OBJECT->path = std::move(libc_path);
 	LIBC_OBJECT->name = std::move(libc_name);
+	LIBC_OBJECT->link_map.name = LIBC_OBJECT->path.data();
 
 	auto* exe_dynamic = reinterpret_cast<Elf_Dyn*>(exe_base + exe_dynamic_offset);
 
@@ -262,6 +269,7 @@ extern "C" [[gnu::used]] uintptr_t start(uintptr_t* sp) {
 		exe_phent,
 		exe_phnum);
 	EXE_OBJECT->rtld_loaded = false;
+	EXE_OBJECT->tls_offset = (EXE_OBJECT->tls_size + EXE_OBJECT->tls_align - 1) & ~(EXE_OBJECT->tls_align - 1);
 
 	OBJECT_STORAGE.get_unsafe().initialize();
 	OBJECT_STORAGE.get_unsafe()->add_object(&*EXE_OBJECT);

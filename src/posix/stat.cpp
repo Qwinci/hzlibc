@@ -231,6 +231,26 @@ EXPORT int statvfs64(const char* __restrict path, struct statvfs64* __restrict b
 	return 0;
 }
 
+EXPORT int fstatvfs(int fd, struct statvfs* buf) {
+	struct statfs s {};
+	if (fstatfs(fd, &s)) {
+		return -1;
+	}
+	buf->f_bsize = s.f_bsize;
+	buf->f_frsize = s.f_frsize;
+	buf->f_blocks = s.f_blocks;
+	buf->f_bfree = s.f_bfree;
+	buf->f_bavail = s.f_bavail;
+	buf->f_files = s.f_files;
+	buf->f_ffree = s.f_ffree;
+	buf->f_favail = s.f_ffree;
+	memcpy(&buf->f_fsid, &s.f_fsid, sizeof(unsigned long));
+	buf->f_flag = s.f_flags;
+	buf->f_namemax = s.f_namelen;
+	buf->f_type = s.f_type;
+	return 0;
+}
+
 EXPORT int chmod(const char* path, mode_t mode) {
 	if (auto err = sys_fchmodat(AT_FDCWD, path, mode, 0)) {
 		errno = err;
@@ -295,6 +315,22 @@ EXPORT int mkdir(const char* path, mode_t mode) {
 
 EXPORT int mknod(const char* path, mode_t mode, dev_t dev) {
 	if (auto err = sys_mknodat(AT_FDCWD, path, mode, dev)) {
+		errno = err;
+		return -1;
+	}
+	return 0;
+}
+
+EXPORT int mknodat(int dir_fd, const char* path, mode_t mode, dev_t dev) {
+	if (auto err = sys_mknodat(dir_fd, path, mode, dev)) {
+		errno = err;
+		return -1;
+	}
+	return 0;
+}
+
+EXPORT int mkfifo(const char* path, mode_t mode) {
+	if (auto err = sys_mknodat(AT_FDCWD, path, mode | S_IFIFO, 0)) {
 		errno = err;
 		return -1;
 	}

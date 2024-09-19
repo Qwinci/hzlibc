@@ -16,7 +16,7 @@ struct sockaddr {
 };
 
 struct sockaddr_storage {
-	sa_family_t sa_family;
+	sa_family_t ss_family;
 	char __padding[128 - sizeof(sa_family_t) - sizeof(unsigned long)];
 	unsigned long __align;
 };
@@ -36,6 +36,28 @@ struct cmsghdr {
 	int cmsg_level;
 	int cmsg_type;
 };
+
+#define CMSG_DATA(cmsg) ((unsigned char*) ((struct cmsghdr*) (cmsg) + 1))
+#define CMSG_FIRSTHDR(mhdr) ((mhdr)->msg_controllen >= sizeof(struct cmsghdr) ? \
+	(struct cmsghdr*) (mhdr)->msg_control : (struct cmsghdr*) 0)
+#define CMSG_NXTHDR(mhdr, cmsg) \
+	(cmsg)->cmsg_len < sizeof(struct cmsghdr) || \
+	(ptrdiff_t) (sizeof(struct cmsghdr) + CMSG_ALIGN((cmsg)->cmsg_len)) \
+	>= ((char*) ((mhdr)->msg_control) + (mhdr)->msg_controllen) - (char*) (cmsg) \
+	? (struct cmsghdr*) 0 : (struct cmsghdr*) ((char*) (cmsg) + CMSG_ALIGN((cmsg)->cmsg_len))
+#define CMSG_ALIGN(len) (((len) + sizeof(size_t) - 1) & ~((size_t) (sizeof(size_t) - 1)))
+#define CMSG_SPACE(len) (CMSG_ALIGN(len) + CMSG_ALIGN(sizeof(struct cmsghdr)))
+#define CMSG_LEN(len) (CMSG_ALIGN(sizeof(struct cmsghdr)) + (len))
+
+struct linger {
+	int l_onoff;
+	int l_linger;
+};
+
+#define SCM_RIGHTS 1
+#define SCM_CREDENTIALS 2
+#define SCM_SECURITY 3
+#define SCM_PIDFD 4
 
 #define MSG_OOB 1
 #define MSG_PEEK 2
@@ -66,6 +88,7 @@ struct cmsghdr {
 #define SOCK_RDM 4
 #define SOCK_SEQPACKET 5
 #define SOCK_DCCP 6
+#define SOCK_PACKET 10
 
 #define SOCK_NONBLOCK 0x800
 #define SOCK_CLOEXEC 0x80000
@@ -119,6 +142,8 @@ struct cmsghdr {
 #define SO_RCVBUFFORCE 33
 #define SO_RCVTIMEO_NEW         66
 #define SO_SNDTIMEO_NEW         67
+
+#define SOMAXCONN 4096
 
 #if UINTPTR_MAX == UINT64_MAX
 

@@ -10,6 +10,10 @@
 #include <hz/bit.hpp>
 #include <hz/string_view.hpp>
 
+namespace {
+	constexpr bool LOG_MISSING_LOCALTIME = false;
+}
+
 #define memcpy __builtin_memcpy
 #define strlen __builtin_strlen
 
@@ -37,7 +41,9 @@ namespace {
 	[[gnu::constructor(102)]] void init_timezone() {
 		int fd;
 		if (sys_openat(AT_FDCWD, "/etc/localtime", O_RDONLY, 0, &fd)) {
-			println("init_timezone: failed to open /etc/localtime");
+			if constexpr (LOG_MISSING_LOCALTIME) {
+				println("init_timezone: failed to open /etc/localtime");
+			}
 			return;
 		}
 
@@ -149,6 +155,14 @@ EXPORT struct tm* localtime(const time_t* time) {
 EXPORT tm* localtime_r(const time_t* __restrict time, tm* __restrict buf) {
 	auto time_value = *time;
 
+#if UINTPTR_MAX == UINT64_MAX
+	// 3000
+	if (time_value < 0 || time_value >= 32500915200) {
+		errno = EOVERFLOW;
+		return nullptr;
+	}
+#endif
+
 	int32_t gmt_offset = 0;
 	bool is_dst = false;
 	const char* zone = "UTC";
@@ -226,6 +240,14 @@ EXPORT struct tm* gmtime(const time_t* __restrict time) {
 EXPORT struct tm* gmtime_r(const time_t* __restrict time, struct tm* __restrict buf) {
 	time_t time_value = *time;
 	time_t days_since_epoch = time_value / (60 * 60 * 24);
+
+#if UINTPTR_MAX == UINT64_MAX
+	// 3000
+	if (time_value < -32500915200 || time_value >= 32500915200) {
+		errno = EOVERFLOW;
+		return nullptr;
+	}
+#endif
 
 	int days_since_sunday = static_cast<int>(
 		days_since_epoch >= -4 ?
@@ -963,7 +985,7 @@ namespace {
 	char ASCTIME_BUF[26] {};
 }
 
-EXPORT char* asctime(const struct tm* time) {
+EXPORT char* asctime(const tm* time) {
 	strftime(ASCTIME_BUF, 26, "%a %b %d %T %Y\n", time);
 	return ASCTIME_BUF;
 }

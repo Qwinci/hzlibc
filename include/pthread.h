@@ -20,6 +20,8 @@ enum {
 };
 
 #define PTHREAD_ONCE_INIT 0
+#define PTHREAD_MUTEX_INITIALIZER {{0}}
+#define PTHREAD_COND_INITIALIZER {0}
 
 #define PTHREAD_CANCEL_ENABLE 0
 #define PTHREAD_CANCEL_DISABLE 1
@@ -32,7 +34,7 @@ enum {
 
 #define PTHREAD_STACK_MIN 16384
 
-#define PTHREAD_RWLOCK_INITIALIZER {}
+#define PTHREAD_RWLOCK_INITIALIZER {0}
 
 #define PTHREAD_BARRIER_SERIAL_THREAD -1
 
@@ -138,6 +140,7 @@ int pthread_detach(pthread_t __thrd);
 int pthread_kill(pthread_t __thrd, int __sig);
 __attribute__((noreturn)) void pthread_exit(void* __ret);
 int pthread_setcanceltype(int __state, int* __old_state);
+int pthread_cancel(pthread_t __thrd);
 
 int pthread_atfork(void (*__prepare)(void), void (*__parent)(void), void (*__child)(void));
 
@@ -152,7 +155,9 @@ int pthread_getschedparam(pthread_t __thrd, int* __policy, struct sched_param* _
 
 int pthread_rwlock_init(pthread_rwlock_t* __restrict __lock, const pthread_rwlockattr_t* __attr);
 int pthread_rwlock_destroy(pthread_rwlock_t* __lock);
+int pthread_rwlock_tryrdlock(pthread_rwlock_t* __lock);
 int pthread_rwlock_rdlock(pthread_rwlock_t* __lock);
+int pthread_rwlock_trywrlock(pthread_rwlock_t* __lock);
 int pthread_rwlock_wrlock(pthread_rwlock_t* __lock);
 int pthread_rwlock_unlock(pthread_rwlock_t* __lock);
 
@@ -160,6 +165,7 @@ int pthread_mutex_init(pthread_mutex_t* __restrict __mutex, const pthread_mutexa
 int pthread_mutex_destroy(pthread_mutex_t* __mutex);
 int pthread_mutex_lock(pthread_mutex_t* __mutex);
 int pthread_mutex_trylock(pthread_mutex_t* __mutex);
+int pthread_mutex_timedlock(pthread_mutex_t* __restrict __mutex, const struct timespec* __restrict __abs_timeout);
 int pthread_mutex_unlock(pthread_mutex_t* __mutex);
 
 int pthread_once(pthread_once_t* __once, void (*__init_fn)(void));
@@ -172,7 +178,7 @@ int pthread_cond_wait(pthread_cond_t* __restrict __cond, pthread_mutex_t* __rest
 int pthread_cond_timedwait(
 	pthread_cond_t* __restrict __cond,
 	pthread_mutex_t* __restrict __mutex,
-	const struct timespec* __restrict __abs_time);
+	const struct timespec* __restrict __abs_timeout);
 int pthread_cond_broadcast(pthread_cond_t* __cond);
 int pthread_cond_signal(pthread_cond_t* __cond);
 
@@ -190,6 +196,7 @@ int pthread_attr_setstacksize(pthread_attr_t* __attr, size_t __stack_size);
 
 int pthread_mutexattr_init(pthread_mutexattr_t* __attr);
 int pthread_mutexattr_destroy(pthread_mutexattr_t* __attr);
+int pthread_mutexattr_gettype(const pthread_mutexattr_t* __restrict __attr, int* __restrict __type);
 int pthread_mutexattr_settype(pthread_mutexattr_t* __attr, int __type);
 int pthread_mutexattr_setprotocol(pthread_mutexattr_t* __attr, int __protocol);
 

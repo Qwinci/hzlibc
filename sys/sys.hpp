@@ -14,11 +14,15 @@
 #include <sys/sem.h>
 #include <sys/sysinfo.h>
 #include <sys/wait.h>
+#include <sys/ptrace.h>
+#include <sys/epoll.h>
 #include <time.h>
 #include <signal.h>
 #include <pthread.h>
 #include <sched.h>
 #include <ucontext.h>
+#include <pty.h>
+#include <mqueue.h>
 #include <hz/string_view.hpp>
 
 using time64_t = int64_t;
@@ -39,6 +43,8 @@ int sys_madvise(void* addr, size_t length, int advice);
 int sys_mlock(const void* addr, size_t length);
 int sys_munlock(const void* addr, size_t length);
 int sys_msync(void* addr, size_t length, int flags);
+int sys_mincore(void* addr, size_t size, unsigned char* vec);
+int sys_klogctl(int type, char* buf, int len, int* ret);
 
 int sys_shmat(int shm_id, const void* shm_addr, int shm_flag, void** ret);
 int sys_shmdt(const void* shm_addr);
@@ -53,9 +59,15 @@ int sys_read(int fd, void* buf, size_t count, ssize_t* ret);
 int sys_write(int fd, const void* buf, size_t count, ssize_t* ret);
 int sys_lseek(int fd, off64_t offset, int whence, off64_t* ret);
 int sys_ioctl(int fd, unsigned long op, void* arg, int* ret);
+int sys_mount(const char* source, const char* target, const char* fs_type, unsigned long flags, const void* data);
+int sys_umount2(const char* target, int flags);
 int sys_fcntl(int fd, int cmd, va_list args, int* ret);
 int sys_fadvise(int fd, off64_t offset, off64_t len, int advice);
 int sys_isatty(int fd);
+int sys_ttyname(int fd, char* buffer, size_t size);
+int sys_ptsname(int fd, char* buffer, size_t size);
+int sys_unlockpt(int fd);
+int sys_getpgid(pid_t pid, pid_t* ret);
 int sys_pipe2(int pipe_fd[2], int flags);
 int sys_copy_file_range(
 	int fd_in,
@@ -75,8 +87,34 @@ int sys_select(
 	fd_set* __restrict except_fds,
 	timeval* __restrict timeout,
 	int* ret);
+int sys_pselect(
+	int num_fds,
+	fd_set* __restrict read_fds,
+	fd_set* __restrict write_fds,
+	fd_set* __restrict except_fds,
+	const timespec64* __restrict timeout,
+	const sigset_t* __restrict sig_mask,
+	int* ret);
 int sys_readv(int fd, const iovec* iov, int iov_count, ssize_t* ret);
 int sys_writev(int fd, const iovec* iov, int iov_count, ssize_t* ret);
+int sys_process_vm_readv(
+	pid_t pid,
+	const iovec* local_iov,
+	unsigned long local_iov_count,
+	const iovec* remote_iov,
+	unsigned long remote_iov_count,
+	unsigned long flags,
+	ssize_t* ret);
+int sys_process_vm_writev(
+	pid_t pid,
+	const iovec* local_iov,
+	unsigned long local_iov_count,
+	const iovec* remote_iov,
+	unsigned long remote_iov_count,
+	unsigned long flags,
+	ssize_t* ret);
+int sys_swapon(const char* path, int flags);
+int sys_swapoff(const char* path);
 
 int sys_pread(int fd, void* buf, size_t count, off64_t offset, ssize_t* ret);
 int sys_pwrite(int fd, const void* buf, size_t count, off64_t offset, ssize_t* ret);
@@ -87,6 +125,12 @@ int sys_ppoll(pollfd* fds, nfds_t num_fds, const timespec64* timeout, const sigs
 int sys_eventfd(unsigned int init_value, int flags, int* ret);
 int sys_memfd_create(const char* name, unsigned int flags, int* ret);
 int sys_epoll_create1(int flags, int* ret);
+int sys_epoll_ctl(int epfd, int op, int fd, epoll_event* event);
+int sys_epoll_wait(int epfd, epoll_event* events, int max_events, int timeout, int* ret);
+int sys_signalfd(int fd, const sigset_t* mask, int flags, int* ret);
+int sys_mq_open(const char* name, int oflag, mode_t mode, mq_attr* attr, mqd_t* ret);
+int sys_mq_close(mqd_t mq);
+int sys_mq_unlink(const char* name);
 
 enum class StatTarget {
 	Path,
@@ -101,7 +145,7 @@ int sys_fstatfs(int fd, struct statfs64* buf);
 mode_t sys_umask(mode_t mask);
 
 int sys_faccessat(int dir_fd, const char* path, int mode, int flags);
-int sys_readlinkat(int dir_fd, const char* path, char* buf, size_t buf_size, int* ret);
+int sys_readlinkat(int dir_fd, const char* path, char* buf, size_t buf_size, ssize_t* ret);
 int sys_fchownat(int dir_fd, const char* path, uid_t owner, gid_t group, int flags);
 int sys_fchmodat(int dir_fd, const char* path, mode_t mode, int flags);
 int sys_open_dir(const char* path, int* handle);
@@ -129,12 +173,17 @@ int sys_fdatasync(int fd);
 int sys_fallocate(int fd, int mode, off64_t offset, off64_t len);
 
 int sys_getxattr(const char* path, const char* name, void* value, size_t size, ssize_t* ret);
+int sys_lgetxattr(const char* path, const char* name, void* value, size_t size, ssize_t* ret);
 int sys_fgetxattr(int fd, const char* name, void* value, size_t size, ssize_t* ret);
 int sys_setxattr(const char* path, const char* name, const void* value, size_t size, int flags);
+int sys_lsetxattr(const char* path, const char* name, const void* value, size_t size, int flags);
 int sys_fsetxattr(int fd, const char* name, const void* value, size_t size, int flags);
 int sys_removexattr(const char* path, const char* name);
+int sys_lremovexattr(const char* path, const char* name);
 int sys_fremovexattr(int fd, const char* name);
 int sys_listxattr(const char* path, char* list, size_t size, ssize_t* ret);
+int sys_llistxattr(const char* path, char* list, size_t size, ssize_t* ret);
+int sys_flistxattr(int fd, char* list, size_t size, ssize_t* ret);
 
 int sys_getcwd(char* buf, size_t size);
 int sys_gethostname(char* name, size_t len);
@@ -148,7 +197,7 @@ int sys_sysinfo(struct sysinfo* info);
 int sys_tcb_set(void* tcb);
 int sys_capget(cap_user_header_t hdr, cap_user_data_t data);
 int sys_capset(cap_user_header_t hdr, cap_user_data_t data);
-int sys_getgroups(size_t size, gid_t* list, int* ret);
+int sys_getgroups(int size, gid_t* list, int* ret);
 int sys_setgroups(size_t size, const gid_t* list);
 int sys_getrandom(void* buffer, size_t size, unsigned int flags, ssize_t* ret);
 
@@ -173,23 +222,30 @@ int sys_setpgid(pid_t pid, pid_t pgid);
 int sys_waitpid(pid_t pid, int* status, int options, rusage* usage, pid_t* ret);
 int sys_waitid(idtype_t id_type, id_t id, siginfo_t* info, int options);
 int sys_fork(pid_t* ret);
-int sys_setpriority(int which, int who, int prio);
+int sys_unshare(int flags);
+int sys_getpriority(int which, id_t who, int* ret);
+int sys_setpriority(int which, id_t who, int prio);
 int sys_getrlimit(int resource, rlimit64* rlim);
 int sys_setrlimit(int resource, const rlimit64* rlim);
 int sys_getrusage(int who, rusage* usage);
 int sys_personality(unsigned long persona, int* ret);
+int sys_ptrace(__ptrace_request op, pid_t pid, void* addr, void* data, long* ret);
+int sys_setns(int fd, int ns_type);
 
 int sys_futex_wait(int* addr, int value, const timespec* timeout, bool pshared = false);
 int sys_futex_wake(int* addr, bool pshared = false);
 int sys_futex_wake_all(int* addr, bool pshared = false);
-int sys_get_thread_id();
-int sys_get_process_id();
-int sys_getuid();
-int sys_geteuid();
-int sys_getgid();
-int sys_getegid();
+pid_t sys_get_thread_id();
+pid_t sys_get_process_id();
+pid_t sys_getppid();
+uid_t sys_getuid();
+uid_t sys_geteuid();
+gid_t sys_getgid();
+gid_t sys_getegid();
 int sys_getsid(pid_t pid, pid_t* ret);
+int sys_setresuid(uid_t ruid, uid_t euid, uid_t suid);
 int sys_getresuid(uid_t* ruid, uid_t* euid, uid_t* suid);
+int sys_setresgid(gid_t rgid, gid_t egid, gid_t sgid);
 int sys_getresgid(gid_t* rgid, gid_t* egid, gid_t* sgid);
 
 int sys_semget(key_t key, int num_sems, int sem_flag, int* ret);
@@ -200,10 +256,13 @@ int sys_sigprocmask(int how, const sigset_t* __restrict set, sigset_t* __restric
 int sys_sigaction(int sig_num, const struct sigaction* __restrict action, struct sigaction* __restrict old);
 int sys_sigtimedwait(const sigset_t* __restrict set, siginfo_t* __restrict info, const timespec* timeout, int* ret);
 int sys_sigaltstack(const stack_t* stack, stack_t* old_stack);
+int sys_sigsuspend(const sigset_t* set);
+int sys_sigpending(sigset_t* set);
 int sys_kill(pid_t pid, int sig);
 int sys_tgkill(pid_t pid, pid_t tid, int sig);
 
 int sys_clock_gettime(clockid_t id, timespec* tp);
+int sys_clock_settime(clockid_t id, const timespec* tp);
 int sys_clock_getres(clockid_t id, timespec* res);
 int sys_clock_nanosleep(clockid_t id, int flags, const timespec64* req, timespec64* rem);
 unsigned int sys_alarm(unsigned int seconds);

@@ -1,6 +1,8 @@
 #ifndef _LIMITS_H
 #define _LIMITS_H
 
+#define MB_LEN_MAX 4
+
 #define SCHAR_MIN (-SCHAR_MAX - 1)
 #define SCHAR_MAX __SCHAR_MAX__
 #define UCHAR_MAX (SCHAR_MAX * 2U + 1U)
@@ -27,10 +29,14 @@
 #define ULLONG_MAX (LLONG_MAX * 2ULL + 1ULL)
 
 // posix
-#define NAME_MAX 256
+#define NAME_MAX 255
 #define LOGIN_NAME_MAX 256
 #define PATH_MAX 4096
 #define PTHREAD_KEYS_MAX 1024
 #define PTHREAD_DESTRUCTOR_ITERATIONS 4
+#define _POSIX_OPEN_MAX 20
+#define _POSIX_ARG_MAX 4096
+#define SSIZE_MAX __LONG_MAX__
+#define IOV_MAX 1024
 
 #endif

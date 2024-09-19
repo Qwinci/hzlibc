@@ -6,6 +6,8 @@
 
 __begin_decls
 
+#define SI_LOAD_SHIFT 16
+
 struct sysinfo {
 	long uptime;
 	unsigned long loads[3];
