@@ -2,10 +2,14 @@
 #define _TIME_H
 
 #include <bits/utils.h>
+#include <bits/config.h>
 #include <bits/time_t.h>
 #include <stddef.h>
 #include <stdint.h>
+
+#if !__HZLIBC_ANSI_ONLY
 #include <locale.h>
+#endif
 
 __begin_decls
 
@@ -56,6 +60,8 @@ int timespec_get(struct timespec* __ts, int __base);
 
 // posix
 
+#if !__HZLIBC_ANSI_ONLY
+
 #define CLOCK_REALTIME 0
 #define CLOCK_MONOTONIC 1
 #define CLOCK_PROCESS_CPUTIME_ID 2
@@ -92,6 +98,8 @@ size_t strftime_l(
 extern char* tzname[2];
 extern long timezone;
 extern int daylight;
+
+#endif
 
 __end_decls
 

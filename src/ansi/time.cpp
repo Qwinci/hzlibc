@@ -1012,9 +1012,15 @@ EXPORT int timespec_get(struct timespec* ts, int base) {
 	if (base != TIME_UTC) {
 		return 0;
 	}
-	int res = clock_gettime(CLOCK_REALTIME, ts);
-	return res < 0 ? 0 : base;
+
+	if (auto err = sys_clock_gettime(CLOCK_REALTIME, ts)) {
+		errno = err;
+		return 0;
+	}
+	return base;
 }
+
+#if !ANSI_ONLY
 
 // posix
 
@@ -1106,3 +1112,5 @@ EXPORT time_t timegm(struct tm* arg) {
 
 	return time;
 }
+
+#endif

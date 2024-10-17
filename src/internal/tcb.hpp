@@ -13,7 +13,9 @@ struct Tcb {
 	uint8_t pad[0x10] {};
 #endif
 	uintptr_t stack_canary {0xCAFEBABE};
+#if !ANSI_ONLY
 	int tid {};
+#endif
 	hz::atomic<int> exited {};
 	void* exit_status {};
 	hz::vector<void*, Allocator> dtv {Allocator {}};

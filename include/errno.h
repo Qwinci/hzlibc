@@ -2,6 +2,7 @@
 #define _ERRNO_H
 
 #include <bits/utils.h>
+#include <bits/config.h>
 
 __begin_decls
 
@@ -143,9 +144,13 @@ __begin_decls
 int* __errno_location(void);
 #define errno (*__errno_location())
 
+#if !__HZLIBC_ANSI_ONLY
+
 // glibc
 extern char* program_invocation_name;
 extern char* program_invocation_short_name;
+
+#endif
 
 __end_decls
 

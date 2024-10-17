@@ -2,7 +2,6 @@
 #include "signal.h"
 #include "utils.hpp"
 #include "sys.hpp"
-#include "internal/tcb.hpp"
 #include "internal/thread.hpp"
 #include "rtld/rtld.hpp"
 #include "errno.h"
@@ -12,19 +11,11 @@
 #include <limits.h>
 
 EXPORT pthread_t pthread_self() {
-	return reinterpret_cast<pthread_t>(get_current_tcb());
+	return get_current_thread();
 }
 
 EXPORT int pthread_equal(pthread_t t1, pthread_t t2) {
-	return t1 == t2;
-}
-
-namespace {
-	struct Attr {
-		size_t stack_size;
-		bool detached;
-	};
-	static_assert(sizeof(Attr) <= sizeof(pthread_attr_t));
+	return thread_equal(t1, t2);
 }
 
 EXPORT int pthread_create(
@@ -32,55 +23,11 @@ EXPORT int pthread_create(
 	const pthread_attr_t* __restrict attr,
 	void* (*start_fn)(void* arg),
 	void* __restrict arg) {
-	void* tcb;
-	void* tp;
-	if (!__dlapi_create_tcb(&tcb, &tp)) {
-		return ENOMEM;
-	}
-
-	void* stack_base = nullptr;
-	size_t stack_size = 0x200000;
-
-	if (attr) {
-		auto* ptr = reinterpret_cast<const Attr*>(attr);
-		if (ptr->stack_size) {
-			stack_size = ptr->stack_size;
-		}
-		if (ptr->detached) {
-			static_cast<Tcb*>(tcb)->detached = true;
-		}
-	}
-
-	pid_t tid;
-	if (auto err = sys_thread_create(stack_base, stack_size, start_fn, arg, tp, &tid)) {
-		__dlapi_destroy_tcb(tcb);
-		return err;
-	}
-
-	*thread = reinterpret_cast<pthread_t>(tcb);
-
-	auto* tcb_ptr = static_cast<Tcb*>(tcb);
-	__atomic_store_n(&tcb_ptr->tid, tid, __ATOMIC_RELAXED);
-	sys_futex_wake(&tcb_ptr->tid);
-
-	return 0;
+	return thread_create(thread, attr, start_fn, arg);
 }
 
 EXPORT int pthread_join(pthread_t thread, void** ret) {
-	auto* tcb = reinterpret_cast<Tcb*>(thread);
-	if (tcb->detached) {
-		return EINVAL;
-	}
-
-	while (!tcb->exited.load(hz::memory_order::acquire)) {
-		sys_futex_wait(tcb->exited.data(), 0, nullptr);
-	}
-
-	if (ret) {
-		*ret = tcb->exit_status;
-	}
-	__dlapi_destroy_tcb(tcb);
-	return 0;
+	return thread_join(thread, ret);
 }
 
 EXPORT int pthread_detach(pthread_t thread) {
@@ -125,107 +72,20 @@ EXPORT int pthread_atfork(void (*prepare)(), void (*parent)(), void (*child)()) 
 	return __register_atfork(prepare, parent, child, nullptr);
 }
 
-namespace {
-	struct Key {
-		void (*destructor)(void* arg) {};
-		int generation {};
-		bool used {};
-	};
-
-	hz::array<Key, PTHREAD_KEYS_MAX> KEYS {};
-	Mutex KEYS_MUTEX {};
-}
-
-void pthread_call_destructors() {
-	auto* tcb = get_current_tcb();
-	for (size_t iterations = 0; iterations < PTHREAD_DESTRUCTOR_ITERATIONS; ++iterations) {
-		for (size_t i = 0; i < PTHREAD_KEYS_MAX; ++i) {
-			auto& local = tcb->keys[i];
-			void (*destructor)(void*);
-			{
-				auto guard = KEYS_MUTEX.lock();
-				auto& global = KEYS[i];
-				if (!global.used || global.generation != local.generation ||
-				    !local.value) {
-					continue;
-				}
-				destructor = global.destructor;
-			}
-
-			if (destructor) {
-				auto value = local.value;
-				local.value = nullptr;
-				destructor(value);
-			}
-		}
-	}
-}
-
 EXPORT int pthread_key_create(pthread_key_t* key, void (*destructor)(void* arg)) {
-	auto guard = KEYS_MUTEX.lock();
-
-	for (size_t i = 0; i < PTHREAD_KEYS_MAX; ++i) {
-		auto& key_value = KEYS[i];
-		if (!key_value.used) {
-			key_value.used = true;
-			key_value.destructor = destructor;
-			++key_value.generation;
-			*key = i;
-			return 0;
-		}
-	}
-
-	return EAGAIN;
+	return thread_key_create(key, destructor);
 }
 
 EXPORT int pthread_key_delete(pthread_key_t key) {
-	if (key >= PTHREAD_KEYS_MAX) {
-		return EINVAL;
-	}
-
-	auto guard = KEYS_MUTEX.lock();
-	auto& key_value = KEYS[key];
-	if (!key_value.used) {
-		return EINVAL;
-	}
-
-	key_value.used = false;
-	key_value.destructor = nullptr;
-	return 0;
+	return thread_key_delete(key);
 }
 
 EXPORT void* pthread_getspecific(pthread_key_t key) {
-	auto guard = KEYS_MUTEX.lock();
-	if (key >= PTHREAD_KEYS_MAX || !KEYS[key].used) {
-		panic("pthread_getspecific: invalid key");
-	}
-
-	auto& global_key = KEYS[key];
-
-	auto* tcb = get_current_tcb();
-	auto& local_key = tcb->keys[key];
-	if (local_key.generation != global_key.generation) {
-		local_key.generation = global_key.generation;
-		local_key.value = nullptr;
-	}
-	return local_key.value;
+	return thread_getspecific(key);
 }
 
 EXPORT int pthread_setspecific(pthread_key_t key, const void* value) {
-	auto guard = KEYS_MUTEX.lock();
-	if (key >= PTHREAD_KEYS_MAX || !KEYS[key].used) {
-		return EINVAL;
-	}
-
-	auto& global_key = KEYS[key];
-
-	auto* tcb = get_current_tcb();
-	auto& local_key = tcb->keys[key];
-	if (local_key.generation != global_key.generation) {
-		local_key.generation = global_key.generation;
-	}
-	local_key.value = const_cast<void*>(value);
-	return 0;
+	return thread_setspecific(key, value);
 }
 
 EXPORT int pthread_setschedparam(pthread_t thread, int policy, const sched_param* param) {
@@ -338,6 +198,10 @@ EXPORT int pthread_rwlock_tryrdlock(pthread_rwlock_t* lock) {
 	__ensure(!"pthread_rwlock_tryrdlock is not implemented");
 }
 
+EXPORT int pthread_rwlock_timedrdlock(pthread_rwlock_t* __restrict lock, const timespec* __restrict abs_timeout) {
+	__ensure(!"pthread_rwlock_timedrdlock is not implemented");
+}
+
 EXPORT int pthread_rwlock_rdlock(pthread_rwlock_t* lock) {
 	auto* ptr = reinterpret_cast<RwLock*>(lock);
 
@@ -350,6 +214,10 @@ EXPORT int pthread_rwlock_rdlock(pthread_rwlock_t* lock) {
 
 EXPORT int pthread_rwlock_trywrlock(pthread_rwlock_t* lock) {
 	__ensure(!"pthread_rwlock_trywrlock is not implemented");
+}
+
+EXPORT int pthread_rwlock_timedwrlock(pthread_rwlock_t* __restrict lock, const timespec* __restrict abs_timeout) {
+	__ensure(!"pthread_rwlock_timedwrlock is not implemented");
 }
 
 EXPORT int pthread_rwlock_wrlock(pthread_rwlock_t* lock) {
@@ -422,34 +290,20 @@ EXPORT int pthread_rwlock_unlock(pthread_rwlock_t* lock) {
 	return 0;
 }
 
-namespace {
-	struct MutexAttr {
-		int type : 4;
-	};
-	static_assert(sizeof(MutexAttr) <= sizeof(pthread_mutexattr_t));
-}
-
 EXPORT int pthread_mutex_init(pthread_mutex_t* __restrict mutex, const pthread_mutexattr_t* __restrict attr) {
-	auto* ptr = reinterpret_cast<Mutex*>(mutex);
-	new (ptr) Mutex {};
-
-	if (attr) {
-		auto* attr_ptr = reinterpret_cast<const MutexAttr*>(attr);
-		ptr->state.kind = attr_ptr->type;
-	}
-	return 0;
+	return thread_mutex_init(mutex, attr);
 }
 
 EXPORT int pthread_mutex_destroy(pthread_mutex_t* mutex) {
-	return 0;
+	return thread_mutex_destroy(mutex);
 }
 
 EXPORT int pthread_mutex_lock(pthread_mutex_t* mutex) {
-	return reinterpret_cast<Mutex*>(mutex)->manual_lock();
+	return thread_mutex_lock(mutex);
 }
 
 EXPORT int pthread_mutex_trylock(pthread_mutex_t* mutex) {
-	return reinterpret_cast<Mutex*>(mutex)->try_manual_lock();
+	return thread_mutex_trylock(mutex);
 }
 
 EXPORT int pthread_mutex_timedlock(pthread_mutex_t* __restrict mutex, const timespec* __restrict abs_timeout) {
@@ -457,53 +311,11 @@ EXPORT int pthread_mutex_timedlock(pthread_mutex_t* __restrict mutex, const time
 }
 
 EXPORT int pthread_mutex_unlock(pthread_mutex_t* mutex) {
-	return reinterpret_cast<Mutex*>(mutex)->manual_unlock();
-}
-
-namespace {
-	constexpr int ONCE_INCOMPLETE = 0;
-	constexpr int ONCE_QUEUED = 1;
-	constexpr int ONCE_RUNNING = 2;
-	constexpr int ONCE_COMPLETE = 3;
+	return thread_mutex_unlock(mutex);
 }
 
 EXPORT int pthread_once(pthread_once_t* once, void (*init_fn)()) {
-	auto* ptr = reinterpret_cast<hz::atomic<int>*>(once);
-	auto state = ptr->load(hz::memory_order::acquire);
-	while (true) {
-		if (state == ONCE_INCOMPLETE) {
-			if (!ptr->compare_exchange_weak(
-				state,
-				ONCE_RUNNING,
-				hz::memory_order::acquire,
-				hz::memory_order::acquire
-				)) {
-				continue;
-			}
-
-			init_fn();
-			if (ptr->exchange(ONCE_COMPLETE, hz::memory_order::release) == ONCE_QUEUED) {
-				sys_futex_wake_all(ptr->data());
-			}
-			return 0;
-		}
-		else if (state == ONCE_RUNNING || state == ONCE_QUEUED) {
-			if (state == ONCE_RUNNING &&
-				!ptr->compare_exchange_weak(
-					state,
-					ONCE_QUEUED,
-					hz::memory_order::relaxed,
-					hz::memory_order::acquire
-					)) {
-				continue;
-			}
-			sys_futex_wait(ptr->data(), ONCE_QUEUED, nullptr);
-			state = ptr->load(hz::memory_order::acquire);
-		}
-		else {
-			return 0;
-		}
-	}
+	return thread_once(once, init_fn);
 }
 
 #define CPUCLOCK_SCHED 2
@@ -521,89 +333,31 @@ struct Cond {
 };
 static_assert(sizeof(Cond) <= sizeof(pthread_cond_t));
 
-struct CondAttr {
-	clockid_t clock;
-};
-static_assert(sizeof(CondAttr) <= sizeof(pthread_condattr_t));
-
 EXPORT int pthread_cond_init(pthread_cond_t* __restrict cond, const pthread_condattr_t* __restrict attr) {
-	if (attr) {
-		new (cond) Cond {
-			.clock = reinterpret_cast<const CondAttr*>(attr)->clock
-		};
-	}
-	else {
-		new (cond) Cond {};
-	}
-	return 0;
+	return thread_cond_init(cond, attr);
 }
 
-EXPORT int pthread_cond_destroy(pthread_cond_t*) {
-	return 0;
+EXPORT int pthread_cond_destroy(pthread_cond_t* cond) {
+	return thread_cond_destroy(cond);
 }
 
 EXPORT int pthread_cond_wait(pthread_cond_t* __restrict cond, pthread_mutex_t* __restrict mutex) {
-	auto* ptr = reinterpret_cast<Cond*>(cond);
-	auto value = ptr->futex.load(hz::memory_order::relaxed);
-	pthread_mutex_unlock(mutex);
-	sys_futex_wait(ptr->futex.data(), value, nullptr);
-	pthread_mutex_lock(mutex);
-	return 0;
+	return thread_cond_wait(cond, mutex);
 }
 
 EXPORT int pthread_cond_timedwait(
 	pthread_cond_t* __restrict cond,
 	pthread_mutex_t* __restrict mutex,
-	const struct timespec* __restrict abs_timeout) {
-	if (!abs_timeout) {
-		return pthread_cond_wait(cond, mutex);
-	}
-	else {
-		auto* ptr = reinterpret_cast<Cond*>(cond);
-
-		while (true) {
-			timespec current {};
-			if (clock_gettime(ptr->clock, &current)) {
-				return errno;
-			}
-
-			timespec timeout {
-				.tv_sec = abs_timeout->tv_sec - current.tv_sec,
-				.tv_nsec = abs_timeout->tv_nsec - current.tv_nsec
-			};
-			if (timeout.tv_sec < 0 || (timeout.tv_sec == 0 && timeout.tv_nsec < 0)) {
-				return ETIMEDOUT;
-			}
-
-			auto value = ptr->futex.load(hz::memory_order::relaxed);
-			pthread_mutex_unlock(mutex);
-			int err = sys_futex_wait(ptr->futex.data(), value, &timeout);
-			pthread_mutex_lock(mutex);
-			if (err == ETIMEDOUT) {
-				return ETIMEDOUT;
-			}
-			else if (err == EINTR) {
-				continue;
-			}
-			else {
-				return 0;
-			}
-		}
-	}
+	const timespec* __restrict abs_timeout) {
+	return thread_cond_timedwait(cond, mutex, abs_timeout);
 }
 
 EXPORT int pthread_cond_broadcast(pthread_cond_t* cond) {
-	auto* ptr = reinterpret_cast<Cond*>(cond);
-	ptr->futex.fetch_add(1, hz::memory_order::relaxed);
-	sys_futex_wake_all(ptr->futex.data());
-	return 0;
+	return thread_cond_broadcast(cond);
 }
 
 EXPORT int pthread_cond_signal(pthread_cond_t* cond) {
-	auto* ptr = reinterpret_cast<Cond*>(cond);
-	ptr->futex.fetch_add(1, hz::memory_order::relaxed);
-	sys_futex_wake(ptr->futex.data());
-	return 0;
+	return thread_cond_signal(cond);
 }
 
 namespace {
@@ -681,7 +435,7 @@ EXPORT int pthread_barrier_wait(pthread_barrier_t* barrier) {
 }
 
 EXPORT int pthread_attr_init(pthread_attr_t* attr) {
-	auto* ptr = reinterpret_cast<Attr*>(attr);
+	auto* ptr = reinterpret_cast<ThreadAttr*>(attr);
 	*ptr = {};
 	return 0;
 }
@@ -691,7 +445,7 @@ EXPORT int pthread_attr_destroy(pthread_attr_t* attr) {
 }
 
 EXPORT int pthread_attr_setdetachstate(pthread_attr_t* attr, int detach_state) {
-	auto* ptr = reinterpret_cast<Attr*>(attr);
+	auto* ptr = reinterpret_cast<ThreadAttr*>(attr);
 	ptr->detached = detach_state == PTHREAD_CREATE_DETACHED;
 	return 0;
 }
@@ -701,7 +455,7 @@ EXPORT int pthread_attr_setstacksize(pthread_attr_t* attr, size_t stack_size) {
 		return EINVAL;
 	}
 
-	auto* ptr = reinterpret_cast<Attr*>(attr);
+	auto* ptr = reinterpret_cast<ThreadAttr*>(attr);
 	ptr->stack_size = stack_size;
 	return 0;
 }

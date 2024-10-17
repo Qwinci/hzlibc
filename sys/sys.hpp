@@ -25,20 +25,9 @@
 #include <mqueue.h>
 #include <hz/string_view.hpp>
 
-using time64_t = int64_t;
+#include "ansi_sys.hpp"
 
-struct timespec64 {
-	time64_t tv_sec;
-	long tv_nsec;
-};
-
-void sys_libc_log(hz::string_view str);
-[[noreturn]] void sys_exit(int status);
-[[noreturn]] void sys_exit_thread();
-int sys_mmap(void* addr, size_t length, int prot, int flags, int fd, off64_t offset, void** ret);
-int sys_munmap(void* addr, size_t length);
 int sys_mremap(void* old_addr, size_t old_size, size_t new_size, int flags, void* new_addr, void** ret);
-int sys_mprotect(void* addr, size_t length, int prot);
 int sys_madvise(void* addr, size_t length, int advice);
 int sys_mlock(const void* addr, size_t length);
 int sys_munlock(const void* addr, size_t length);
@@ -53,11 +42,6 @@ int sys_shmctl(int shm_id, int op, shmid_ds* buf, int* ret);
 int sys_shm_open(const char* name, int oflag, mode_t mode, int* ret);
 int sys_shm_unlink(const char* name);
 
-int sys_openat(int dir_fd, const char* path, int flags, mode_t mode, int* ret);
-int sys_close(int fd);
-int sys_read(int fd, void* buf, size_t count, ssize_t* ret);
-int sys_write(int fd, const void* buf, size_t count, ssize_t* ret);
-int sys_lseek(int fd, off64_t offset, int whence, off64_t* ret);
 int sys_ioctl(int fd, unsigned long op, void* arg, int* ret);
 int sys_mount(const char* source, const char* target, const char* fs_type, unsigned long flags, const void* data);
 int sys_umount2(const char* target, int flags);
@@ -132,13 +116,6 @@ int sys_mq_open(const char* name, int oflag, mode_t mode, mq_attr* attr, mqd_t* 
 int sys_mq_close(mqd_t mq);
 int sys_mq_unlink(const char* name);
 
-enum class StatTarget {
-	Path,
-	Fd,
-	FdPath
-};
-
-int sys_stat(StatTarget target, int dir_fd, const char* path, int flags, struct stat64* s);
 int sys_statx(int dir_fd, const char* __restrict path, int flags, unsigned int mask, struct statx* __restrict buf);
 int sys_statfs(const char* path, struct statfs64* buf);
 int sys_fstatfs(int fd, struct statfs64* buf);
@@ -162,7 +139,6 @@ int sys_mkdirat(int dir_fd, const char* path, mode_t mode);
 int sys_mknodat(int dir_fd, const char* path, mode_t mode, dev_t dev);
 int sys_utimensat(int dir_fd, const char* path, const timespec64 times[2], int flags);
 int sys_rmdir(const char* path);
-int sys_renameat(int old_dir_fd, const char* old_path, int new_dir_fd, const char* new_path);
 int sys_truncate(const char* path, off64_t length);
 int sys_ftruncate(int fd, off64_t length);
 int sys_dup(int old_fd, int* ret);
@@ -191,10 +167,8 @@ int sys_uname(utsname* buf);
 int sys_chroot(const char* path);
 int sys_chdir(const char* path);
 int sys_fchdir(int fd);
-int sys_getpagesize();
 int sys_sysinfo(struct sysinfo* info);
 
-int sys_tcb_set(void* tcb);
 int sys_capget(cap_user_header_t hdr, cap_user_data_t data);
 int sys_capset(cap_user_header_t hdr, cap_user_data_t data);
 int sys_getgroups(int size, gid_t* list, int* ret);
@@ -203,7 +177,6 @@ int sys_getrandom(void* buffer, size_t size, unsigned int flags, ssize_t* ret);
 
 int sys_execve(const char* path, char* const argv[], char* const envp[]);
 
-int sys_sched_yield();
 int sys_sched_getparam(pid_t pid, sched_param* ret);
 int sys_sched_setscheduler(pid_t pid, int policy, const sched_param* param);
 int sys_sched_getscheduler(pid_t pid, int* ret);
@@ -232,10 +205,6 @@ int sys_personality(unsigned long persona, int* ret);
 int sys_ptrace(__ptrace_request op, pid_t pid, void* addr, void* data, long* ret);
 int sys_setns(int fd, int ns_type);
 
-int sys_futex_wait(int* addr, int value, const timespec* timeout, bool pshared = false);
-int sys_futex_wake(int* addr, bool pshared = false);
-int sys_futex_wake_all(int* addr, bool pshared = false);
-pid_t sys_get_thread_id();
 pid_t sys_get_process_id();
 pid_t sys_getppid();
 uid_t sys_getuid();
@@ -252,8 +221,6 @@ int sys_semget(key_t key, int num_sems, int sem_flag, int* ret);
 int sys_semctl(int sem_id, int sem_num, int op, void* arg, int* ret);
 int sys_semop(int sem_id, sembuf* sops, size_t num_sops);
 
-int sys_sigprocmask(int how, const sigset_t* __restrict set, sigset_t* __restrict old);
-int sys_sigaction(int sig_num, const struct sigaction* __restrict action, struct sigaction* __restrict old);
 int sys_sigtimedwait(const sigset_t* __restrict set, siginfo_t* __restrict info, const timespec* timeout, int* ret);
 int sys_sigaltstack(const stack_t* stack, stack_t* old_stack);
 int sys_sigsuspend(const sigset_t* set);
@@ -261,7 +228,6 @@ int sys_sigpending(sigset_t* set);
 int sys_kill(pid_t pid, int sig);
 int sys_tgkill(pid_t pid, pid_t tid, int sig);
 
-int sys_clock_gettime(clockid_t id, timespec* tp);
 int sys_clock_settime(clockid_t id, const timespec* tp);
 int sys_clock_getres(clockid_t id, timespec* res);
 int sys_clock_nanosleep(clockid_t id, int flags, const timespec64* req, timespec64* rem);
@@ -303,12 +269,5 @@ int sys_recvfrom(
 	ssize_t* ret);
 int sys_recvmsg(int fd, msghdr* msg, int flags, ssize_t* ret);
 
-int sys_thread_create(
-	void* stack_base,
-	size_t stack_size,
-	void* (start_fn)(void* arg),
-	void* arg,
-	void* tp,
-	pid_t* tid);
 int sys_thread_set_name(pid_t tid, const char* name);
 int sys_thread_get_name(pid_t tid, char* name, size_t len);

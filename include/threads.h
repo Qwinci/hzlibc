@@ -2,11 +2,11 @@
 #define _THREADS_H
 
 #include <bits/utils.h>
-#include <pthread.h>
+#include <bits/thread_types.h>
 
 __begin_decls
 
-typedef unsigned long thrd_t;
+typedef __hzlibc_thread_t thrd_t;
 typedef int (*thrd_start_t)(void* __arg);
 
 enum {
@@ -24,18 +24,18 @@ enum {
 };
 
 typedef union {
-	pthread_mutex_t __mtx;
+	__hzlibc_mutex_t __mtx;
 } mtx_t;
 
 
 typedef struct {
-	int __data;
+	__hzlibc_once_t __once;
 } once_flag;
 
 #define ONCE_FLAG_INIT {0}
 
 typedef union {
-	pthread_cond_t __cnd;
+	__hzlibc_cond_t __cnd;
 } cnd_t;
 
 #define TSS_DTOR_ITERATIONS 4

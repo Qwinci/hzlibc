@@ -1,6 +1,8 @@
 #ifndef _LIMITS_H
 #define _LIMITS_H
 
+#include <bits/config.h>
+
 #define MB_LEN_MAX 4
 
 #define SCHAR_MIN (-SCHAR_MAX - 1)
@@ -28,6 +30,8 @@
 #define LLONG_MAX __LONG_LONG_MAX__
 #define ULLONG_MAX (LLONG_MAX * 2ULL + 1ULL)
 
+#if !__HZLIBC_ANSI_ONLY
+
 // posix
 #define NAME_MAX 255
 #define LOGIN_NAME_MAX 256
@@ -38,5 +42,7 @@
 #define _POSIX_ARG_MAX 4096
 #define SSIZE_MAX __LONG_MAX__
 #define IOV_MAX 1024
+
+#endif
 
 #endif

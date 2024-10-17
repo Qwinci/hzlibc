@@ -2,10 +2,14 @@
 #define _STDLIB_H
 
 #include <bits/utils.h>
-#include <bsd/stdlib.h>
-#include <locale.h>
+#include <bits/config.h>
 #include <stddef.h>
 #include <stdint.h>
+
+#if !__HZLIBC_ANSI_ONLY
+#include <bsd/stdlib.h>
+#include <locale.h>
+#endif
 
 __begin_decls
 
@@ -90,6 +94,8 @@ void* bsearch(
 	size_t __size,
 	int (*__comp)(const void* __a, const void* __b));
 
+#if !__HZLIBC_ANSI_ONLY
+
 // posix
 int posix_memalign(void** __ptr, size_t __alignment, size_t __size);
 
@@ -157,6 +163,8 @@ int strfromf128(
 	const char* __restrict __fmt,
 	__float128 __value);
 __float128 strtof128(const char* __restrict __str, char** __restrict __end_ptr);
+
+#endif
 
 __end_decls
 

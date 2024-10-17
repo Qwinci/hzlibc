@@ -2,17 +2,22 @@
 #define _STDIO_H
 
 #include <bits/utils.h>
+#include <bits/config.h>
 #include <bits/seek.h>
 #include <bits/mbstate_t.h>
-#include <sys/types.h>
 #include <stdarg.h>
+#include <stddef.h>
+
+#if !__HZLIBC_ANSI_ONLY
+#include <sys/types.h>
+#endif
 
 __begin_decls
 
 typedef struct FILE FILE;
 
 typedef struct _G_fpos_t {
-	off_t __pos;
+	long __pos;
 	mbstate_t __mbstate;
 } __fpos_t;
 
@@ -99,6 +104,8 @@ int fflush(FILE* __file);
 
 FILE* tmpfile(void);
 
+#if !__HZLIBC_ANSI_ONLY
+
 // posix
 FILE* fdopen(int __fd, const char* __mode);
 int fileno(FILE* __file);
@@ -152,6 +159,8 @@ int rename(const char* __old_path, const char* __new_path);
 int fdclose(FILE* __file, int* __fd_ptr);
 
 void setlinebuf(FILE* __file);
+
+#endif
 
 __end_decls
 

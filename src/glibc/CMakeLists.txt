@@ -1,6 +1,5 @@
 target_sources(c PRIVATE
 	backtrace.cpp
-	ctype.cpp
 	cxx.cpp
 	dev.cpp
 	dirent.cpp

@@ -11,6 +11,7 @@ extern "C" EXPORT int __libc_start_main(
 	void (*fini)(),
 	void (*rtld_fini)(),
 	void* stack_end) {
+#if !ANSI_ONLY
 	if (argv[0]) {
 		program_invocation_name = argv[0];
 		auto ptr = strrchr(program_invocation_name, '/');
@@ -21,6 +22,7 @@ extern "C" EXPORT int __libc_start_main(
 			program_invocation_short_name = argv[0];
 		}
 	}
+#endif
 
 	auto ret = main(argc, argv, argv + argc + 1);
 	exit(ret);

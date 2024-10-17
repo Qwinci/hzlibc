@@ -1,3 +1,8 @@
+
+#if ANSI_ONLY
+extern "C" void __sigsetjmp() {}
+#endif
+
 asm(R"(
 .pushsection .text
 .type __setjmp, @function
@@ -33,12 +38,6 @@ _setjmp:
 	xor %edx, %edx
 	jmp __setjmp
 
-.globl sigsetjmp
-.type sigsetjmp, @function
-sigsetjmp:
-	mov $1, %edx
-	jmp __setjmp
-
 // void longjmp(jmp_buf env, int val)
 .globl longjmp
 .globl _longjmp
@@ -63,3 +62,13 @@ _longjmp:
 	jmp *20(%ecx)
 .popsection
 )");
+
+#if !ANSI_ONLY
+asm(R"(
+.globl sigsetjmp
+.type sigsetjmp, @function
+sigsetjmp:
+	mov $1, %edx
+	jmp __setjmp
+)");
+#endif

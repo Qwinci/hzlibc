@@ -1,12 +1,14 @@
 #include "threads.h"
 #include "utils.hpp"
 #include "errno.h"
+#include "ansi_sys.hpp"
+#include "thread.hpp"
 
 EXPORT int thrd_create(thrd_t* thread, thrd_start_t func, void* arg) {
 	void* ptr = reinterpret_cast<void*>(func);
 	auto new_func = reinterpret_cast<void* (*)(void*)>(ptr);
 
-	int res = pthread_create(thread, nullptr, new_func, arg);
+	int res = thread_create(thread, nullptr, new_func, arg);
 	if (res == 0) {
 		return thrd_success;
 	}
@@ -19,47 +21,60 @@ EXPORT int thrd_create(thrd_t* thread, thrd_start_t func, void* arg) {
 }
 
 EXPORT int thrd_equal(thrd_t t1, thrd_t t2) {
-	return pthread_equal(t1, t2);
+	return thread_equal(t1, t2);
 }
 
 EXPORT thrd_t thrd_current() {
-	return pthread_self();
+	return get_current_thread();
 }
 
 EXPORT int thrd_sleep(const timespec* duration, timespec* rem) {
-	int err = nanosleep(duration, rem);
+#if UINTPTR_MAX == UINT64_MAX
+	int err = sys_sleep(reinterpret_cast<const timespec64*>(duration), reinterpret_cast<timespec64*>(rem));
+#else
+	timespec64 duration64 {
+		.tv_sec = duration->tv_sec,
+		.tv_nsec = duration->tv_nsec
+	};
+
+	timespec64 rem64 {};
+
+	int err = sys_sleep(&duration64, rem ? &rem64 : nullptr);
+	if (rem) {
+		rem->tv_sec = rem64.tv_sec;
+		rem->tv_nsec = rem64.tv_nsec;
+	}
+#endif
 	if (err == 0) {
 		return 0;
 	}
-	else if (err == -1 && errno == EINTR) {
+	else if (err == EINTR) {
+		errno = EINTR;
 		return -1;
 	}
 	else {
+		errno = err;
 		return -2;
 	}
 }
 
 EXPORT void thrd_yield() {
-	sched_yield();
+	sys_sched_yield();
 }
 
 EXPORT __attribute__((noreturn)) void thrd_exit(int status) {
-	pthread_exit(reinterpret_cast<void*>(status));
+	hzlibc_thread_exit(reinterpret_cast<void*>(status));
 }
 
 EXPORT int thrd_detach(thrd_t thread) {
-	int err = pthread_detach(thread);
-	if (err == 0) {
-		return thrd_success;
-	}
-	else {
-		return thrd_error;
-	}
+	auto* tcb = reinterpret_cast<Tcb*>(thread);
+	tcb->detached = true;
+	return thrd_success;
 }
 
 EXPORT int thrd_join(thrd_t thread, int* status) {
 	void* ret;
-	int err = pthread_join(thread, &ret);
+	int err = thread_join(thread, &ret);
 	if (err == 0) {
 		*status = static_cast<int>(reinterpret_cast<uintptr_t>(ret));
 		return thrd_success;
@@ -72,15 +87,15 @@ EXPORT int thrd_join(thrd_t thread, int* status) {
 EXPORT int mtx_init(mtx_t* mtx, int type) {
 	int pthread_type;
 	if (type & mtx_recursive) {
-		pthread_type = PTHREAD_MUTEX_RECURSIVE;
+		pthread_type = __HZLIBC_MUTEX_RECURSIVE;
 	}
 	else {
-		pthread_type = PTHREAD_MUTEX_NORMAL;
+		pthread_type = __HZLIBC_MUTEX_NORMAL;
 	}
 
-	pthread_mutexattr_t attr {};
-	pthread_mutexattr_settype(&attr, pthread_type);
-	int err = pthread_mutex_init(&mtx->__mtx, nullptr);
+	__hzlibc_mutexattr_t attr {};
+	reinterpret_cast<MutexAttr*>(&attr)->type = pthread_type;
+	int err = thread_mutex_init(&mtx->__mtx, &attr);
 	if (err == 0) {
 		return thrd_success;
 	}
@@ -90,7 +105,7 @@ EXPORT int mtx_init(mtx_t* mtx, int type) {
 }
 
 EXPORT int mtx_lock(mtx_t* mtx) {
-	int err = pthread_mutex_lock(&mtx->__mtx);
+	int err = thread_mutex_lock(&mtx->__mtx);
 	if (err == 0) {
 		return thrd_success;
 	}
@@ -104,7 +119,7 @@ EXPORT int mtx_timedlock(mtx_t* __restrict mtx, const timespec* __restrict timeo
 }
 
 EXPORT int mtx_trylock(mtx_t* mtx) {
-	int err = pthread_mutex_trylock(&mtx->__mtx);
+	int err = thread_mutex_trylock(&mtx->__mtx);
 	if (err == 0) {
 		return thrd_success;
 	}
@@ -117,7 +132,7 @@ EXPORT int mtx_trylock(mtx_t* mtx) {
 }
 
 EXPORT int mtx_unlock(mtx_t* mtx) {
-	int err = pthread_mutex_unlock(&mtx->__mtx);
+	int err = thread_mutex_unlock(&mtx->__mtx);
 	if (err == 0) {
 		return thrd_success;
 	}
@@ -127,15 +142,15 @@ EXPORT int mtx_unlock(mtx_t* mtx) {
 }
 
 EXPORT void mtx_destroy(mtx_t* mtx) {
-	pthread_mutex_destroy(&mtx->__mtx);
+	thread_mutex_destroy(&mtx->__mtx);
 }
 
 EXPORT void call_once(once_flag* flag, void (*func)()) {
-	pthread_once(&flag->__data, func);
+	thread_once(&flag->__once, func);
 }
 
 EXPORT int cnd_init(cnd_t* cnd) {
-	int err = pthread_cond_init(&cnd->__cnd, nullptr);
+	int err = thread_cond_init(&cnd->__cnd, nullptr);
 	if (err == 0) {
 		return thrd_success;
 	}
@@ -148,7 +163,7 @@ EXPORT int cnd_init(cnd_t* cnd) {
 }
 
 EXPORT int cnd_signal(cnd_t* cnd) {
-	int err = pthread_cond_signal(&cnd->__cnd);
+	int err = thread_cond_signal(&cnd->__cnd);
 	if (err == 0) {
 		return thrd_success;
 	}
@@ -158,7 +173,7 @@ EXPORT int cnd_signal(cnd_t* cnd) {
 }
 
 EXPORT int cnd_broadcast(cnd_t* cnd) {
-	int err = pthread_cond_broadcast(&cnd->__cnd);
+	int err = thread_cond_broadcast(&cnd->__cnd);
 	if (err == 0) {
 		return thrd_success;
 	}
@@ -168,7 +183,7 @@ EXPORT int cnd_broadcast(cnd_t* cnd) {
 }
 
 EXPORT int cnd_wait(cnd_t* cnd, mtx_t* mtx) {
-	int err = pthread_cond_wait(&cnd->__cnd, &mtx->__mtx);
+	int err = thread_cond_wait(&cnd->__cnd, &mtx->__mtx);
 	if (err == 0) {
 		return thrd_success;
 	}
@@ -181,7 +196,7 @@ EXPORT int cnd_timedwait(
 	cnd_t* __restrict cnd,
 	mtx_t* __restrict mtx,
 	const struct timespec* __restrict timeout) {
-	int err = pthread_cond_timedwait(&cnd->__cnd, &mtx->__mtx, timeout);
+	int err = thread_cond_timedwait(&cnd->__cnd, &mtx->__mtx, timeout);
 	if (err == 0) {
 		return thrd_success;
 	}
@@ -194,11 +209,11 @@ EXPORT int cnd_timedwait(
 }
 
 EXPORT void cnd_destroy(cnd_t* cnd) {
-	pthread_cond_destroy(&cnd->__cnd);
+	thread_cond_destroy(&cnd->__cnd);
 }
 
 EXPORT int tss_create(tss_t* key, tss_dtor_t destructor) {
-	int err = pthread_key_create(key, destructor);
+	int err = thread_key_create(key, destructor);
 	if (err == 0) {
 		return thrd_success;
 	}
@@ -208,11 +223,11 @@ EXPORT int tss_create(tss_t* key, tss_dtor_t destructor) {
 }
 
 EXPORT void* tss_get(tss_t key) {
-	return pthread_getspecific(key);
+	return thread_getspecific(key);
 }
 
 EXPORT int tss_set(tss_t key, void* value) {
-	int err = pthread_setspecific(key, value);
+	int err = thread_setspecific(key, value);
 	if (err == 0) {
 		return thrd_success;
 	}
@@ -222,5 +237,5 @@ EXPORT int tss_set(tss_t key, void* value) {
 }
 
 EXPORT void tss_delete(tss_t key) {
-	pthread_key_delete(key);
+	thread_key_delete(key);
 }

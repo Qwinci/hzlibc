@@ -2,6 +2,7 @@
 #define _CTYPE_H
 
 #include <bits/utils.h>
+#include <bits/config.h>
 #include <stdint.h>
 
 __begin_decls
@@ -41,8 +42,12 @@ int iscntrl(int __ch);
 int ispunct(int __ch);
 int isalnum(int __ch);
 
+#if !__HZLIBC_ANSI_ONLY
+
 // posix
 int isascii(int __ch);
+
+#endif
 
 __end_decls
 

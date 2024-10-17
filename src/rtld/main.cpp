@@ -5,6 +5,7 @@
 #include "object_storage.hpp"
 #include "rtld.hpp"
 #include "sys/mman.h"
+#include "opts.hpp"
 #include <hz/manually_init.hpp>
 #include <stdint.h>
 
@@ -137,6 +138,7 @@ void set_debug_state_to_normal() {
 }
 
 void hzlibc_env_init(char** env);
+void hzlibc_posix_env_init();
 
 extern "C" [[gnu::used]] uintptr_t start(uintptr_t* sp) {
 	auto argc = *sp;
@@ -171,6 +173,18 @@ extern "C" [[gnu::used]] uintptr_t start(uintptr_t* sp) {
 			default:
 				break;
 		}
+	}
+
+	if constexpr (LOG_AUX) {
+		println(
+			"rtld: got ",
+			exe_phnum,
+			" phdrs (size ",
+			exe_phent,
+			") at ",
+			Fmt::Hex,
+			reinterpret_cast<uintptr_t>(exe_phdr),
+			Fmt::Dec);
 	}
 
 	auto* libc_ehdr = get_ehdr();
@@ -218,7 +232,9 @@ extern "C" [[gnu::used]] uintptr_t start(uintptr_t* sp) {
 	DEBUG_INTERFACE.ld_base = reinterpret_cast<void*>(libc_base);
 
 	if (exe_path.empty()) {
-		exe_path = argv[0];
+		if (argv[0]) {
+			exe_path = argv[0];
+		}
 	}
 
 	uintptr_t exe_base = 0;
@@ -298,7 +314,9 @@ extern "C" [[gnu::used]] uintptr_t start(uintptr_t* sp) {
 	void* initial_tcb;
 	void* initial_tp;
 	__ensure(__dlapi_create_tcb(&initial_tcb, &initial_tp));
-	static_cast<Tcb*>(initial_tcb)->tid = sys_get_process_id();
+#if !ANSI_ONLY
+	static_cast<Tcb*>(initial_tcb)->tid = sys_get_thread_id();
+#endif
 	__ensure(sys_tcb_set(initial_tcb) == 0);
 
 	_dl_debug_addr = &DEBUG_INTERFACE;
@@ -308,6 +326,10 @@ extern "C" [[gnu::used]] uintptr_t start(uintptr_t* sp) {
 	_dl_debug_state();
 
 	hzlibc_env_init(argv + argc + 1);
+
+#if !ANSI_ONLY
+	hzlibc_posix_env_init();
+#endif
 
 	if (EXE_OBJECT->preinit_array) {
 		for (auto* fn = EXE_OBJECT->preinit_array; fn != EXE_OBJECT->preinit_array_end; ++fn) {

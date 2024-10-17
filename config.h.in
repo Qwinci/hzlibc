@@ -1,0 +1,8 @@
+#ifndef _BITS_CONFIG_H
+#define _BITS_CONFIG_H
+
+#ifndef __HZLIBC_ANSI_ONLY
+#cmakedefine01 __HZLIBC_ANSI_ONLY
+#endif
+
+#endif

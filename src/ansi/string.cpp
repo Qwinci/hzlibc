@@ -2,6 +2,7 @@
 #include "utils.hpp"
 #include "stdlib.h"
 #include "errno.h"
+#include "string.hpp"
 #include <hz/array.hpp>
 #include <hz/algorithm.hpp>
 
@@ -127,7 +128,11 @@ EXPORT char* strdup(const char* str) {
 }
 
 EXPORT char* strndup(const char* str, size_t size) {
-	size_t len = strnlen(str, size);
+	size_t len = 0;
+	for (auto* ptr = str; *ptr && size; --size, ++ptr) {
+		++len;
+	}
+
 	char* mem = static_cast<char*>(malloc(len + 1));
 	if (!mem) {
 		return nullptr;
@@ -177,7 +182,7 @@ namespace {
 }
 
 EXPORT char* strtok(char* __restrict str, const char* __restrict delim) {
-	return strtok_r(str, delim, &STRTOK_SAVE_PTR);
+	return internal::strtok_r(str, delim, &STRTOK_SAVE_PTR);
 }
 
 EXPORT int strcoll(const char* lhs, const char* rhs) {

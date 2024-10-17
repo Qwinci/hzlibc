@@ -11,10 +11,24 @@
 #include "wchar.h"
 #include "signal.h"
 #include "str_to_int.hpp"
+#include "env.hpp"
 #include <hz/bit.hpp>
 #include <hz/algorithm.hpp>
+#include <hz/vector.hpp>
+#include <hz/unordered_map.hpp>
+#include <hz/string.hpp>
 
 #define memcpy __builtin_memcpy
+
+hz::vector<char*, Allocator> ENV {Allocator {}};
+hz::unordered_map<hz::string<Allocator>, hz::string<Allocator>, Allocator> ALLOCATED_ENV {Allocator {}};
+
+void hzlibc_env_init(char** env) {
+	for (; *env; ++env) {
+		ENV.push_back(*env);
+	}
+	ENV.push_back(nullptr);
+}
 
 EXPORT void* malloc(size_t size) {
 	if (!size) {
@@ -83,8 +97,8 @@ EXPORT void free(void* ptr) {
 EXPORT char* getenv(const char* name) {
 	hz::string_view name_str {name};
 
-	__ensure(environ);
-	for (auto* env = environ; *env; ++env) {
+	__ensure(!ENV.empty());
+	for (auto* env = ENV.data(); *env; ++env) {
 		hz::string_view env_str {*env};
 		auto sep = env_str.find('=');
 		if (sep == hz::string_view::npos) {
@@ -103,6 +117,12 @@ EXPORT int system(const char* cmd) {
 		return 1;
 	}
 
+#if ANSI_ONLY
+	if (auto err = sys_system(cmd)) {
+		return err;
+	}
+	return 0;
+#else
 	struct sigaction new_action {
 		.sa_handler = SIG_IGN,
 		.sa_mask {},
@@ -150,10 +170,11 @@ EXPORT int system(const char* cmd) {
 	sys_sigaction(SIGQUIT, &old_quit_action, nullptr);
 	sys_sigprocmask(SIG_SETMASK, &old_mask, nullptr);
 	return status;
+#endif
 }
 
 EXPORT __attribute__((noreturn)) void abort() {
-	sys_kill(sys_get_process_id(), SIGABRT);
+	sys_raise(SIGABRT);
 	sys_exit(1);
 }
 
@@ -207,7 +228,9 @@ void call_cxx_tls_destructors();
 void __dlapi_destroy();
 
 EXPORT __attribute__((noreturn)) void exit(int status) {
+#if !ANSI_ONLY
 	call_cxx_tls_destructors();
+#endif
 
 	run_exit_handlers();
 	__dlapi_destroy();
@@ -367,6 +390,16 @@ EXPORT long long atoll(const char* str) {
 	return value;
 }
 
+static int str_case_cmp(const char* s1, const char* s2, size_t count) {
+	for (; count; --count, ++s1, ++s2) {
+		int res = tolower(*s1) - tolower(*s2);
+		if (res != 0 || !*s1) {
+			return res;
+		}
+	}
+	return 0;
+}
+
 template<typename T>
 T str_to_float(const char* __restrict ptr, char** __restrict end_ptr) {
 	while (isspace(*ptr)) {
@@ -382,7 +415,7 @@ T str_to_float(const char* __restrict ptr, char** __restrict end_ptr) {
 		++ptr;
 	}
 
-	if (strncasecmp(ptr, "nan", 3) == 0) {
+	if (str_case_cmp(ptr, "nan", 3) == 0) {
 		ptr += 3;
 		if (*ptr == '(') {
 			while (*ptr != ')') {
@@ -407,11 +440,11 @@ T str_to_float(const char* __restrict ptr, char** __restrict end_ptr) {
 	}
 	else {
 		bool inf = false;
-		if (strncasecmp(ptr, "inf", 3) == 0) {
+		if (str_case_cmp(ptr, "inf", 3) == 0) {
 			ptr += 3;
 			inf = true;
 		}
-		else if (strncasecmp(ptr, "infinity", 8) == 0) {
+		else if (str_case_cmp(ptr, "infinity", 8) == 0) {
 			ptr += 8;
 			inf = true;
 		}

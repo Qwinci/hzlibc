@@ -2,11 +2,15 @@
 #define _WCHAR_H
 
 #include <bits/utils.h>
+#include <bits/config.h>
 #include <bits/mbstate_t.h>
 #include <stddef.h>
 #include <stdarg.h>
-#include <locale.h>
 #include <time.h>
+
+#if !__HZLIBC_ANSI_ONLY
+#include <locale.h>
+#endif
 
 __begin_decls
 
@@ -84,6 +88,8 @@ int swprintf(
 	const wchar_t* __restrict __fmt,
 	...);
 
+#if !__HZLIBC_ANSI_ONLY
+
 // posix
 size_t wcsnlen(const wchar_t* __str, size_t __max_len);
 int wcscasecmp(const wchar_t* __s1, const wchar_t* __s2);
@@ -114,6 +120,8 @@ size_t mbsnrtowcs(
 	size_t __num_chars,
 	size_t __len,
 	mbstate_t* __restrict __ps);
+
+#endif
 
 __end_decls
 

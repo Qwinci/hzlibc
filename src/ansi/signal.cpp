@@ -1,6 +1,6 @@
 #include "signal.h"
 #include "utils.hpp"
-#include "sys.hpp"
+#include "ansi_sys.hpp"
 #include "errno.h"
 
 EXPORT sighandler_t signal(int sig_num, sighandler_t handler) {
@@ -16,8 +16,7 @@ EXPORT sighandler_t signal(int sig_num, sighandler_t handler) {
 }
 
 EXPORT int raise(int sig) {
-	auto pid = sys_get_process_id();
-	if (auto err = sys_kill(pid, sig)) {
+	if (auto err = sys_raise(sig)) {
 		errno = err;
 		return -1;
 	}

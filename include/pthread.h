@@ -2,130 +2,52 @@
 #define _PTHREAD_H
 
 #include <bits/utils.h>
+#include <bits/thread_types.h>
 #include <stddef.h>
 #include <time.h>
 #include <sched.h>
 
 __begin_decls
 
-typedef unsigned long pthread_t;
-typedef unsigned int pthread_key_t;
-typedef int pthread_once_t;
-typedef volatile int pthread_spinlock_t;
+typedef __hzlibc_thread_t pthread_t;
+typedef __hzlibc_key_t pthread_key_t;
+typedef __hzlibc_once_t pthread_once_t;
+typedef __hzlibc_spinlock_t pthread_spinlock_t;
 
 enum {
-	PTHREAD_MUTEX_NORMAL,
-	PTHREAD_MUTEX_RECURSIVE,
-	PTHREAD_MUTEX_ERRORCHECK
+	PTHREAD_MUTEX_NORMAL = __HZLIBC_MUTEX_NORMAL,
+	PTHREAD_MUTEX_RECURSIVE = __HZLIBC_MUTEX_RECURSIVE,
+	PTHREAD_MUTEX_ERRORCHECK = __HZLIBC_MUTEX_ERRORCHECK
 };
 
-#define PTHREAD_ONCE_INIT 0
-#define PTHREAD_MUTEX_INITIALIZER {{0}}
-#define PTHREAD_COND_INITIALIZER {0}
+#define PTHREAD_ONCE_INIT __HZLIBC_ONCE_INIT
+#define PTHREAD_MUTEX_INITIALIZER __HZLIBC_MUTEX_INITIALIZER
+#define PTHREAD_COND_INITIALIZER __HZLIBC_COND_INITIALIZER
 
-#define PTHREAD_CANCEL_ENABLE 0
-#define PTHREAD_CANCEL_DISABLE 1
+#define PTHREAD_CANCEL_ENABLE __HZLIBC_CANCEL_ENABLE
+#define PTHREAD_CANCEL_DISABLE __HZLIBC_CANCEL_DISABLE
 
-#define PTHREAD_CANCEL_DEFERRED 0
-#define PTHREAD_CANCEL_ASYNCHRONOUS 1
+#define PTHREAD_CANCEL_DEFERRED __HZLIBC_CANCEL_DEFERRED
+#define PTHREAD_CANCEL_ASYNCHRONOUS __HZLIBC_CANCEL_ASYNCHRONOUS
 
-#define PTHREAD_CREATE_JOINABLE 0
-#define PTHREAD_CREATE_DETACHED 1
+#define PTHREAD_CREATE_JOINABLE __HZLIBC_THREAD_CREATE_JOINABLE
+#define PTHREAD_CREATE_DETACHED __HZLIBC_THREAD_CREATE_DETACHED
 
-#define PTHREAD_STACK_MIN 16384
+#define PTHREAD_STACK_MIN __HZLIBC_THREAD_STACK_MIN
 
-#define PTHREAD_RWLOCK_INITIALIZER {0}
+#define PTHREAD_RWLOCK_INITIALIZER __HZLIBC_RWLOCK_INITIALIZER
 
-#define PTHREAD_BARRIER_SERIAL_THREAD -1
+#define PTHREAD_BARRIER_SERIAL_THREAD __HZLIBC_BARRIER_SERIAL_THREAD
 
-typedef union {
-#ifdef __x86_64__
-	char __size[40];
-#elif defined(__i386__)
-	char __size[24];
-#else
-#error missing architecture specific code
-#endif
-	long __align;
-} pthread_mutex_t;
-
-typedef union {
-#if defined(__x86_64__) || defined(__i386__)
-	char __size[48];
-#else
-#error missing architecture specific code
-#endif
-	long long __align;
-} pthread_cond_t;
-
-typedef union {
-#ifdef __x86_64__
-	char __size[56];
-#elif defined(__i386__)
-	char __size[32];
-#else
-#error missing architecture specific code
-#endif
-	long __align;
-} pthread_rwlock_t;
-
-typedef union {
-#ifdef __x86_64__
-	char __size[32];
-#elif defined(__i386__)
-	char __size[20];
-#else
-#error missing architecture specific code
-#endif
-	long __align;
-} pthread_barrier_t;
-
-typedef union {
-#if defined(__x86_64__) || defined(__i386__)
-	char __size[4];
-#else
-#error missing architecture specific code
-#endif
-	int __align;
-} pthread_mutexattr_t;
-
-typedef union {
-#if defined(__x86_64__) || defined(__i386__)
-	char __size[4];
-#else
-#error missing architecture specific code
-#endif
-	int __align;
-} pthread_condattr_t;
-
-typedef union {
-#ifdef __x86_64__
-	char __size[56];
-#elif defined(__i386__)
-	char __size[36];
-#else
-#error missing architecture specific code
-#endif
-	long __align;
-} pthread_attr_t;
-
-typedef union {
-#if defined(__x86_64__) || defined(__i386__)
-	char __size[8];
-#else
-#error missing architecture specific code
-#endif
-	long __align;
-} pthread_rwlockattr_t;
-
-typedef union {
-#if defined(__x86_64__) || defined(__i386__)
-	char __size[4];
-#else
-#error missing architecture specific code
-#endif
-	long __align;
-} pthread_barrierattr_t;
+typedef __hzlibc_mutex_t pthread_mutex_t;
+typedef __hzlibc_cond_t pthread_cond_t;
+typedef __hzlibc_rwlock_t pthread_rwlock_t;
+typedef __hzlibc_barrier_t pthread_barrier_t;
+typedef __hzlibc_mutexattr_t pthread_mutexattr_t;
+typedef __hzlibc_condattr_t pthread_condattr_t;
+typedef __hzlibc_attr_t pthread_attr_t;
+typedef __hzlibc_rwlockattr_t pthread_rwlockattr_t;
+typedef __hzlibc_barrierattr_t pthread_barrierattr_t;
 
 pthread_t pthread_self(void);
 int pthread_equal(pthread_t __t1, pthread_t __t2);
@@ -156,8 +78,10 @@ int pthread_getschedparam(pthread_t __thrd, int* __policy, struct sched_param* _
 int pthread_rwlock_init(pthread_rwlock_t* __restrict __lock, const pthread_rwlockattr_t* __attr);
 int pthread_rwlock_destroy(pthread_rwlock_t* __lock);
 int pthread_rwlock_tryrdlock(pthread_rwlock_t* __lock);
+int pthread_rwlock_timedrdlock(pthread_rwlock_t* __restrict __lock, const struct timespec* __restrict __abs_timeout);
 int pthread_rwlock_rdlock(pthread_rwlock_t* __lock);
 int pthread_rwlock_trywrlock(pthread_rwlock_t* __lock);
+int pthread_rwlock_timedwrlock(pthread_rwlock_t* __restrict __lock, const struct timespec* __restrict __abs_timeout);
 int pthread_rwlock_wrlock(pthread_rwlock_t* __lock);
 int pthread_rwlock_unlock(pthread_rwlock_t* __lock);
 

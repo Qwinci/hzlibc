@@ -4,8 +4,10 @@
 #include "uchar.h"
 #include "string.h"
 #include "stdio_internal.hpp"
+#include "stdio_unlocked.hpp"
 #include "stdio.h"
 #include "internal/time.hpp"
+#include "internal/string.hpp"
 #include "str_to_int.hpp"
 
 EXPORT int mbsinit(const mbstate_t*) {
@@ -73,7 +75,7 @@ EXPORT size_t mbsrtowcs(
 	const char** __restrict src,
 	size_t len,
 	mbstate_t* __restrict ps) {
-	return mbsnrtowcs(dest, src, SIZE_MAX, len, ps);
+	return internal::mbsnrtowcs(dest, src, SIZE_MAX, len, ps);
 }
 
 EXPORT int wctob(wint_t ch) {
@@ -894,7 +896,7 @@ EXPORT wint_t fgetwc(FILE* file) {
 	char buf[4];
 	char* ptr = buf;
 	while (ptr < buf + 4) {
-		auto c = fgetc_unlocked(file);
+		auto c = internal::fgetc_unlocked(file);
 		if (c < 0) {
 			if (ptr != buf) {
 				file->flags |= FILE_ERR_FLAG;
@@ -955,7 +957,7 @@ EXPORT wint_t ungetwc(wint_t ch, FILE* file) {
 	for (size_t i = 0; i < bytes; ++i) {
 		if (ungetc(buf[i], file) == EOF) {
 			for (size_t j = 0; j < i; ++j) {
-				fgetc_unlocked(file);
+				internal::fgetc_unlocked(file);
 			}
 			return WEOF;
 		}

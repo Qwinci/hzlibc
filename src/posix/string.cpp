@@ -1,6 +1,7 @@
 #include "string.h"
 #include "utils.hpp"
 #include "signal.h"
+#include "string.hpp"
 
 EXPORT size_t strnlen(const char* str, size_t max_len) {
 	size_t len = 0;
@@ -17,29 +18,7 @@ EXPORT char* stpcpy(char* __restrict dest, const char* src) {
 }
 
 EXPORT char* strtok_r(char* __restrict str, const char* __restrict delim, char** __restrict save_ptr) {
-	if (str) {
-		*save_ptr = str;
-	}
-
-	hz::string_view str_view {*save_ptr};
-	hz::string_view delim_str {delim};
-
-	auto* start = *save_ptr;
-
-	auto start_pos = str_view.find_first_not_of(delim_str);
-	if (start_pos == hz::string_view::npos) {
-		return nullptr;
-	}
-
-	auto end_pos = str_view.find_first_of(delim_str, start_pos);
-	if (end_pos != hz::string_view::npos) {
-		(*save_ptr)[end_pos] = 0;
-		*save_ptr += end_pos + 1;
-	}
-	else {
-		*save_ptr += end_pos;
-	}
-	return start + start_pos;
+	return internal::strtok_r(str, delim, save_ptr);
 }
 
 EXPORT int strcoll_l(const char* lhs, const char* rhs, locale_t locale) {

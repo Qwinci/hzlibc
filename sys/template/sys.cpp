@@ -1,7 +1,16 @@
 #include "sys.hpp"
 #include "log.hpp"
+#include "errno.h"
 
 #define STUB_ENOSYS println(__func__, " is a not implemented and returns ENOSYS"); return ENOSYS
+
+int sys_sleep(const timespec64* duration, timespec64* rem) {
+	STUB_ENOSYS;
+}
+
+int sys_system(const char* cmd) {
+	STUB_ENOSYS;
+}
 
 void sys_libc_log(hz::string_view str) {
 	
@@ -100,6 +109,10 @@ int sys_write(int fd, const void* buf, size_t count, ssize_t* ret) {
 }
 
 int sys_lseek(int fd, off64_t offset, int whence, off64_t* ret) {
+	STUB_ENOSYS;
+}
+
+int sys_remove(const char* path) {
 	STUB_ENOSYS;
 }
 
@@ -298,7 +311,7 @@ int sys_fstatfs(int fd, struct statfs64* buf) {
 }
 
 mode_t sys_umask(mode_t mask) {
-	pritln("sys_umask is a stub");
+	println("sys_umask is a stub");
 	return 0;
 }
 
@@ -706,6 +719,10 @@ int sys_sigtimedwait(const sigset_t* __restrict set, siginfo_t* __restrict info,
 	STUB_ENOSYS;
 }
 
+int sys_raise(int sig_num) {
+	STUB_ENOSYS;
+}
+
 int sys_sigaltstack(const stack_t* stack, stack_t* old_stack) {
 	STUB_ENOSYS;
 }
@@ -727,6 +744,10 @@ int sys_tgkill(pid_t pid, pid_t tid, int sig) {
 }
 
 int sys_clock_gettime(clockid_t id, timespec* tp) {
+	STUB_ENOSYS;
+}
+
+int sys_clock_settime(clockid_t id, const timespec* tp) {
 	STUB_ENOSYS;
 }
 

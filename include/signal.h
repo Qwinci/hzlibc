@@ -2,43 +2,23 @@
 #define _SIGNAL_H
 
 #include <bits/utils.h>
+#include <bits/config.h>
 #include <bits/sigset_t.h>
+#include <time.h>
+
+#if !__HZLIBC_ANSI_ONLY
 #include <sys/types.h>
 #include <ucontext.h>
-#include <time.h>
+#endif
 
 __begin_decls
 
 typedef void (*sighandler_t)(int __sig_num);
 
-sighandler_t signal(int __sig_num, sighandler_t __handler);
-int raise(int __sig);
-
-// posix
-
-#define SA_NOCLDSTOP 1
-#define SA_NOCLDWAIT 2
-#define SA_SIGINFO 4
-#define SA_RESTORER 0x4000000
-#define SA_ONSTACK 0x8000000
-#define SA_RESTART 0x10000000
-#define SA_NODEFER 0x40000000
-#define SA_RESETHAND 0x80000000
-
-#define SS_ONSTACK 1
-#define SS_DISABLE 2
-
-typedef void (*__sighandler)(int);
-
-typedef int sig_atomic_t;
-
-#define SIG_ERR ((__sighandler) ((void*) -1))
 #define SIG_DFL ((__sighandler) ((void*) 0))
 #define SIG_IGN ((__sighandler) ((void*) 1))
 
-#define SIG_BLOCK 0
-#define SIG_UNBLOCK 1
-#define SIG_SETMASK 2
+typedef int sig_atomic_t;
 
 #define SIGHUP 1
 #define SIGINT 2
@@ -74,6 +54,33 @@ typedef int sig_atomic_t;
 #define SIGPWR 30
 #define SIGSYS 31
 #define SIGUNUSED SIGSYS
+
+sighandler_t signal(int __sig_num, sighandler_t __handler);
+int raise(int __sig);
+
+#if !__HZLIBC_ANSI_ONLY
+
+// posix
+
+#define SA_NOCLDSTOP 1
+#define SA_NOCLDWAIT 2
+#define SA_SIGINFO 4
+#define SA_RESTORER 0x4000000
+#define SA_ONSTACK 0x8000000
+#define SA_RESTART 0x10000000
+#define SA_NODEFER 0x40000000
+#define SA_RESETHAND 0x80000000
+
+#define SS_ONSTACK 1
+#define SS_DISABLE 2
+
+typedef void (*__sighandler)(int);
+
+#define SIG_ERR ((__sighandler) ((void*) -1))
+
+#define SIG_BLOCK 0
+#define SIG_UNBLOCK 1
+#define SIG_SETMASK 2
 
 #define SI_ASYNCNL -60
 #define SI_DETHREAD -7
@@ -219,6 +226,8 @@ int sigfillset(sigset_t* __set);
 int sigismember(const sigset_t* __set, int __sig_num);
 int sigaddset(sigset_t* __set, int __sig_num);
 int sigdelset(sigset_t* __set, int __sig_num);
+
+#endif
 
 __end_decls
 

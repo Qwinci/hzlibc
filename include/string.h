@@ -1,10 +1,14 @@
 #ifndef _STRING_H
 #define _STRING_H
 
-#include "bits/utils.h"
+#include <bits/utils.h>
+#include <bits/config.h>
 #include <stddef.h>
+
+#if !__HZLIBC_ANSI_ONLY
 #include <locale.h>
 #include <strings.h>
+#endif
 
 __begin_decls
 
@@ -36,6 +40,8 @@ size_t strxfrm(char* __restrict __dest, const char* __restrict __src, size_t __c
 
 char* strerror(int __err_num);
 
+#if !__HZLIBC_ANSI_ONLY
+
 // posix
 size_t strnlen(const char* __str, size_t __max_len);
 char* stpcpy(char* __restrict __dest, const char* __src);
@@ -63,6 +69,8 @@ int strverscmp(const char* __s1, const char* __s2);
 char* strcasestr(const char* __str, const char* __substr);
 char* strchrnul(const char* __str, int __ch);
 char* strsep(char** __restrict __str, const char* __restrict __delim);
+
+#endif
 
 __end_decls
 

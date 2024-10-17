@@ -9,6 +9,7 @@
 #include "limits.h"
 #include "sched.h"
 #include "stdio.h"
+#include "ansi/env.hpp"
 
 #ifdef __x86_64__
 #include "bits/syscall_nums_x86_64.h"
@@ -19,6 +20,69 @@
 #endif
 
 #define memcpy __builtin_memcpy
+
+int sys_sleep(const timespec64* duration, timespec64* rem) {
+#ifdef SYS_clock_nanosleep_time64
+	return syscall_error(syscall(SYS_clock_nanosleep_time64, CLOCK_REALTIME, 0, duration, rem));
+#else
+	return syscall_error(syscall(SYS_clock_nanosleep, CLOCK_REALTIME, 0, duration, rem));
+#endif
+}
+
+#if ANSI_ONLY
+#define sigaddset(set, sig) \
+	(set)->__value[(sig) / (8 * sizeof(unsigned long))] |= 1UL << ((sig) % (8 * sizeof(unsigned long)))
+#endif
+
+int sys_system(const char* cmd) {
+	struct sigaction new_action {
+		.sa_handler = SIG_IGN,
+		.sa_mask {},
+		.sa_flags = 0,
+		.sa_restorer = nullptr
+	};
+	struct sigaction old_int_action {};
+	struct sigaction old_quit_action {};
+	sys_sigaction(SIGINT, &new_action, &old_int_action);
+	sys_sigaction(SIGQUIT, &new_action, &old_quit_action);
+
+	sigset_t new_mask {};
+	sigset_t old_mask {};
+	sigaddset(&new_mask, SIGCHLD);
+	sys_sigprocmask(SIG_BLOCK, &new_mask, &old_mask);
+
+	int status = -1;
+	pid_t child;
+	if (auto err = sys_fork(&child)) {
+		errno = err;
+	}
+	else if (!child) {
+		sys_sigaction(SIGINT, &old_int_action, nullptr);
+		sys_sigaction(SIGQUIT, &old_quit_action, nullptr);
+		sys_sigprocmask(SIG_SETMASK, &old_mask, nullptr);
+
+		const char* args[] {
+			"sh", "-c", cmd, nullptr
+		};
+		sys_execve("/bin/sh", const_cast<char**>(args), ENV.data());
+		_Exit(127);
+	}
+	else {
+		pid_t tmp;
+		while ((err = sys_waitpid(child, &status, 0, nullptr, &tmp))) {
+			if (err == EINTR) {
+				continue;
+			}
+			errno = err;
+			status = -1;
+		}
+	}
+
+	sys_sigaction(SIGINT, &old_int_action, nullptr);
+	sys_sigaction(SIGQUIT, &old_quit_action, nullptr);
+	sys_sigprocmask(SIG_SETMASK, &old_mask, nullptr);
+	return status;
+}
 
 void sys_libc_log(hz::string_view str) {
 	syscall(SYS_write, 2, str.data(), str.size());
@@ -203,6 +267,14 @@ int sys_lseek(int fd, off64_t offset, int whence, off64_t* ret) {
 	}
 	*ret = res;
 	return 0;
+}
+
+int sys_remove(const char* path) {
+	auto err = sys_unlinkat(AT_FDCWD, path, 0);
+	if (err == EISDIR) {
+		return sys_rmdir(path);
+	}
+	return err;
 }
 
 int sys_ioctl(int fd, unsigned long op, void* arg, int* ret) {
@@ -1425,6 +1497,14 @@ int sys_sigaction(int sig_num, const struct sigaction* __restrict action, struct
 		memcpy(&old->sa_mask, kernel_old.mask, sizeof(kernel_old.mask));
 	}
 
+	return 0;
+}
+
+int sys_raise(int sig_num) {
+	auto pid = sys_get_process_id();
+	if (auto err = sys_kill(pid, sig_num)) {
+		return err;
+	}
 	return 0;
 }
 

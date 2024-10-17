@@ -2,6 +2,7 @@
 #include "utils.hpp"
 #include "stdlib.h"
 #include "wctype.h"
+#include "internal/string.hpp"
 
 #define memcpy __builtin_memcpy
 
@@ -117,39 +118,7 @@ EXPORT size_t mbsnrtowcs(
 	size_t num_chars,
 	size_t len,
 	mbstate_t* __restrict ps) {
-	size_t written = 0;
-	for (size_t i = 0; i < num_chars;) {
-		wchar_t buf;
-		size_t bytes_used = mbrtowc(&buf, *src, num_chars - i, ps);
-		if (bytes_used == static_cast<size_t>(-1)) {
-			return static_cast<size_t>(-1);
-		}
-		else if (bytes_used == static_cast<size_t>(-2)) {
-			break;
-		}
-
-		if (dest) {
-			if (written + 1 > len) {
-				return written;
-			}
-			else {
-				*dest++ = buf;
-			}
-		}
-
-		if (buf == 0) {
-			*src = nullptr;
-			break;
-		}
-		else {
-			*src += bytes_used;
-			i += bytes_used;
-		}
-
-		++written;
-	}
-
-	return written;
+	return internal::mbsnrtowcs(dest, src, num_chars, len, ps);
 }
 
 ALIAS(wcscoll_l, __wcscoll_l);

@@ -14,16 +14,10 @@
 #include <hz/unordered_map.hpp>
 #include <hz/algorithm.hpp>
 
-namespace {
-	hz::vector<char*, Allocator> ENV {Allocator {}};
-	hz::unordered_map<hz::string<Allocator>, hz::string<Allocator>, Allocator> ALLOCATED_ENV {Allocator {}};
-}
+extern hz::vector<char*, Allocator> ENV;
+extern hz::unordered_map<hz::string<Allocator>, hz::string<Allocator>, Allocator> ALLOCATED_ENV;
 
-void hzlibc_env_init(char** env) {
-	for (; *env; ++env) {
-		ENV.push_back(*env);
-	}
-	ENV.push_back(nullptr);
+void hzlibc_posix_env_init() {
 	environ = ENV.data();
 }
 

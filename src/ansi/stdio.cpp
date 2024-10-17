@@ -3,6 +3,7 @@
 #include "sys.hpp"
 #include "string.h"
 #include "stdio_internal.hpp"
+#include "stdio_unlocked.hpp"
 #include "fcntl.h"
 #include "errno.h"
 #include "ctype.h"
@@ -826,7 +827,11 @@ EXPORT int vfprintf(FILE* __restrict file, const char* __restrict fmt, va_list a
 				if (state == State::l) {
 					const wchar_t* str = va_arg(ap, const wchar_t*);
 					if (has_precision) {
-						len = wcsnlen(str, precision);
+						auto tmp = static_cast<size_t>(precision);
+						len = 0;
+						for (auto* ptr = str; tmp && *ptr; --tmp, ++ptr) {
+							++len;
+						}
 					}
 					else {
 						len = wcslen(str);
@@ -865,7 +870,11 @@ EXPORT int vfprintf(FILE* __restrict file, const char* __restrict fmt, va_list a
 					__ensure(state == State::None);
 					const char* str = va_arg(ap, const char*);
 					if (has_precision) {
-						len = strnlen(str, precision);
+						auto tmp = static_cast<size_t>(precision);
+						len = 0;
+						for (auto* ptr = str; tmp && *ptr; --tmp, ++ptr) {
+							++len;
+						}
 					}
 					else {
 						len = strlen(str);
@@ -1561,17 +1570,17 @@ EXPORT FILE* freopen(const char* __restrict filename, const char* __restrict mod
 
 EXPORT size_t fread(void* __restrict buffer, size_t size, size_t count, FILE* file) {
 	auto guard = file->mutex.lock();
-	return fread_unlocked(buffer, size, count, file);
+	return internal::fread_unlocked(buffer, size, count, file);
 }
 
 EXPORT size_t fwrite(const void* __restrict buffer, size_t size, size_t count, FILE* __restrict file) {
 	auto guard = file->mutex.lock();
-	return fwrite_unlocked(buffer, size, count, file);
+	return internal::fwrite_unlocked(buffer, size, count, file);
 }
 
 EXPORT int fgetc(FILE* file) {
 	auto guard = file->mutex.lock();
-	return fgetc_unlocked(file);
+	return internal::fgetc_unlocked(file);
 }
 
 EXPORT int getc(FILE* file) {
@@ -1584,7 +1593,7 @@ EXPORT int getchar() {
 
 EXPORT char* fgets(char* __restrict str, int count, FILE* __restrict file) {
 	auto lock = file->mutex.lock();
-	return fgets_unlocked(str, count, file);
+	return internal::fgets_unlocked(str, count, file);
 }
 
 EXPORT int ungetc(int ch, FILE* file) {
@@ -1643,7 +1652,7 @@ EXPORT int feof(FILE* file) {
 
 EXPORT void clearerr(FILE* file) {
 	auto guard = file->mutex.lock();
-	clearerr_unlocked(file);
+	internal::clearerr_unlocked(file);
 }
 
 EXPORT int fseek(FILE* file, long offset, int origin) {
@@ -1754,11 +1763,7 @@ EXPORT FILE* tmpfile() {
 }
 
 EXPORT int remove(const char* path) {
-	auto err = sys_unlinkat(AT_FDCWD, path, 0);
-	if (err == EISDIR) {
-		err = sys_rmdir(path);
-	}
-	if (err) {
+	if (auto err = sys_remove(path)) {
 		errno = err;
 		return -1;
 	}
