@@ -60,6 +60,7 @@ struct ObjectStorage {
 	void init_objects();
 	void init_tls(void* tcb);
 	void destruct_objects();
+	void unload_objects();
 
 	hz::vector<SharedObject*, Allocator> objects {Allocator {}};
 	hz::vector<SharedObject*, Allocator> global_scope {Allocator {}};

@@ -270,6 +270,7 @@ extern "C" [[gnu::used]] uintptr_t start(uintptr_t* sp) {
 		exe_phnum);
 	EXE_OBJECT->rtld_loaded = false;
 	EXE_OBJECT->tls_offset = (EXE_OBJECT->tls_size + EXE_OBJECT->tls_align - 1) & ~(EXE_OBJECT->tls_align - 1);
+	EXE_OBJECT->executable = true;
 
 	OBJECT_STORAGE.get_unsafe().initialize();
 	OBJECT_STORAGE.get_unsafe()->add_object(&*EXE_OBJECT);

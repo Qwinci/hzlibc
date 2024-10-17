@@ -100,6 +100,7 @@ struct SharedObject {
 	bool rtld_loaded {true};
 	bool initialized {};
 	bool destructed {};
+	bool executable {};
 };
 
 extern intptr_t* SAVED_LIBC_REL_ADDENDS;

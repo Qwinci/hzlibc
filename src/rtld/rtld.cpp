@@ -367,9 +367,14 @@ char* __dlapi_get_error() {
 	return const_cast<char*>(error);
 }
 
-void __dlapi_exit() {
+void __dlapi_exit(void*) {
 	auto guard = OBJECT_STORAGE.lock();
 	(*guard)->destruct_objects();
+}
+
+void __dlapi_destroy() {
+	auto guard = OBJECT_STORAGE.lock();
+	(*guard)->unload_objects();
 	guard->destroy();
 }
 

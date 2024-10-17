@@ -176,12 +176,10 @@ namespace {
 	AtExitBlock INITIAL_QUICK_BLOCK {};
 	hz::spinlock<AtExitBlock*> BLOCKS {&INITIAL_BLOCK};
 	hz::spinlock<AtExitBlock*> QUICK_BLOCKS {&INITIAL_QUICK_BLOCK};
-}
 
-extern "C" EXPORT void __cxa_finalize(void* dso_handle) {
-	auto guard = BLOCKS.lock();
-	auto* block = *guard;
-	if (!dso_handle) {
+	void run_exit_handlers() {
+		auto guard = BLOCKS.lock();
+		auto* block = *guard;
 		while (block) {
 			for (int i = block->size; i > 0; --i) {
 				auto& fn = block->fns[i - 1];
@@ -201,44 +199,18 @@ extern "C" EXPORT void __cxa_finalize(void* dso_handle) {
 		INITIAL_BLOCK.size = 0;
 		INITIAL_BLOCK.next = nullptr;
 	}
-	else {
-		AtExitBlock* prev = nullptr;
-		while (block) {
-			int count_called = 0;
-			for (int i = block->size; i > 0; --i) {
-				auto& fn = block->fns[i - 1];
-				if (fn.dso_handle == dso_handle && fn.fn) {
-					fn.fn(fn.arg);
-					fn.fn = nullptr;
-					++count_called;
-				}
-			}
-
-			auto* next = block->next;
-			if (block != &INITIAL_BLOCK && count_called == block->size) {
-				delete block;
-				if (prev) {
-					prev->next = next;
-				}
-				else {
-					*guard = next;
-				}
-			}
-			else {
-				prev = block;
-			}
-			block = next;
-		}
-	}
 }
 
+extern "C" EXPORT void __cxa_finalize(void*) {}
+
 void call_cxx_tls_destructors();
-void __dlapi_exit();
+void __dlapi_destroy();
 
 EXPORT __attribute__((noreturn)) void exit(int status) {
 	call_cxx_tls_destructors();
-	__cxa_finalize(nullptr);
-	__dlapi_exit();
+
+	run_exit_handlers();
+	__dlapi_destroy();
 	sys_exit(status);
 }
 
@@ -268,6 +240,7 @@ EXPORT __attribute__((__noreturn__)) void quick_exit(int status) {
 }
 
 EXPORT __attribute__((__noreturn__)) void _Exit(int status) {
+	__dlapi_destroy();
 	sys_exit(status);
 }
 

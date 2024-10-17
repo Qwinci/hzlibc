@@ -649,9 +649,17 @@ hz::optional<ObjectSymbol> ObjectStorage::lookup(SharedObject* local, const char
 	return res;
 }
 
+extern "C" int __cxa_atexit(void (*func)(void*), void* arg, void* dso_handle);
+
+void __dlapi_exit(void*);
+
 void ObjectStorage::init_objects() {
 	for (size_t i = init_list.size(); i > 0; --i) {
 		if (!init_list[i - 1]->initialized) {
+			if (init_list[i - 1]->executable) {
+				__cxa_atexit(__dlapi_exit, nullptr, nullptr);
+			}
+
 			destruct_list.push_back(init_list[i - 1]);
 			init_list[i - 1]->run_init();
 			init_list[i - 1]->initialized = true;
@@ -681,7 +689,9 @@ void ObjectStorage::destruct_objects() {
 		destruct_list[i - 1]->run_fini();
 		destruct_list[i - 1]->destructed = true;
 	}
+}
 
+void ObjectStorage::unload_objects() {
 	for (auto object : objects) {
 		object->~SharedObject();
 		if (object->rtld_loaded) {
@@ -689,9 +699,6 @@ void ObjectStorage::destruct_objects() {
 			Allocator::deallocate(object);
 		}
 	}
-
-	objects.clear();
-	objects.shrink_to_fit();
 }
 
 hz::spinlock<hz::manually_init<ObjectStorage>> OBJECT_STORAGE;
