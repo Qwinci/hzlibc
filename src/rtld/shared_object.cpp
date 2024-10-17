@@ -563,7 +563,7 @@ void SharedObject::relocate() {
 				relr_addr = reinterpret_cast<uintptr_t*>(base + entry);
 				*relr_addr++ += base;
 			}
-				// odd entry indicates a bitmap of locations to be relocated
+			// odd entry indicates a bitmap of locations to be relocated
 			else {
 				__ensure(relr_addr);
 				for (int j = 0;; ++j) {
@@ -807,15 +807,19 @@ void SharedObject::relocate_libc(intptr_t* saved_rel_addends) {
 		// even entry indicates the starting address
 		if (!(entry & 1)) {
 			relr_addr = reinterpret_cast<uintptr_t*>(base + entry);
+			*relr_addr++ += base;
 		}
 		// odd entry indicates a bitmap of locations to be relocated
 		else {
 			__ensure(relr_addr);
-			for (int j = 0; entry; ++j) {
-				if (entry & 1) {
+			for (int j = 0;; ++j) {
+				entry >>= 1;
+				if (!entry) {
+					break;
+				}
+				else if (entry & 1) {
 					relr_addr[j] += base;
 				}
-				entry >>= 1;
 			}
 			// each entry describes at max 63 or 31 locations
 			relr_addr += 8 * sizeof(Elf_Relr) - 1;
