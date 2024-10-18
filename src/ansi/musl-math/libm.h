@@ -4,7 +4,8 @@
 #include "math.h"
 
 #define hidden __attribute__((visibility("hidden")))
-#define weak_alias(real, alias) __attribute__((alias(#real))) __typeof(real) alias
+#define weak_alias(real, new_name) \
+	extern __typeof(real) new_name __attribute__((alias(#real), weak))
 
 #if LDBL_MANT_DIG == 53 && LDBL_MAX_EXP == 1024
 #elif LDBL_MANT_DIG == 64 && LDBL_MAX_EXP == 16384 && __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__

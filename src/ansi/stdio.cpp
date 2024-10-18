@@ -8,6 +8,7 @@
 #include "errno.h"
 #include "ctype.h"
 #include "math.h"
+#include "fenv.h"
 #include "wchar.h"
 #include <hz/new.hpp>
 #include <hz/algorithm.hpp>
@@ -131,6 +132,17 @@ EXPORT void perror(const char* str) {
 	}
 }
 
+static long double frexp10l(long double x, int* exp) {
+	if (x != 0.0) {
+		*exp = 1 + static_cast<int>(floorl(log10l(fabsl(x))));
+	}
+	else {
+		*exp = 0;
+	}
+
+	return x * pow10l(-*exp);
+}
+
 enum class State {
 	None,
 	hh,
@@ -179,37 +191,125 @@ EXPORT int vfprintf(FILE* __restrict file, const char* __restrict fmt, va_list a
 		return true;
 	};
 
+	struct IntOpts {
+		int min_width;
+		int precision;
+		bool negative;
+		int always_write_sign;
+		int plus_as_space;
+		int pad_with_zero;
+		int right_pad;
+		bool upper;
+		int write_prefix;
+	};
+
 	auto write_int = [&](
 		uintmax_t value,
 		int base,
-		int pad = 0,
-		char pad_c = 0,
-		bool lower = false) {
-
+		IntOpts opts) {
 		char buf[64];
 		char* ptr = buf + 64;
-		if (lower) {
-			do {
-				*--ptr = LOWER_CHARS[value % base];
-				value /= base;
-			} while (value);
+
+		int len;
+		if (value == 0 && opts.precision == 0) {
+			len = 0;
 		}
 		else {
-			do {
-				*--ptr = CHARS[value % base];
-				value /= base;
-			} while (value);
+			if (opts.upper) {
+				do {
+					*--ptr = CHARS[value % base];
+					value /= base;
+				} while (value);
+			}
+			else {
+				do {
+					*--ptr = LOWER_CHARS[value % base];
+					value /= base;
+				} while (value);
+			}
+
+			len = static_cast<int>((buf + 64) - ptr);
 		}
 
-		int len = static_cast<int>((buf + 64) - ptr);
-		if (len < pad) {
-			pad -= len;
-			for (; pad; --pad) {
-				*--ptr = pad_c;
+		int actual_width = hz::max(len, opts.precision);
+		if (opts.negative || opts.always_write_sign) {
+			++actual_width;
+		}
+
+		if (opts.write_prefix && len) {
+			if (base == 2 || base == 16) {
+				actual_width += 2;
+			}
+			else if (base == 8) {
+				actual_width += 1;
 			}
 		}
 
-		return write(ptr, (buf + 64) - ptr);
+		char pad_c = opts.pad_with_zero ? '0' : ' ';
+
+		if (!opts.right_pad && actual_width < opts.min_width) {
+			for (int i = 0; i < opts.min_width - actual_width; ++i) {
+				if (!write(&pad_c, 1)) {
+					return false;
+				}
+			}
+		}
+
+		if (opts.negative) {
+			if (!write("-", 1)) {
+				return false;
+			}
+		}
+		else if (opts.always_write_sign) {
+			if (!write("+", 1)) {
+				return false;
+			}
+		}
+		else if (opts.plus_as_space) {
+			if (!write(" ", 1)) {
+				return false;
+			}
+		}
+
+		if (opts.write_prefix && len) {
+			if (base == 2) {
+				if (!write(opts.upper ? "0B" : "0b", 2)) {
+					return false;
+				}
+			}
+			else if (base == 8) {
+				if (!write("0", 1)) {
+					return false;
+				}
+			}
+			else if (base == 16) {
+				if (!write(opts.upper ? "0X" : "0x", 2)) {
+					return false;
+				}
+			}
+		}
+
+		if (len < opts.precision) {
+			for (int i = 0; i < opts.precision - len; ++i) {
+				if (!write("0", 1)) {
+					return false;
+				}
+			}
+		}
+
+		if (!write(ptr, len)) {
+			return false;
+		}
+
+		if (opts.right_pad && actual_width < opts.min_width) {
+			for (int i = 0; i < opts.min_width - actual_width; ++i) {
+				if (!write(&pad_c, 1)) {
+					return false;
+				}
+			}
+		}
+
+		return true;
 	};
 
 	if (file) {
@@ -282,6 +382,11 @@ EXPORT int vfprintf(FILE* __restrict file, const char* __restrict fmt, va_list a
 			++fmt;
 			width = va_arg(ap, int);
 			has_width = true;
+
+			if (width < 0) {
+				width *= -1;
+				flags |= flags::LJUST;
+			}
 		}
 
 		int precision = 0;
@@ -293,11 +398,20 @@ EXPORT int vfprintf(FILE* __restrict file, const char* __restrict fmt, va_list a
 				precision = hz::to_integer<int>(hz::string_view {fmt}, 10, &count);
 				fmt += count;
 				has_precision = true;
+				flags &= ~flags::ZERO;
 			}
 			else if (*fmt == '*') {
 				++fmt;
 				precision = va_arg(ap, int);
+
+				if (precision >= 0) {
+					has_precision = true;
+					flags &= ~flags::ZERO;
+				}
+			}
+			else {
 				has_precision = true;
+				flags &= ~flags::ZERO;
 			}
 		}
 
@@ -380,66 +494,101 @@ EXPORT int vfprintf(FILE* __restrict file, const char* __restrict fmt, va_list a
 			return -1;
 		}
 
+		auto pop_signed_int = [&]() {
+			intmax_t value;
+			if (state == State::None ||
+			    state == State::hh ||
+			    state == State::h) {
+				value = va_arg(ap, int);
+			}
+			else if (state == State::l) {
+				value = va_arg(ap, long);
+			}
+			else if (state == State::ll) {
+				value = va_arg(ap, long long);
+			}
+			else if (state == State::j) {
+				value = va_arg(ap, intmax_t);
+			}
+			else if (state == State::z) {
+				value = va_arg(ap, ssize_t);
+			}
+			else if (state == State::t) {
+				value = va_arg(ap, ptrdiff_t);
+			}
+			else {
+				panic("invalid printf %d state ", static_cast<int>(state));
+			}
+
+			return value;
+		};
+
+		auto pop_unsigned_int = [&]() {
+			uintmax_t value;
+			if (state == State::None ||
+			    state == State::hh ||
+			    state == State::h) {
+				value = va_arg(ap, unsigned int);
+			}
+			else if (state == State::l) {
+				value = va_arg(ap, unsigned long);
+			}
+			else if (state == State::ll) {
+				value = va_arg(ap, unsigned long long);
+			}
+			else if (state == State::j) {
+				value = va_arg(ap, uintmax_t);
+			}
+			else if (state == State::z) {
+				value = va_arg(ap, size_t);
+			}
+			else if (state == State::t) {
+				value = va_arg(ap, unsigned long);
+			}
+			else {
+				panic("invalid printf %u state ", static_cast<int>(state));
+			}
+
+			return value;
+		};
+
 		switch (*fmt) {
 			case 'd':
 			case 'i':
 			{
 				++fmt;
+				auto value = pop_signed_int();
 
-				intmax_t value;
-				if (state == State::None ||
-				    state == State::hh ||
-				    state == State::h) {
-					value = va_arg(ap, int);
-				}
-				else if (state == State::l) {
-					value = va_arg(ap, long);
-				}
-				else if (state == State::ll) {
-					value = va_arg(ap, long long);
-				}
-				else if (state == State::j) {
-					value = va_arg(ap, intmax_t);
-				}
-				else if (state == State::z) {
-					value = va_arg(ap, ssize_t);
-				}
-				else if (state == State::t) {
-					value = va_arg(ap, ptrdiff_t);
-				}
-				else {
-					println("state ", static_cast<int>(state));
-					__ensure(false && "unimplemented printf %d state");
-				}
-
+				bool negative = false;
 				if (value < 0) {
 					value *= -1;
-					if (!write("-", 1)) {
-						return -1;
-					}
-				}
-				else if ((flags & flags::SIGN) && !write("+", 1)) {
-					return -1;
+					negative = true;
 				}
 
-				if (has_width && !has_precision) {
-					if (!write_int(value, 10, width, (flags & flags::ZERO) ? '0': ' ')) {
-						return -1;
-					}
-				}
-				else {
-					if (!write_int(value, 10)) {
-						return -1;
-					}
+				IntOpts opts {
+					.min_width = has_width ? width : 0,
+					.precision = has_precision ? precision : 1,
+					.negative = negative,
+					.always_write_sign = flags & flags::SIGN,
+					.plus_as_space = flags & flags::SPACE,
+					.pad_with_zero = flags & flags::ZERO,
+					.right_pad = flags & flags::LJUST,
+					.upper = false,
+					.write_prefix = false
+				};
+
+				if (!write_int(value, 10, opts)) {
+					return -1;
 				}
 
 				break;
 			}
 			case 'f':
 			case 'F':
-			case 'g':
 			{
-				bool g = *fmt == 'g';
+				auto specific = *fmt;
+				bool upper = specific == 'F';
+
 				++fmt;
 
 				long double value;
@@ -447,47 +596,48 @@ EXPORT int vfprintf(FILE* __restrict file, const char* __restrict fmt, va_list a
 					value = va_arg(ap, long double);
 				}
 				else {
-					if (state != State::None) {
-						println("unimplemented printf f/g state ", static_cast<int>(state));
-					}
-					__ensure(state == State::None);
+					__ensure(state == State::None || state == State::l);
 					value = va_arg(ap, double);
 				}
 
-				if (value < 0) {
-					value *= -1;
-					if (!write("-", 1)) {
-						return -1;
-					}
-				}
-				else if ((flags & flags::SIGN) && !write("+", 1)) {
-					return -1;
-				}
-
 				if (isinf(value)) {
-					if (!write("inf", 3)) {
+					if (!write(upper ? "INF" : "inf", 3)) {
 						return -1;
 					}
 					break;
 				}
 				else if (isnan(value)) {
-					if (!write("nan", 3)) {
+					if (!write(upper ? "NAN" : "nan", 3)) {
 						return -1;
 					}
 					break;
 				}
 
-				if (g) {
-					println("printf: g modifier acts like f");
+				bool negative = false;
+				if (value < 0) {
+					value *= -1;
+					negative = true;
 				}
-				__ensure(!has_width);
 
 				auto int_part = static_cast<long long>(value);
 				auto dec_part = value - static_cast<long double>(int_part);
 
-				if (!write_int(int_part, 10)) {
+				IntOpts opts {
+					.min_width = 0,
+					.precision = 1,
+					.negative = negative,
+					.always_write_sign = flags & flags::SIGN,
+					.plus_as_space = flags & flags::SPACE,
+					.pad_with_zero = flags & flags::ZERO,
+					.right_pad = flags & flags::LJUST,
+					.upper = false,
+					.write_prefix = false
+				};
+
+				if (!write_int(int_part, 10, opts)) {
 					return -1;
 				}
+
 				if (!has_precision) {
 					precision = 6;
 				}
@@ -515,54 +665,66 @@ EXPORT int vfprintf(FILE* __restrict file, const char* __restrict fmt, va_list a
 				break;
 			}
 			case 'e':
+			case 'E':
 			{
-				++fmt;
+				auto specific = *fmt;
+				bool upper = specific == 'E';
 
-				println("printf: e is implemented incorrectly as f");
+				++fmt;
 
 				long double value;
 				if (state == State::L) {
 					value = va_arg(ap, long double);
 				}
 				else {
-					if (state != State::None) {
-						println("unimplemented printf f/g state ", static_cast<int>(state));
-					}
-					__ensure(state == State::None);
+					__ensure(state == State::None || state == State::l);
 					value = va_arg(ap, double);
 				}
 
-				if (value < 0) {
-					value *= -1;
-					if (!write("-", 1)) {
-						return -1;
-					}
-				}
-				else if ((flags & flags::SIGN) && !write("+", 1)) {
-					return -1;
-				}
-
 				if (isinf(value)) {
-					if (!write("inf", 3)) {
+					if (!write(upper ? "INF" : "inf", 3)) {
 						return -1;
 					}
 					break;
 				}
 				else if (isnan(value)) {
-					if (!write("nan", 3)) {
+					if (!write(upper ? "NAN" : "nan", 3)) {
 						return -1;
 					}
 					break;
 				}
 
-				__ensure(!has_width);
+				bool negative = false;
+				if (value < 0) {
+					value *= -1;
+					negative = true;
+				}
+
+				int exponent;
+				value = frexp10l(value, &exponent) * 10;
+				if (value != 0) {
+					--exponent;
+				}
 
 				auto int_part = static_cast<long long>(value);
 				auto dec_part = value - static_cast<long double>(int_part);
 
-				if (!write_int(int_part, 10)) {
+				IntOpts opts {
+					.min_width = 0,
+					.precision = 1,
+					.negative = negative,
+					.always_write_sign = flags & flags::SIGN,
+					.plus_as_space = flags & flags::SPACE,
+					.pad_with_zero = flags & flags::ZERO,
+					.right_pad = flags & flags::LJUST,
+					.upper = false,
+					.write_prefix = false
+				};
+
+				if (!write_int(int_part, 10, opts)) {
 					return -1;
 				}
+
 				if (!has_precision) {
 					precision = 6;
 				}
@@ -587,50 +749,318 @@ EXPORT int vfprintf(FILE* __restrict file, const char* __restrict fmt, va_list a
 					dec_part -= dec_part_int;
 				}
 
+				if (upper) {
+					if (!write(exponent >= 0 ? "E+" : "E-", 2)) {
+						return -1;
+					}
+				}
+				else {
+					if (!write(exponent >= 0 ? "e+" : "e-", 2)) {
+						return -1;
+					}
+				}
+
+				if (exponent < 0) {
+					exponent *= -1;
+				}
+
+				opts.precision = 2;
+				opts.negative = false;
+				opts.always_write_sign = false;
+				opts.plus_as_space = false;
+
+				if (!write_int(static_cast<uintmax_t>(exponent), 10, opts)) {
+					return -1;
+				}
+
+				break;
+			}
+			case 'a':
+			case 'A':
+			{
+				bool upper = *fmt == 'A';
+
+				++fmt;
+
+				long double value;
+				if (state == State::L) {
+					value = va_arg(ap, long double);
+				}
+				else {
+					__ensure(state == State::None || state == State::l);
+					value = va_arg(ap, double);
+				}
+
+				if (isinf(value)) {
+					if (!write(upper ? "INF": "inf", 3)) {
+						return -1;
+					}
+					break;
+				}
+				else if (isnan(value)) {
+					if (!write(upper ? "NAN" : "nan", 3)) {
+						return -1;
+					}
+					break;
+				}
+
+				bool negative = false;
+				if (value < 0) {
+					value *= -1;
+					negative = true;
+				}
+
+				int exponent;
+				value = frexpl(value, &exponent) * 2;
+				if (value != 0) {
+					--exponent;
+				}
+
+				auto int_part = static_cast<long long>(value);
+				auto dec_part = value - static_cast<long double>(int_part);
+
+				IntOpts opts {
+					.min_width = 0,
+					.precision = 1,
+					.negative = negative,
+					.always_write_sign = flags & flags::SIGN,
+					.plus_as_space = flags & flags::SPACE,
+					.pad_with_zero = flags & flags::ZERO,
+					.right_pad = flags & flags::LJUST,
+					.upper = upper,
+					.write_prefix = true
+				};
+
+				if (!write_int(int_part, 16, opts)) {
+					return -1;
+				}
+
+				if (!has_precision) {
+					precision = 6;
+				}
+
+				if (dec_part == 0.0) {
+					precision = 0;
+				}
+
+				if (precision > 0 || (flags & flags::ALT)) {
+					if (!write(".", 1)) {
+						return -1;
+					}
+				}
+
+				dec_part *= 16;
+				auto dec_part_int = static_cast<long long>(dec_part);
+				dec_part -= dec_part_int;
+
+				auto chars = upper ? CHARS : LOWER_CHARS;
+
+				int i = 0;
+				for (; i < precision; ++i) {
+					if (!write(&chars[dec_part_int], 1)) {
+						return -1;
+					}
+					dec_part *= 16;
+					dec_part_int = static_cast<long long>(dec_part);
+					dec_part -= dec_part_int;
+				}
+
+				if (upper) {
+					if (!write(exponent >= 0 ? "P+" : "P-", 2)) {
+						return -1;
+					}
+				}
+				else {
+					if (!write(exponent >= 0 ? "p+" : "p-", 2)) {
+						return -1;
+					}
+				}
+
+				if (exponent < 0) {
+					exponent *= -1;
+				}
+
+				opts.negative = false;
+				opts.always_write_sign = false;
+				opts.plus_as_space = false;
+
+				if (!write_int(static_cast<uintmax_t>(exponent), 10, opts)) {
+					return -1;
+				}
+
+				break;
+			}
+			case 'g':
+			case 'G':
+			{
+				auto specific = *fmt;
+				bool upper = specific == 'G';
+
+				++fmt;
+
+				long double value;
+				if (state == State::L) {
+					value = va_arg(ap, long double);
+				}
+				else {
+					__ensure(state == State::None || state == State::l);
+					value = va_arg(ap, double);
+				}
+
+				if (isinf(value)) {
+					if (!write(upper ? "INF" : "inf", 3)) {
+						return -1;
+					}
+					break;
+				}
+				else if (isnan(value)) {
+					if (!write(upper ? "NAN" : "nan", 3)) {
+						return -1;
+					}
+					break;
+				}
+
+				bool negative = false;
+				if (value < 0) {
+					value *= -1;
+					negative = true;
+				}
+
+				int tmp_precision = precision;
+				if (!has_precision) {
+					tmp_precision = 6;
+				}
+				else if (tmp_precision == 0) {
+					tmp_precision = 1;
+				}
+
+				int exponent;
+				auto possible_value = frexp10l(value, &exponent) * 10;
+				if (possible_value != 0) {
+					--exponent;
+				}
+
+				bool write_exponent = false;
+				if (tmp_precision > exponent && exponent >= -4) {
+					precision = tmp_precision - 1 - exponent;
+				}
+				else {
+					value = possible_value;
+					precision = tmp_precision - 1;
+					write_exponent = true;
+				}
+
+				auto int_part = static_cast<long long>(value);
+				auto dec_part = value - static_cast<long double>(int_part);
+
+				IntOpts opts {
+					.min_width = 0,
+					.precision = 1,
+					.negative = negative,
+					.always_write_sign = flags & flags::SIGN,
+					.plus_as_space = flags & flags::SPACE,
+					.pad_with_zero = flags & flags::ZERO,
+					.right_pad = flags & flags::LJUST,
+					.upper = false,
+					.write_prefix = false
+				};
+
+				if (!write_int(int_part, 10, opts)) {
+					return -1;
+				}
+
+				if (dec_part == 0.0) {
+					precision = 0;
+				}
+
+				if (precision > 0 || (flags & flags::ALT)) {
+					if (!write(".", 1)) {
+						return -1;
+					}
+				}
+
+				dec_part *= 10;
+				auto dec_part_int = static_cast<long long>(dec_part);
+				dec_part -= dec_part_int;
+
+				auto tmp_dec_part = dec_part;
+				auto tmp_dec_part_int = dec_part_int;
+
+				int last_non_zero = 0;
+				for (int i = 0; i < precision; ++i) {
+					if (tmp_dec_part_int == 0) {
+						tmp_dec_part *= 10;
+						tmp_dec_part_int = static_cast<long long>(tmp_dec_part);
+						tmp_dec_part -= tmp_dec_part_int;
+						continue;
+					}
+
+					last_non_zero = i;
+
+					tmp_dec_part *= 10;
+					tmp_dec_part_int = static_cast<long long>(tmp_dec_part);
+					tmp_dec_part -= tmp_dec_part_int;
+				}
+
+				precision = last_non_zero;
+
+				int i = 0;
+				for (; i < precision; ++i) {
+					if (!write(&CHARS[dec_part_int], 1)) {
+						return -1;
+					}
+					dec_part *= 10;
+					dec_part_int = static_cast<long long>(dec_part);
+					dec_part -= dec_part_int;
+				}
+
+				if (write_exponent) {
+					if (upper) {
+						if (!write(exponent >= 0 ? "E+" : "E-", 2)) {
+							return -1;
+						}
+					}
+					else {
+						if (!write(exponent >= 0 ? "e+" : "e-", 2)) {
+							return -1;
+						}
+					}
+
+					if (exponent < 0) {
+						exponent *= -1;
+					}
+
+					opts.precision = 2;
+					opts.negative = false;
+					opts.always_write_sign = false;
+					opts.plus_as_space = false;
+
+					if (!write_int(static_cast<uintmax_t>(exponent), 10, opts)) {
+						return -1;
+					}
+				}
+
 				break;
 			}
 			case 'u':
 			{
 				++fmt;
+				auto value = pop_unsigned_int();
 
-				uintmax_t value;
+				IntOpts opts {
+					.min_width = has_width ? width : 0,
+					.precision = has_precision ? precision : 1,
+					.negative = false,
+					.always_write_sign = flags & flags::SIGN,
+					.plus_as_space = flags & flags::SPACE,
+					.pad_with_zero = flags & flags::ZERO,
+					.right_pad = flags & flags::LJUST,
+					.upper = false,
+					.write_prefix = false
+				};
 
-				if (state == State::None ||
-				    state == State::hh ||
-				    state == State::h) {
-					value = va_arg(ap, unsigned int);
-				}
-				else if (state == State::l ||
-				         state == State::t) {
-					value = va_arg(ap, unsigned long);
-				}
-				else if (state == State::ll) {
-					value = va_arg(ap, unsigned long long);
-				}
-				else if (state == State::j) {
-					value = va_arg(ap, uintmax_t);
-				}
-				else if (state == State::z) {
-					value = va_arg(ap, size_t);
-				}
-				else {
-					println("state ", static_cast<int>(state));
-					__ensure(false && "unimplemented printf %u state");
-				}
-
-				if ((flags & flags::SIGN) && !write("+", 1)) {
+				if (!write_int(value, 10, opts)) {
 					return -1;
-				}
-
-				if (has_width && !has_precision) {
-					if (!write_int(value, 10, width, (flags & flags::ZERO) ? '0': ' ')) {
-						return -1;
-					}
-				}
-				else {
-					if (!write_int(value, 10)) {
-						return -1;
-					}
 				}
 
 				break;
@@ -638,102 +1068,76 @@ EXPORT int vfprintf(FILE* __restrict file, const char* __restrict fmt, va_list a
 			case 'x':
 			case 'X':
 			{
-				uintmax_t value;
-
-				if (state == State::None ||
-				    state == State::hh ||
-				    state == State::h) {
-					value = va_arg(ap, unsigned int);
-				}
-				else if (state == State::l ||
-					state == State::t) {
-					value = va_arg(ap, unsigned long);
-				}
-				else if (state == State::ll) {
-					value = va_arg(ap, unsigned long long);
-				}
-				else if (state == State::j) {
-					value = va_arg(ap, uintmax_t);
-				}
-				else if (state == State::z) {
-					value = va_arg(ap, size_t);
-				}
-				else {
-					println("state ", static_cast<int>(state));
-					__ensure(false && "unimplemented printf %x state");
-				}
-
-				if ((flags & flags::SIGN) && !write("+", 1)) {
-					return -1;
-				}
-				if (flags & flags::ALT) {
-					if (!write("0x", 2)) {
-						return -1;
-					}
-				}
-
-				if (has_width && !has_precision) {
-					if (!write_int(value, 16, width, (flags & flags::ZERO) ? '0': ' ', *fmt == 'x')) {
-						return -1;
-					}
-				}
-				else {
-					if (!write_int(value, 16, 0, 0, *fmt == 'x')) {
-						return -1;
-					}
-				}
+				auto upper = *fmt == 'X';
 
 				++fmt;
+				auto value = pop_unsigned_int();
+
+				IntOpts opts {
+					.min_width = has_width ? width : 0,
+					.precision = has_precision ? precision : 1,
+					.negative = false,
+					.always_write_sign = flags & flags::SIGN,
+					.plus_as_space = flags & flags::SPACE,
+					.pad_with_zero = flags & flags::ZERO,
+					.right_pad = flags & flags::LJUST,
+					.upper = upper,
+					.write_prefix = flags & flags::ALT
+				};
+
+				if (!write_int(value, 16, opts)) {
+					return -1;
+				}
+
 				break;
 			}
 			case 'o':
 			{
-				uintmax_t value;
+				++fmt;
+				auto value = pop_unsigned_int();
 
-				if (state == State::None ||
-					state == State::hh ||
-					state == State::h) {
-					value = va_arg(ap, unsigned int);
-				}
-				else if (state == State::l ||
-					state == State::t) {
-					value = va_arg(ap, unsigned long);
-				}
-				else if (state == State::ll) {
-					value = va_arg(ap, unsigned long long);
-				}
-				else if (state == State::j) {
-					value = va_arg(ap, uintmax_t);
-				}
-				else if (state == State::z) {
-					value = va_arg(ap, size_t);
-				}
-				else {
-					println("state ", static_cast<int>(state));
-					__ensure(false && "unimplemented printf %o state");
-				}
+				IntOpts opts {
+					.min_width = has_width ? width : 0,
+					.precision = has_precision ? precision : 1,
+					.negative = false,
+					.always_write_sign = flags & flags::SIGN,
+					.plus_as_space = flags & flags::SPACE,
+					.pad_with_zero = flags & flags::ZERO,
+					.right_pad = flags & flags::LJUST,
+					.upper = false,
+					.write_prefix = flags & flags::ALT
+				};
 
-				if ((flags & flags::SIGN) && !write("+", 1)) {
+				if (!write_int(value, 8, opts)) {
 					return -1;
 				}
-				if (flags & flags::ALT) {
-					if (!write("0", 1)) {
-						return -1;
-					}
-				}
 
-				if (has_width && !has_precision) {
-					if (!write_int(value, 8, width, (flags & flags::ZERO) ? '0': ' ', false)) {
-						return -1;
-					}
-				}
-				else {
-					if (!write_int(value, 8, 0, 0, false)) {
-						return -1;
-					}
-				}
+				break;
+			}
+			case 'b':
+			case 'B':
+			{
+				auto upper = *fmt == 'B';
 
 				++fmt;
+				auto value = pop_unsigned_int();
+
+				IntOpts opts {
+					.min_width = has_width ? width : 0,
+					.precision = has_precision ? precision : 1,
+					.negative = false,
+					.always_write_sign = flags & flags::SIGN,
+					.plus_as_space = flags & flags::SPACE,
+					.pad_with_zero = flags & flags::ZERO,
+					.right_pad = flags & flags::LJUST,
+					.upper = upper,
+					.write_prefix = flags & flags::ALT
+				};
+
+				if (!write_int(value, 2, opts)) {
+					return -1;
+				}
+
 				break;
 			}
 			case 'p':
@@ -741,22 +1145,21 @@ EXPORT int vfprintf(FILE* __restrict file, const char* __restrict fmt, va_list a
 				++fmt;
 
 				auto value = reinterpret_cast<uintptr_t>(va_arg(ap, void*));
-				if ((flags & flags::SIGN) && !write("+", 1)) {
-					return -1;
-				}
-				if (!write("0x", 2)) {
-					return -1;
-				}
 
-				if (has_width && !has_precision) {
-					if (!write_int(value, 16, width, (flags & flags::ZERO) ? '0': ' ', false)) {
-						return -1;
-					}
-				}
-				else {
-					if (!write_int(value, 16, 0, 0, false)) {
-						return -1;
-					}
+				IntOpts opts {
+					.min_width = 0,
+					.precision = 1,
+					.negative = false,
+					.always_write_sign = false,
+					.plus_as_space = false,
+					.pad_with_zero = false,
+					.right_pad = false,
+					.upper = false,
+					.write_prefix = true
+				};
+
+				if (!write_int(value, 16, opts)) {
+					return -1;
 				}
 
 				break;
@@ -767,7 +1170,7 @@ EXPORT int vfprintf(FILE* __restrict file, const char* __restrict fmt, va_list a
 				__ensure(flags == 0);
 
 				if (state == State::l) {
-					auto c = static_cast<wchar_t>(va_arg(ap, int));
+					auto c = static_cast<wchar_t>(va_arg(ap, wint_t));
 					char buf[4];
 					auto res = wcrtomb(buf, c, nullptr);
 					if (res == static_cast<size_t>(-1)) {
@@ -899,6 +1302,41 @@ EXPORT int vfprintf(FILE* __restrict file, const char* __restrict fmt, va_list a
 							return -1;
 						}
 					}
+				}
+
+				break;
+			}
+			case 'n':
+			{
+				++fmt;
+
+				switch (state) {
+					case State::None:
+						*va_arg(ap, int*) = static_cast<int>(written);
+						break;
+					case State::hh:
+						*va_arg(ap, signed char*) = static_cast<signed char>(written);
+						break;
+					case State::h:
+						*va_arg(ap, short*) = static_cast<short>(written);
+						break;
+					case State::l:
+						*va_arg(ap, long*) = static_cast<long>(written);
+						break;
+					case State::ll:
+						*va_arg(ap, long long*) = static_cast<long long>(written);
+						break;
+					case State::j:
+						*va_arg(ap, intmax_t*) = static_cast<intmax_t>(written);
+						break;
+					case State::z:
+						*va_arg(ap, ssize_t*) = static_cast<ssize_t>(written);
+						break;
+					case State::t:
+						*va_arg(ap, ptrdiff_t*) = static_cast<ptrdiff_t>(written);
+						break;
+					case State::L:
+						break;
 				}
 
 				break;
