@@ -8,6 +8,14 @@ namespace {
 }
 
 EXPORT uintmax_t strtoumax(const char* __restrict ptr, char** __restrict end_ptr, int base) {
+	auto start = ptr;
+
+	while (isspace(*ptr)) {
+		++ptr;
+	}
+
+	auto after_space = ptr;
+
 	bool sign = false;
 	if (*ptr == '-') {
 		++ptr;
@@ -22,12 +30,21 @@ EXPORT uintmax_t strtoumax(const char* __restrict ptr, char** __restrict end_ptr
 			base = 16;
 			ptr += 2;
 		}
+		else if (ptr[0] == '0' && tolower(ptr[1]) == 'b') {
+			base = 2;
+			ptr += 2;
+		}
 		else if (ptr[0] == '0') {
 			base = 8;
 			++ptr;
 		}
 		else {
 			base = 10;
+		}
+	}
+	else if (base == 2) {
+		if (ptr[0] == '0' && tolower(ptr[1]) == 'b') {
+			ptr += 2;
 		}
 	}
 	else if (base == 8) {
@@ -60,7 +77,12 @@ EXPORT uintmax_t strtoumax(const char* __restrict ptr, char** __restrict end_ptr
 	}
 
 	if (end_ptr) {
-		*end_ptr = const_cast<char*>(ptr);
+		if (after_space != ptr) {
+			*end_ptr = const_cast<char*>(ptr);
+		}
+		else {
+			*end_ptr = const_cast<char*>(start);
+		}
 	}
 	if (sign) {
 		value = -value;
@@ -69,6 +91,14 @@ EXPORT uintmax_t strtoumax(const char* __restrict ptr, char** __restrict end_ptr
 }
 
 EXPORT intmax_t strtoimax(const char* __restrict ptr, char** __restrict end_ptr, int base) {
+	auto start = ptr;
+
+	while (isspace(*ptr)) {
+		++ptr;
+	}
+
+	auto after_space = ptr;
+
 	bool sign = false;
 	if (*ptr == '-') {
 		++ptr;
@@ -83,12 +113,21 @@ EXPORT intmax_t strtoimax(const char* __restrict ptr, char** __restrict end_ptr,
 			base = 16;
 			ptr += 2;
 		}
+		else if (ptr[0] == '0' && tolower(ptr[1]) == 'b') {
+			base = 2;
+			ptr += 2;
+		}
 		else if (ptr[0] == '0') {
 			base = 8;
 			++ptr;
 		}
 		else {
 			base = 10;
+		}
+	}
+	else if (base == 2) {
+		if (ptr[0] == '0' && tolower(ptr[1]) == 'b') {
+			ptr += 2;
 		}
 	}
 	else if (base == 8) {
@@ -126,7 +165,12 @@ EXPORT intmax_t strtoimax(const char* __restrict ptr, char** __restrict end_ptr,
 	}
 
 	if (end_ptr) {
-		*end_ptr = const_cast<char*>(ptr);
+		if (after_space != ptr) {
+			*end_ptr = const_cast<char*>(ptr);
+		}
+		else {
+			*end_ptr = const_cast<char*>(start);
+		}
 	}
 	if (sign) {
 		value = -value;
