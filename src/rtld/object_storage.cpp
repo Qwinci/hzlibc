@@ -6,35 +6,64 @@
 #include "sys/mman.h"
 #include "opts.hpp"
 
+#if !ANSI_ONLY
+#include "dirent.h"
+#endif
+
 #define memset __builtin_memset
 
-// todo unhardcode this
 namespace {
-	constinit hz::string_view SYSTEM_LIBRARY_PATHS[7] {};
+	constinit hz::string_view DEFAULT_SYSTEM_LIBRARY_PATHS[] {
+		DEFAULT_LIBRARY_PATHS
+	};
 
-	void init_system_paths() {
-		SYSTEM_LIBRARY_PATHS[0] =
-#if UINTPTR_MAX == UINT64_MAX
-		"/usr/local/lib64";
-#else
-		"/usr/local/lib32";
-#endif
-		SYSTEM_LIBRARY_PATHS[1] = "/usr/local/lib";
-		SYSTEM_LIBRARY_PATHS[2] =
-#if UINTPTR_MAX == UINT64_MAX
-		"/usr/lib64";
-#else
-		"/usr/lib32";
-#endif
-		SYSTEM_LIBRARY_PATHS[3] = "/usr/lib";
-		SYSTEM_LIBRARY_PATHS[4] = "/usr/lib/llvm/18/lib64";
-		SYSTEM_LIBRARY_PATHS[5] = "/usr/lib/gcc/x86_64-pc-linux-gnu/13";
-		SYSTEM_LIBRARY_PATHS[6] = ".";
-	}
+	constinit hz::vector<hz::string<Allocator>, Allocator> LIBRARY_PATHS {Allocator {}};
 }
 
 ObjectStorage::ObjectStorage() {
-	init_system_paths();
+	for (auto path : DEFAULT_SYSTEM_LIBRARY_PATHS) {
+		hz::string<Allocator> alloc_path {path, Allocator {}};
+		LIBRARY_PATHS.push_back(std::move(alloc_path));
+	}
+
+	int fd;
+	if (sys_openat(AT_FDCWD, "/etc/hzlibc_ld.conf", O_RDONLY, 0, &fd) != 0) {
+		return;
+	}
+
+	struct stat64 s {};
+	if (sys_stat(StatTarget::Path, 0, "/etc/hzlibc_ld.conf", 0, &s) != 0) {
+		__ensure(sys_close(fd) == 0);
+		return;
+	}
+
+	hz::vector<char, Allocator> data {Allocator {}};
+	data.resize(s.st_size);
+
+	ssize_t tmp;
+	if (sys_read(fd, data.data(), data.size(), &tmp) != 0) {
+		__ensure(sys_close(fd) == 0);
+		return;
+	}
+
+	__ensure(sys_close(fd) == 0);
+
+	hz::string_view str {data.data()};
+	size_t offset = 0;
+	while (true) {
+		auto end = str.find('\n', offset);
+		auto line = str.substr_abs(offset, end);
+
+		hz::string<Allocator> alloc_path {line, Allocator {}};
+		LIBRARY_PATHS.push_back(std::move(alloc_path));
+
+		if (end == hz::string_view::npos) {
+			break;
+		}
+		else {
+			offset = end + 1;
+		}
+	}
 }
 
 void add_object_to_debug_list(SharedObject* object);
@@ -247,7 +276,7 @@ hz::result<SharedObject*, LoadError> ObjectStorage::load_object_with_name(Shared
 		}
 	}
 
-	for (auto& system_path : SYSTEM_LIBRARY_PATHS) {
+	for (auto& system_path : LIBRARY_PATHS) {
 		int dir_fd;
 		if (sys_openat(AT_FDCWD, system_path.data(), O_DIRECTORY, 0, &dir_fd) != 0) {
 			continue;

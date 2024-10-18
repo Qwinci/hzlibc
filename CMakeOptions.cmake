@@ -12,6 +12,15 @@ option(OPTIMIZED_ASM "Use optimized assembly routines (turn off if you get compi
 option(ENABLE_LIBC_TESTING "Enable libc testing" OFF)
 option(ANSI_ONLY "Only enable the ansi c part of the libc along with the dynamic linker" OFF)
 
+if(CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64")
+	set(ARCH_DEFAULT_LIBRARY_PATHS "/usr/local/lib64;/usr/lib64;/usr/local/lib;/usr/lib")
+else()
+	set(ARCH_DEFAULT_LIBRARY_PATHS "/usr/local/lib32;/usr/lib32;/usr/local/lib;/usr/lib")
+endif()
+
+set(DEFAULT_LIBRARY_PATHS "${ARCH_DEFAULT_LIBRARY_PATHS}" CACHE STRING
+	"Semicolon-separated list of default library search paths")
+
 if(ANSI_ONLY)
 	set(__HZLIBC_ANSI_ONLY 1)
 endif()
