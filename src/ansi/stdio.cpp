@@ -8,7 +8,6 @@
 #include "errno.h"
 #include "ctype.h"
 #include "math.h"
-#include "fenv.h"
 #include "wchar.h"
 #include <hz/new.hpp>
 #include <hz/algorithm.hpp>
@@ -29,11 +28,8 @@ ssize_t fd_file_read(FILE* file, void* data, size_t size) {
 	ssize_t unget = 0;
 	auto* ptr = static_cast<unsigned char*>(data);
 	while (size && file->ungetc_size) {
-		auto c = *file->ungetc_read_ptr++;
+		auto c = *--file->ungetc_ptr;
 		*ptr++ = c;
-		if (file->ungetc_read_ptr == file->ungetc_buffer + sizeof(file->ungetc_buffer)) {
-			file->ungetc_read_ptr = file->ungetc_buffer;
-		}
 		--file->ungetc_size;
 		--size;
 		++unget;
@@ -1396,11 +1392,8 @@ namespace {
 		ssize_t unget = 0;
 		auto* ptr = static_cast<unsigned char*>(data);
 		while (size && file->ungetc_size) {
-			auto c = *file->ungetc_read_ptr++;
+			auto c = *--file->ungetc_ptr;
 			*ptr++ = c;
-			if (file->ungetc_read_ptr == file->ungetc_buffer + sizeof(file->ungetc_buffer)) {
-				file->ungetc_read_ptr = file->ungetc_buffer;
-			}
 			--file->ungetc_size;
 			--size;
 			++unget;
@@ -1470,9 +1463,34 @@ EXPORT int vfscanf(FILE* __restrict file, const char* __restrict fmt, va_list ap
 		ungetc(c, file);
 		return c;
 	};
+
+	size_t consumed_chars = 0;
+
 	auto consume = [&]() {
 		char c;
 		file->read(file, &c, 1);
+		++consumed_chars;
+	};
+
+	auto consume_if_str_equal = [&](hz::string_view str) {
+		char buf[32];
+		int i = 0;
+		for (auto c : str) {
+			auto actual = look_ahead();
+			if (tolower(actual) == c) {
+				consume();
+				buf[i++] = actual;
+			}
+			else {
+				for (int j = i; j > 0; --j) {
+					__ensure(ungetc(buf[j - 1], file) == buf[j - 1]);
+				}
+				consumed_chars -= i;
+				return false;
+			}
+		}
+
+		return true;
 	};
 
 	for (; *fmt; ++fmt) {
@@ -1488,7 +1506,18 @@ EXPORT int vfscanf(FILE* __restrict file, const char* __restrict fmt, va_list ap
 		}
 
 		if (*fmt != '%') {
-			CHECK_CONSUME(look_ahead() == *fmt);
+			if (look_ahead() == *fmt) {
+				consume();
+			}
+			else {
+				if (look_ahead() == 0) {
+					return *fmt ? (consumed ? consumed : EOF) : consumed;
+				}
+				else {
+					return consumed;
+				}
+			}
+
 			continue;
 		}
 		else if (*fmt == '%' && fmt[1] == '%') {
@@ -1578,6 +1607,46 @@ EXPORT int vfscanf(FILE* __restrict file, const char* __restrict fmt, va_list ap
 				*dest++ = c;
 			}
 		};
+		auto write_to_dest_wchar = [&](wchar_t c) {
+			if (dest) {
+				auto* ptr = reinterpret_cast<wchar_t*>(dest);
+				*ptr++ = c;
+				dest = reinterpret_cast<char*>(ptr);
+			}
+		};
+
+		auto write_int_to_dest = [&](uintmax_t value) {
+			if (dest) {
+				switch (state) {
+					case State::None:
+						*reinterpret_cast<unsigned int*>(dest) = value;
+						break;
+					case State::hh:
+						*reinterpret_cast<unsigned char*>(dest) = value;
+						break;
+					case State::h:
+						*reinterpret_cast<unsigned short*>(dest) = value;
+						break;
+					case State::l:
+						*reinterpret_cast<unsigned long*>(dest) = value;
+						break;
+					case State::ll:
+						*reinterpret_cast<unsigned long long*>(dest) = value;
+						break;
+					case State::j:
+						*reinterpret_cast<uintmax_t*>(dest) = value;
+						break;
+					case State::z:
+						*reinterpret_cast<size_t*>(dest) = value;
+						break;
+					case State::t:
+						*reinterpret_cast<ptrdiff_t*>(dest) = static_cast<ptrdiff_t>(value);
+						break;
+					case State::L:
+						panic("invalid vfscanf u state ", static_cast<int>(state));
+				}
+			}
+		};
 
 		switch (*fmt) {
 			case 'c':
@@ -1585,10 +1654,8 @@ EXPORT int vfscanf(FILE* __restrict file, const char* __restrict fmt, va_list ap
 				if (!has_width) {
 					max_width = 1;
 				}
-				if (state == State::l) {
-					__ensure(!"scanf %lc is not implemented");
-				}
-				else {
+
+				if (state == State::None) {
 					for (int i = 0; i < max_width; ++i) {
 						auto c = look_ahead();
 						if (!c) {
@@ -1598,7 +1665,21 @@ EXPORT int vfscanf(FILE* __restrict file, const char* __restrict fmt, va_list ap
 						write_to_dest(c);
 					}
 				}
-				++consumed;
+				else {
+					__ensure(state == State::l);
+					for (int i = 0; i < max_width; ++i) {
+						auto c = look_ahead();
+						if (!c) {
+							RETURN;
+						}
+						consume();
+						write_to_dest_wchar(c);
+					}
+				}
+
+				if (dest) {
+					++consumed;
+				}
 				break;
 			}
 			case 's':
@@ -1606,29 +1687,157 @@ EXPORT int vfscanf(FILE* __restrict file, const char* __restrict fmt, va_list ap
 				if (!has_width) {
 					max_width = INT_MAX;
 				}
-				if (state == State::l) {
-					panic("scanf %ls is not implemented");
-				}
-				else {
+
+				int used_chars = 0;
+
+				if (state == State::None) {
 					for (int i = 0; i < max_width; ++i) {
 						auto c = look_ahead();
-						if (!c) {
-							RETURN;
-						}
-						else if (isspace(c)) {
+						if (!c || isspace(c)) {
 							break;
 						}
 						consume();
 						write_to_dest(c);
+						++used_chars;
 					}
 					write_to_dest(0);
 				}
-				++consumed;
+				else {
+					__ensure(state == State::l);
+					for (int i = 0; i < max_width; ++i) {
+						auto c = look_ahead();
+						if (!c || isspace(c)) {
+							break;
+						}
+						consume();
+						write_to_dest_wchar(c);
+						++used_chars;
+					}
+					write_to_dest_wchar(0);
+				}
+
+				if (dest && used_chars) {
+					++consumed;
+				}
+				else if (!used_chars) {
+					if (!consumed && !look_ahead()) {
+						return EOF;
+					}
+				}
+				break;
+			}
+			case '[':
+			{
+				if (!has_width) {
+					max_width = INT_MAX;
+				}
+
+				++fmt;
+
+				auto set_start = fmt;
+				bool invert = false;
+				if (*set_start == '^') {
+					invert = true;
+					++set_start;
+				}
+
+				while (true) {
+					if (!*fmt) {
+						return -1;
+					}
+
+					if (fmt != set_start && *fmt == ']') {
+						break;
+					}
+
+					++fmt;
+				}
+
+				hz::string_view set {set_start, static_cast<size_t>(fmt - set_start)};
+
+				auto set_matches = [&](int c) {
+					if (invert) {
+						for (size_t i = 0; i < set.size(); ++i) {
+							auto set_c = set[i];
+							if (set_c == '-' && i != 0 && i + 1 < set.size()) {
+								auto start = set_c;
+								auto end = set[i + 1];
+								++i;
+								if (c >= start && c <= end) {
+									return false;
+								}
+							}
+							else {
+								if (c == set_c) {
+									return false;
+								}
+							}
+						}
+
+						return true;
+					}
+					else {
+						for (size_t i = 0; i < set.size(); ++i) {
+							auto set_c = set[i];
+							if (set_c == '-' && i != 0 && i + 1 < set.size()) {
+								auto start = set_c;
+								auto end = set[i + 1];
+								++i;
+								if (c >= start && c <= end) {
+									return true;
+								}
+							}
+							else {
+								if (c == set_c) {
+									return true;
+								}
+							}
+						}
+
+						return false;
+					}
+				};
+
+				int used_chars = 0;
+
+				if (state == State::None) {
+					for (int i = 0; i < max_width; ++i) {
+						auto c = look_ahead();
+						if (!c || !set_matches(c)) {
+							break;
+						}
+						consume();
+						write_to_dest(c);
+						++used_chars;
+					}
+					write_to_dest(0);
+				}
+				else {
+					__ensure(state == State::l);
+					for (int i = 0; i < max_width; ++i) {
+						auto c = look_ahead();
+						if (!c || !set_matches(c)) {
+							break;
+						}
+						consume();
+						write_to_dest_wchar(c);
+						++used_chars;
+					}
+					write_to_dest_wchar(0);
+				}
+
+				if (dest && used_chars) {
+					++consumed;
+				}
+				else if (!used_chars) {
+					if (!consumed && !look_ahead()) {
+						return EOF;
+					}
+				}
 				break;
 			}
 			case 'u':
 			case 'd':
-			case 'i':
 			{
 				uintmax_t value = 0;
 
@@ -1636,15 +1845,20 @@ EXPORT int vfscanf(FILE* __restrict file, const char* __restrict fmt, va_list ap
 					max_width = INT_MAX;
 				}
 
+				int used_chars = 0;
+				int used_extra_chars = 0;
+
 				bool sign = false;
 				if (max_width && look_ahead() == '-') {
 					consume();
 					sign = true;
 					--max_width;
+					++used_extra_chars;
 				}
 				else if (max_width && look_ahead() == '+') {
 					consume();
 					--max_width;
+					++used_extra_chars;
 				}
 
 				for (int i = 0; i < max_width; ++i) {
@@ -1655,54 +1869,217 @@ EXPORT int vfscanf(FILE* __restrict file, const char* __restrict fmt, va_list ap
 					consume();
 					value *= 10;
 					value += c - '0';
+					++used_chars;
 				}
 
 				if (sign) {
 					value *= -1;
 				}
 
-				if (dest) {
-					switch (state) {
-						case State::None:
-							*reinterpret_cast<unsigned int*>(dest) = value;
-							break;
-						case State::l:
-							*reinterpret_cast<unsigned long*>(dest) = value;
-							break;
-						default:
-							panic("unimplemented vfscanf u state ", static_cast<int>(state));
+				if (dest && used_chars) {
+					write_int_to_dest(value);
+					++consumed;
+				}
+				else if (!used_chars) {
+					if (!used_extra_chars && !look_ahead()) {
+						return EOF;
+					}
+					else {
+						return consumed;
 					}
 				}
-				++consumed;
 				break;
 			}
-			case 'x':
+			case 'i':
 			{
+				uintmax_t value = 0;
+
 				if (!has_width) {
 					max_width = INT_MAX;
 				}
+
+				int base = 10;
+				int used_chars = 0;
+				int used_extra_chars = 0;
 
 				bool sign = false;
 				if (max_width && look_ahead() == '-') {
 					consume();
 					sign = true;
 					--max_width;
+					++used_extra_chars;
 				}
 				else if (max_width && look_ahead() == '+') {
 					consume();
 					--max_width;
+					++used_extra_chars;
 				}
 
 				if (max_width && look_ahead() == '0') {
 					consume();
 					--max_width;
+					++used_chars;
 					if (look_ahead() == 'x' || look_ahead() == 'X') {
 						consume();
 						--max_width;
+						--used_chars;
+						used_extra_chars += 2;
+						base = 16;
+					}
+					else if (look_ahead() == 'b' || look_ahead() == 'B') {
+						consume();
+						--max_width;
+						--used_chars;
+						used_extra_chars += 2;
+						base = 2;
+					}
+					else {
+						base = 8;
 					}
 				}
 
-				unsigned int value = 0;
+				auto is_proper_digit = [&](int c) {
+					if (base != 8) {
+						return (c >= '0' && c <= '9') || (c >= 'a' && c <= LOWER_CHARS[base - 1]);
+					}
+					else {
+						return c >= '0' && c <= '7';
+					}
+				};
+
+				for (int i = 0; i < max_width; ++i) {
+					auto c = tolower(look_ahead());
+					if (!is_proper_digit(c)) {
+						break;
+					}
+					consume();
+					value *= base;
+					if (c <= '9') {
+						value += c - '0';
+					}
+					else {
+						value += c - 'a' + 10;
+					}
+					++used_chars;
+				}
+
+				if (sign) {
+					value *= -1;
+				}
+
+				if (dest && used_chars) {
+					write_int_to_dest(value);
+					++consumed;
+				}
+				else if (!used_chars) {
+					if (!used_extra_chars && !look_ahead()) {
+						return EOF;
+					}
+					else {
+						return consumed;
+					}
+				}
+				break;
+			}
+			case 'o':
+			{
+				if (!has_width) {
+					max_width = INT_MAX;
+				}
+
+				int used_chars = 0;
+				int used_extra_chars = 0;
+
+				bool sign = false;
+				if (max_width && look_ahead() == '-') {
+					consume();
+					sign = true;
+					--max_width;
+					++used_extra_chars;
+				}
+				else if (max_width && look_ahead() == '+') {
+					consume();
+					--max_width;
+					++used_extra_chars;
+				}
+
+				if (max_width && look_ahead() == '0') {
+					consume();
+					--max_width;
+					++used_chars;
+				}
+
+				uintmax_t value = 0;
+				for (int i = 0; i < max_width; ++i) {
+					auto c = look_ahead();
+					if (c < '0' || c > '7') {
+						break;
+					}
+					consume();
+					value *= 8;
+					value += c - '0';
+					++used_chars;
+				}
+
+				if (sign) {
+					value *= -1;
+				}
+
+				if (dest && used_chars) {
+					write_int_to_dest(value);
+					++consumed;
+				}
+				else if (!used_chars) {
+					if (!used_extra_chars && !look_ahead()) {
+						return EOF;
+					}
+					else {
+						return consumed;
+					}
+				}
+				break;
+			}
+			case 'x':
+			case 'X':
+			case 'p':
+			{
+				if (*fmt == 'p') {
+					state = State::l;
+				}
+
+				if (!has_width) {
+					max_width = INT_MAX;
+				}
+
+				int used_chars = 0;
+				int used_extra_chars = 0;
+
+				bool sign = false;
+				if (max_width && look_ahead() == '-') {
+					consume();
+					sign = true;
+					--max_width;
+					++used_extra_chars;
+				}
+				else if (max_width && look_ahead() == '+') {
+					consume();
+					--max_width;
+					++used_extra_chars;
+				}
+
+				if (max_width && look_ahead() == '0') {
+					consume();
+					--max_width;
+					++used_chars;
+					if (look_ahead() == 'x' || look_ahead() == 'X') {
+						consume();
+						--max_width;
+						--used_chars;
+						used_extra_chars += 2;
+					}
+				}
+
+				uintmax_t value = 0;
 				for (int i = 0; i < max_width; ++i) {
 					auto c = look_ahead();
 					if (!isxdigit(c)) {
@@ -1712,25 +2089,30 @@ EXPORT int vfscanf(FILE* __restrict file, const char* __restrict fmt, va_list ap
 					value *= 16;
 					c = static_cast<char>(tolower(c));
 					value += c <= '9' ? (c - '0') : (c - 'a' + 10);
+					++used_chars;
 				}
 
 				if (sign) {
 					value *= -1;
 				}
 
-				if (dest) {
-					switch (state) {
-						case State::None:
-							*reinterpret_cast<unsigned int*>(dest) = value;
-							break;
-						case State::l:
-							*reinterpret_cast<unsigned long*>(dest) = value;
-							break;
-						default:
-							panic("unimplemented vfscanf x state ", static_cast<int>(state));
+				if (dest && used_chars) {
+					write_int_to_dest(value);
+					++consumed;
+				}
+				else if (!used_chars) {
+					if (!used_extra_chars && !look_ahead()) {
+						return EOF;
+					}
+					else {
+						return consumed;
 					}
 				}
-				++consumed;
+				break;
+			}
+			case 'n':
+			{
+				write_int_to_dest(consumed_chars);
 				break;
 			}
 			case 'a':
@@ -1746,39 +2128,89 @@ EXPORT int vfscanf(FILE* __restrict file, const char* __restrict fmt, va_list ap
 					max_width = INT_MAX;
 				}
 
+				int used_extra_chars = 0;
+
 				bool sign = false;
 				if (max_width && look_ahead() == '-') {
 					consume();
 					sign = true;
 					--max_width;
+					++used_extra_chars;
 				}
 				else if (max_width && look_ahead() == '+') {
 					consume();
 					--max_width;
+					++used_extra_chars;
 				}
+
+				auto write_float_to_dest = [&](long double value) {
+					switch (state) {
+						case State::None:
+							*reinterpret_cast<float*>(dest) = static_cast<float>(value);
+							break;
+						case State::l:
+							*reinterpret_cast<double*>(dest) = static_cast<double>(value);
+							break;
+						case State::L:
+							*reinterpret_cast<long double*>(dest) = value;
+							break;
+						default:
+							panic("unsupported vfscanf f state ", static_cast<int>(state));
+					}
+				};
+
+				if (consume_if_str_equal("infinity") || consume_if_str_equal("inf")) {
+					if (dest) {
+						write_float_to_dest(INFINITY);
+						++consumed;
+					}
+					break;
+				}
+				else if (consume_if_str_equal("nan")) {
+					if (dest) {
+						write_float_to_dest(NAN);
+						++consumed;
+					}
+					break;
+				}
+
+				int used_chars = 0;
 
 				int base = 10;
 				if (max_width && look_ahead() == '0') {
 					consume();
 					--max_width;
+					++used_chars;
 					if (look_ahead() == 'x' || look_ahead() == 'X') {
 						consume();
 						--max_width;
 						base = 16;
+						--used_chars;
+						used_extra_chars += 2;
 					}
 				}
+
+				auto is_proper_digit = [&](int c) {
+					if (base != 8) {
+						return (c >= '0' && c <= '9') || (c >= 'a' && c <= LOWER_CHARS[base - 1]);
+					}
+					else {
+						return c >= '0' && c <= '7';
+					}
+				};
 
 				long double value = 0;
 				int index = 0;
 				for (; index < max_width; ++index) {
-					auto c = look_ahead();
-					if (c < '0' || c > CHARS[base - 1]) {
+					auto c = tolower(look_ahead());
+					if (!is_proper_digit(c)) {
 						break;
 					}
-					auto digit = c <= '9' ? (c - '0') : (tolower(c) - 'a' + 10);
+					auto digit = c <= '9' ? (c - '0') : (c - 'a' + 10);
 					consume();
 					value *= base;
 					value += digit;
+					++used_chars;
 				}
 
 				max_width -= index;
@@ -1791,14 +2223,15 @@ EXPORT int vfscanf(FILE* __restrict file, const char* __restrict fmt, va_list ap
 
 					index = 0;
 					for (; index < max_width; ++index) {
-						auto c = look_ahead();
-						if (c < '0' || c > CHARS[base - 1]) {
+						auto c = tolower(look_ahead());
+						if (!is_proper_digit(c)) {
 							break;
 						}
-						auto digit = c <= '9' ? (c - '0') : (tolower(c) - 'a' + 10);
+						auto digit = c <= '9' ? (c - '0') : (c - 'a' + 10);
 						consume();
 						decimal /= base;
 						value += decimal * digit;
+						++used_chars;
 					}
 
 					max_width -= index;
@@ -1855,22 +2288,18 @@ EXPORT int vfscanf(FILE* __restrict file, const char* __restrict fmt, va_list ap
 					value *= -1;
 				}
 
-				if (dest) {
-					switch (state) {
-						case State::None:
-							*reinterpret_cast<float*>(dest) = static_cast<float>(value);
-							break;
-						case State::l:
-							*reinterpret_cast<double*>(dest) = static_cast<double>(value);
-							break;
-						case State::L:
-							*reinterpret_cast<long double*>(dest) = value;
-							break;
-						default:
-							panic("unimplemented vfscanf f state ", static_cast<int>(state));
+				if (dest && used_chars) {
+					write_float_to_dest(value);
+					++consumed;
+				}
+				else if (!used_chars) {
+					if (!used_extra_chars && !look_ahead()) {
+						return EOF;
+					}
+					else {
+						return consumed;
 					}
 				}
-				++consumed;
 				break;
 			}
 			default:
@@ -1881,7 +2310,7 @@ EXPORT int vfscanf(FILE* __restrict file, const char* __restrict fmt, va_list ap
 		}
 	}
 
-	RETURN;
+	return consumed;
 }
 
 #undef CHECK_CONSUME
@@ -2040,9 +2469,6 @@ EXPORT int ungetc(int ch, FILE* file) {
 		return EOF;
 	}
 	*file->ungetc_ptr++ = static_cast<unsigned char>(ch);
-	if (file->ungetc_ptr == file->ungetc_buffer + sizeof(file->ungetc_buffer)) {
-		file->ungetc_ptr = file->ungetc_buffer;
-	}
 	++file->ungetc_size;
 	return ch;
 }
@@ -2102,7 +2528,6 @@ EXPORT int fseek(FILE* file, long offset, int origin) {
 		return -1;
 	}
 	file->ungetc_ptr = file->ungetc_buffer;
-	file->ungetc_read_ptr = file->ungetc_buffer;
 	return 0;
 }
 
@@ -2129,7 +2554,6 @@ EXPORT void rewind(FILE* file) {
 	}
 	file->flags &= ~(FILE_ERR_FLAG | FILE_EOF_FLAG);
 	file->ungetc_ptr = file->ungetc_buffer;
-	file->ungetc_read_ptr = file->ungetc_buffer;
 	file->ungetc_size = 0;
 }
 
@@ -2144,7 +2568,6 @@ EXPORT int fsetpos(FILE* __restrict file, const fpos_t* pos) {
 	}
 
 	file->ungetc_ptr = file->ungetc_buffer;
-	file->ungetc_read_ptr = file->ungetc_buffer;
 	file->ungetc_size = 0;
 
 	return 0;

@@ -21,7 +21,6 @@ struct FILE {
 	char* write_end {};
 
 	unsigned char ungetc_buffer[0x1000] {};
-	unsigned char* ungetc_read_ptr = ungetc_buffer;
 	unsigned char* ungetc_ptr = ungetc_buffer;
 	int ungetc_size = 0;
 

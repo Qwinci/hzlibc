@@ -36,7 +36,7 @@ EXPORT const char* __freadptr(FILE* file, size_t* size) {
 		return nullptr;
 	}
 	*size = file->ungetc_size;
-	return reinterpret_cast<const char*>(file->ungetc_read_ptr);
+	return reinterpret_cast<const char*>(file->ungetc_ptr);
 }
 
 EXPORT void __freadptrinc(FILE* file, size_t increment) {
@@ -45,16 +45,12 @@ EXPORT void __freadptrinc(FILE* file, size_t increment) {
 
 	if (increment == static_cast<size_t>(file->ungetc_size)) {
 		file->ungetc_ptr = file->ungetc_buffer;
-		file->ungetc_read_ptr = file->ungetc_buffer;
 		file->ungetc_size = 0;
 	}
 	else {
 		while (increment--) {
-			++file->ungetc_read_ptr;
+			--file->ungetc_ptr;
 			--file->ungetc_size;
-			if (file->ungetc_read_ptr == file->ungetc_buffer + sizeof(file->ungetc_buffer)) {
-				file->ungetc_read_ptr = file->ungetc_buffer;
-			}
 		}
 	}
 }
