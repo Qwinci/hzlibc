@@ -1059,13 +1059,13 @@ struct user_desc {
 
 #define ARCH_SET_FS 0x1002
 
-int sys_tcb_set(void* tcb) {
+int sys_tcb_set(void* tp) {
 #ifdef __x86_64__
-	return syscall_error(syscall(SYS_arch_prctl, ARCH_SET_FS, tcb));
+	return syscall_error(syscall(SYS_arch_prctl, ARCH_SET_FS, tp));
 #elif defined(__i386__)
 	user_desc desc {
 		.entry_number = -1u,
-		.base_addr = reinterpret_cast<uintptr_t>(tcb),
+		.base_addr = reinterpret_cast<uintptr_t>(tp),
 		.limit = 0xFFFFF,
 		.seg_32bit = 1,
 		.contents = 0,

@@ -2,6 +2,7 @@
 #include "time.h"
 #include "bits/sigset_t.h"
 #include "sys/types.h"
+#include <hz/string_view.hpp>
 
 using time64_t = int64_t;
 
@@ -57,7 +58,7 @@ int sys_thread_create(
 	void* arg,
 	void* tp,
 	pid_t* tid);
-int sys_tcb_set(void* tcb);
+int sys_tcb_set(void* tp);
 pid_t sys_get_thread_id();
 
 int sys_getpagesize();

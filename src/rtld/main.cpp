@@ -317,7 +317,7 @@ extern "C" [[gnu::used]] uintptr_t start(uintptr_t* sp) {
 #if !ANSI_ONLY
 	static_cast<Tcb*>(initial_tcb)->tid = sys_get_thread_id();
 #endif
-	__ensure(sys_tcb_set(initial_tcb) == 0);
+	__ensure(sys_tcb_set(initial_tp) == 0);
 
 	_dl_debug_addr = &DEBUG_INTERFACE;
 	DEBUG_INTERFACE.version = 1;
