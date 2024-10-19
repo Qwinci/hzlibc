@@ -76,6 +76,11 @@ if(NOT HEADERS_ONLY)
 		add_subdirectory(tests)
 	endif()
 
+	add_custom_command(TARGET c POST_BUILD
+		COMMAND ${CMAKE_COMMAND} -E create_symlink libc.so "${CMAKE_CURRENT_BINARY_DIR}/ld-linux.so.2"
+		COMMAND ${CMAKE_COMMAND} -E create_symlink libc.so "${CMAKE_CURRENT_BINARY_DIR}/ld-linux-x86-64.so.2"
+	)
+
 	if(NOT ANSI_ONLY)
 		add_library(dummy SHARED dummy.cpp)
 		target_link_options(dummy PRIVATE -nostdlib)
@@ -105,8 +110,6 @@ if(NOT HEADERS_ONLY)
 
 		add_custom_command(TARGET c POST_BUILD
 			COMMAND ${CMAKE_COMMAND} -E create_symlink libc.so "${CMAKE_CURRENT_BINARY_DIR}/libc.so.6"
-			COMMAND ${CMAKE_COMMAND} -E create_symlink libc.so "${CMAKE_CURRENT_BINARY_DIR}/ld-linux.so.2"
-			COMMAND ${CMAKE_COMMAND} -E create_symlink libc.so "${CMAKE_CURRENT_BINARY_DIR}/ld-linux-x86-64.so.2"
 		)
 
 		dummy_lib("libanl.so.1")
@@ -316,13 +319,11 @@ install(TARGETS c FILE_SET HEADERS)
 if(NOT HEADERS_ONLY)
 	install(TARGETS c)
 
-	if(NOT ANSI_ONLY)
-		if(CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64")
-			install(FILES "${CMAKE_CURRENT_BINARY_DIR}/ld-linux-x86-64.so.2" TYPE LIB)
-		elseif(CMAKE_SYSTEM_PROCESSOR STREQUAL "i386")
-			install(FILES "${CMAKE_CURRENT_BINARY_DIR}/ld-linux.so.2" TYPE LIB)
-		else()
-			message(FATAL_ERROR "Unsupported architecture ${CMAKE_SYSTEM_PROCESSOR}")
-		endif()
+	if(CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64")
+		install(FILES "${CMAKE_CURRENT_BINARY_DIR}/ld-linux-x86-64.so.2" TYPE LIB)
+	elseif(CMAKE_SYSTEM_PROCESSOR STREQUAL "i386")
+		install(FILES "${CMAKE_CURRENT_BINARY_DIR}/ld-linux.so.2" TYPE LIB)
+	else()
+		message(FATAL_ERROR "Unsupported architecture ${CMAKE_SYSTEM_PROCESSOR}")
 	endif()
 endif()
