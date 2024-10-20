@@ -36,6 +36,8 @@ typedef union {
 	char __size[40];
 #elif defined(__i386__)
 	char __size[24];
+#elif defined(__aarch64__)
+	char __size[48];
 #else
 #error missing architecture specific code
 #endif
@@ -43,7 +45,7 @@ typedef union {
 } __hzlibc_mutex_t;
 
 typedef union {
-#if defined(__x86_64__) || defined(__i386__)
+#if defined(__x86_64__) || defined(__i386__) || defined(__aarch64__)
 	char __size[48];
 #else
 #error missing architecture specific code
@@ -52,7 +54,7 @@ typedef union {
 } __hzlibc_cond_t;
 
 typedef union {
-#ifdef __x86_64__
+#if defined(__x86_64__) || defined(__aarch64__)
 	char __size[56];
 #elif defined(__i386__)
 	char __size[32];
@@ -63,7 +65,7 @@ typedef union {
 } __hzlibc_rwlock_t;
 
 typedef union {
-#ifdef __x86_64__
+#if defined(__x86_64__) || defined(__aarch64__)
 	char __size[32];
 #elif defined(__i386__)
 	char __size[20];
@@ -76,6 +78,8 @@ typedef union {
 typedef union {
 #if defined(__x86_64__) || defined(__i386__)
 	char __size[4];
+#elif defined(__aarch64__)
+	char __size[8];
 #else
 #error missing architecture specific code
 #endif
@@ -85,6 +89,8 @@ typedef union {
 typedef union {
 #if defined(__x86_64__) || defined(__i386__)
 	char __size[4];
+#elif defined(__aarch64__)
+	char __size[8];
 #else
 #error missing architecture specific code
 #endif
@@ -96,6 +102,8 @@ typedef union {
 	char __size[56];
 #elif defined(__i386__)
 	char __size[36];
+#elif defined(__aarch64__)
+	char __size[64];
 #else
 #error missing architecture specific code
 #endif
@@ -103,7 +111,7 @@ typedef union {
 } __hzlibc_attr_t;
 
 typedef union {
-#if defined(__x86_64__) || defined(__i386__)
+#if defined(__x86_64__) || defined(__i386__) || defined(__aarch64__)
 	char __size[8];
 #else
 #error missing architecture specific code
@@ -114,6 +122,8 @@ typedef union {
 typedef union {
 #if defined(__x86_64__) || defined(__i386__)
 	char __size[4];
+#elif defined(__aarch64__)
+	char __size[8];
 #else
 #error missing architecture specific code
 #endif

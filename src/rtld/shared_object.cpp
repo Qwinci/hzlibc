@@ -242,6 +242,45 @@ __tlsdesc_dynamic:
 .popsection
 )");
 
+#elif defined(__aarch64__)
+
+asm(R"(
+.pushsection .text
+.hidden __tlsdesc_static
+.type __tlsdesc_static, @function
+__tlsdesc_static:
+	ldr x0, [x0, #8]
+	ret
+
+.hidden __tlsdesc_dynamic
+.type __tlsdesc_dynamic, @function
+__tlsdesc_dynamic:
+	stp x1, x2, [sp, #-16]!
+	str x3, [sp, #-16]!
+
+	ldr x0, [x0, #8]
+
+	// index, addend
+	ldp x1, x2, [x0]
+
+	mrs x3, tpidr_el0
+	// (*tp).dtv.data
+	mov x0, #-16416
+	add x0, x3, x0
+	ldr x0, [x0, x1, lsl #3]
+
+	// + addend
+	add x0, x0, x2
+	// - tp
+	sub x0, x0, x3
+
+	ldr x3, [sp], #16
+	ldp x1, x2, [sp], #16
+	ret
+
+.popsection
+)");
+
 #endif
 
 extern "C" void* __tlsdesc_static(void*);
@@ -361,18 +400,29 @@ static bool process_relocation(Relocation reloc, hz::optional<ObjectSymbol> reso
 		}
 		case R_TPOFF:
 		{
+			uintptr_t tls_offset;
+			uintptr_t offset;
 			if (sym_index) {
 				__ensure(resolved_sym);
 				__ensure(resolved_sym->object->initial_tls_model);
-				reloc.apply(
-					-resolved_sym->object->tls_offset +
-					resolved_sym->sym->st_value +
-					reloc.rela.r_addend);
+				tls_offset = resolved_sym->object->tls_offset;
+				offset = resolved_sym->sym->st_value;
 			}
 			else {
 				__ensure(reloc.object->initial_tls_model);
-				reloc.apply(-reloc.object->tls_offset + reloc.rela.r_addend);
+				tls_offset = reloc.object->tls_offset;
+				offset = 0;
 			}
+
+			offset += reloc.rela.r_addend;
+
+			if constexpr (TLS_ABOVE_TP) {
+				reloc.apply(tls_offset + TLS_OFFSET_FROM_TP + offset);
+			}
+			else {
+				reloc.apply(-tls_offset + TLS_OFFSET_FROM_TP + offset);
+			}
+
 			break;
 		}
 		case R_DTPMOD:
@@ -412,7 +462,12 @@ static bool process_relocation(Relocation reloc, hz::optional<ObjectSymbol> reso
 			auto ptr = reinterpret_cast<uintptr_t*>(reloc.object->base + reloc.rela.r_offset);
 			if (target->initial_tls_model) {
 				ptr[0] = reinterpret_cast<uintptr_t>(&__tlsdesc_static);
-				ptr[1] = -target->tls_offset + symbol_value + reloc.rela.r_addend;
+				if constexpr (TLS_ABOVE_TP) {
+					ptr[1] = target->tls_offset + TLS_OFFSET_FROM_TP + symbol_value + reloc.rela.r_addend;
+				}
+				else {
+					ptr[1] = -target->tls_offset + TLS_OFFSET_FROM_TP + symbol_value + reloc.rela.r_addend;
+				}
 			}
 			else {
 				auto* data = new TlsdescData {

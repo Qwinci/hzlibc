@@ -3,6 +3,8 @@
 #include "sys.hpp"
 #include "errno.h"
 
+#if defined(__x86_64__) || defined(__i386__)
+
 EXPORT int iopl(int level) {
 	if (auto err = sys_iopl(level)) {
 		errno = err;
@@ -10,3 +12,5 @@ EXPORT int iopl(int level) {
 	}
 	return 0;
 }
+
+#endif

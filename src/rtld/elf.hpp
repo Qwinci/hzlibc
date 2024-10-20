@@ -73,6 +73,21 @@ static constexpr uint16_t ELF_MACHINE = EM_386;
 // #define R_TLSDESC R_386_TLS_DESC
 #define R_IRELATIVE R_386_IRELATIVE
 
+#elif defined(__aarch64__)
+
+static constexpr uint16_t ELF_MACHINE = EM_AARCH64;
+
+#define R_ABSOLUTE R_AARCH64_ABS64
+#define R_COPY R_AARCH64_COPY
+#define R_GLOB_DAT R_AARCH64_GLOB_DAT
+#define R_JUMP_SLOT R_AARCH64_JUMP_SLOT
+#define R_RELATIVE R_AARCH64_RELATIVE
+#define R_DTPMOD R_AARCH64_TLS_DTPMOD
+#define R_DTPOFF R_AARCH64_TLS_DTPREL
+#define R_TPOFF R_AARCH64_TLS_TPREL
+#define R_TLSDESC R_AARCH64_TLSDESC
+#define R_IRELATIVE R_AARCH64_IRELATIVE
+
 #else
 
 #error missing architecture specific code

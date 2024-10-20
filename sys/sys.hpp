@@ -64,13 +64,6 @@ int sys_copy_file_range(
 int sys_close_range(unsigned int first, unsigned int last, int flags);
 int sys_sendfile(int out_fd, int in_fd, off64_t* offset, size_t count, ssize_t* ret);
 int sys_flock(int fd, int operation);
-int sys_select(
-	int num_fds,
-	fd_set* __restrict read_fds,
-	fd_set* __restrict write_fds,
-	fd_set* __restrict except_fds,
-	timeval* __restrict timeout,
-	int* ret);
 int sys_pselect(
 	int num_fds,
 	fd_set* __restrict read_fds,
@@ -231,7 +224,7 @@ int sys_tgkill(pid_t pid, pid_t tid, int sig);
 int sys_clock_settime(clockid_t id, const timespec* tp);
 int sys_clock_getres(clockid_t id, timespec* res);
 int sys_clock_nanosleep(clockid_t id, int flags, const timespec64* req, timespec64* rem);
-unsigned int sys_alarm(unsigned int seconds);
+int sys_setitimer(int which, const itimerval* value, itimerval* old);
 
 int sys_inotify_init1(int flags, int* ret);
 int sys_inotify_add_watch(int fd, const char* path, uint32_t mask, int* ret);

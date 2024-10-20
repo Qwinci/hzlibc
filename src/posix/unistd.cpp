@@ -801,7 +801,11 @@ EXPORT int usleep(useconds_t usec) {
 }
 
 EXPORT unsigned int alarm(unsigned int seconds) {
-	return sys_alarm(seconds);
+	itimerval it {};
+	it.it_value.tv_sec = seconds;
+	itimerval old {};
+	setitimer(ITIMER_REAL, &it, &old);
+	return old.it_value.tv_sec + old.it_value.tv_usec >= 500 ? 1 : 0;
 }
 
 EXPORT int pause() {

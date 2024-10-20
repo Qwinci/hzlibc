@@ -9,8 +9,20 @@ EXPORT int select(
 	fd_set* __restrict write_fds,
 	fd_set* __restrict except_fds,
 	timeval* __restrict timeout) {
+	timespec64 timeout64 {};
+	if (timeout) {
+		timeout64.tv_sec = timeout->tv_sec;
+		timeout64.tv_nsec = timeout->tv_usec * 1000;
+	}
+
 	int ret;
-	if (auto err = sys_select(num_fds, read_fds, write_fds, except_fds, timeout, &ret)) {
+	if (auto err = sys_pselect(
+		num_fds,
+		read_fds,
+		write_fds, except_fds,
+		timeout ? &timeout64 : nullptr,
+		nullptr,
+		&ret)) {
 		errno = err;
 		return -1;
 	}

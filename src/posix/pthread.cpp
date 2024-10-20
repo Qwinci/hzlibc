@@ -108,7 +108,7 @@ EXPORT int pthread_getschedparam(pthread_t thread, int* policy, sched_param* par
 }
 
 struct RwLock {
-#ifdef __x86_64__
+#if defined(__x86_64__) || defined(__aarch64__)
 	hz::atomic<int> state;
 	hz::atomic<int> writer_notify;
 	int pad0[8];

@@ -7,6 +7,8 @@
 #include <bits/syscall_nums_x86_64.h>
 #elif defined(__i386__)
 #include <bits/syscall_nums_i386.h>
+#elif defined(__aarch64__)
+#include <bits/syscall_nums_aarch64.h>
 #else
 #error unsupported architecture
 #endif

@@ -65,7 +65,8 @@ if(NOT HEADERS_ONLY)
 		target_compile_definitions(libunwind PRIVATE
 			_LIBUNWIND_IS_NATIVE_ONLY
 			_LIBUNWIND_HIDE_SYMBOLS)
-		target_include_directories(libunwind PUBLIC include thirdparty/libunwind/include)
+		get_target_property(C_INCLUDE_DIRS c INCLUDE_DIRECTORIES)
+		target_include_directories(libunwind PUBLIC "${C_INCLUDE_DIRS}" thirdparty/libunwind/include)
 		target_include_directories(libunwind PRIVATE "${CMAKE_CURRENT_BINARY_DIR}")
 
 		target_link_libraries(c PRIVATE libunwind)
@@ -79,6 +80,7 @@ if(NOT HEADERS_ONLY)
 	add_custom_command(TARGET c POST_BUILD
 		COMMAND ${CMAKE_COMMAND} -E create_symlink libc.so "${CMAKE_CURRENT_BINARY_DIR}/ld-linux.so.2"
 		COMMAND ${CMAKE_COMMAND} -E create_symlink libc.so "${CMAKE_CURRENT_BINARY_DIR}/ld-linux-x86-64.so.2"
+		COMMAND ${CMAKE_COMMAND} -E create_symlink libc.so "${CMAKE_CURRENT_BINARY_DIR}/ld-linux-aarch64.so.1"
 	)
 
 	if(NOT ANSI_ONLY)
@@ -323,6 +325,8 @@ if(NOT HEADERS_ONLY)
 		install(FILES "${CMAKE_CURRENT_BINARY_DIR}/ld-linux-x86-64.so.2" TYPE LIB)
 	elseif(CMAKE_SYSTEM_PROCESSOR STREQUAL "i386")
 		install(FILES "${CMAKE_CURRENT_BINARY_DIR}/ld-linux.so.2" TYPE LIB)
+	elseif(CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64")
+		install(FILES "${CMAKE_CURRENT_BINARY_DIR}/ld-linux-aarch64.so.1" TYPE LIB)
 	else()
 		message(FATAL_ERROR "Unsupported architecture ${CMAKE_SYSTEM_PROCESSOR}")
 	endif()

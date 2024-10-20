@@ -193,6 +193,78 @@ struct stat64 {
 	ino64_t st_ino;
 };
 
+#elif defined(__aarch64__)
+
+struct stat {
+	dev_t st_dev;
+	ino_t st_ino;
+	mode_t st_mode;
+	nlink_t st_nlink;
+	uid_t st_uid;
+	gid_t st_gid;
+	dev_t st_rdev;
+	dev_t __pad0;
+	off_t st_size;
+	blksize_t st_blksize;
+	int __pad1;
+	blkcnt_t st_blocks;
+
+#ifdef __USE_XOPEN2K8
+	struct timespec st_atim;
+	struct timespec st_mtim;
+	struct timespec st_ctim;
+
+#define st_atime st_atim.tv_sec
+#define st_mtime st_mtim.tv_sec
+#define st_ctime st_ctim.tv_sec
+
+#else
+	time_t st_atime;
+	unsigned long st_atimensec;
+	time_t st_mtime;
+	unsigned long st_mtimensec;
+	time_t st_ctime;
+	unsigned long st_ctimensec;
+#endif
+
+	int __unused[2];
+};
+
+struct stat64 {
+	dev_t st_dev;
+	ino_t st_ino;
+	mode_t st_mode;
+	nlink_t st_nlink;
+	uid_t st_uid;
+	gid_t st_gid;
+	dev_t st_rdev;
+	dev_t __pad0;
+	off_t st_size;
+	blksize_t st_blksize;
+	int __pad1;
+	blkcnt_t st_blocks;
+
+#ifdef __USE_XOPEN2K8
+	struct timespec st_atim;
+	struct timespec st_mtim;
+	struct timespec st_ctim;
+
+#define st_atime st_atim.tv_sec
+#define st_mtime st_mtim.tv_sec
+#define st_ctime st_ctim.tv_sec
+
+#else
+	time_t st_atime;
+	unsigned long st_atimensec;
+	time_t st_mtime;
+	unsigned long st_mtimensec;
+	time_t st_ctime;
+	unsigned long st_ctimensec;
+#endif
+
+	int __unused[2];
+};
+
 #else
 #error missing architecture specific code
 #endif

@@ -323,6 +323,9 @@ int sys_tcb_set(void* tp) {
 #ifdef __x86_64__
 	__ensure(syscall(SYS_SET_FS_BASE, tp) == 0);
 	return 0;
+#elif defined(__aarch64__)
+	asm volatile("msr tpidr_el0, %0" : : "r"(tp));
+	return 0;
 #else
 #error missing architecture specific code
 #endif

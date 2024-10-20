@@ -15,7 +15,7 @@ typedef __UINT64_TYPE__ uint64_t;
 typedef __UINTPTR_TYPE__ uintptr_t;
 typedef __UINTMAX_TYPE__ uintmax_t;
 
-#ifdef __x86_64__
+#if __UINTPTR_MAX__ == __UINT64_MAX__
 
 typedef int8_t int_least8_t;
 typedef int16_t int_least16_t;
@@ -87,7 +87,7 @@ typedef uint64_t uint_fast64_t;
 #define INT_FAST32_MIN INT64_MIN
 #define INT_FAST64_MIN INT64_MIN
 
-#elif defined(__i386__)
+#else
 
 typedef int8_t int_least8_t;
 typedef int16_t int_least16_t;
@@ -159,8 +159,6 @@ typedef uint64_t uint_fast64_t;
 #define INT_FAST32_MIN INT32_MIN
 #define INT_FAST64_MIN INT64_MIN
 
-#else
-#error missing architecture specific code
 #endif
 
 #define INT8_MIN (-INT8_MAX - 1)

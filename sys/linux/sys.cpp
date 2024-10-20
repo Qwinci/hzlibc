@@ -15,6 +15,8 @@
 #include "bits/syscall_nums_x86_64.h"
 #elif defined(__i386__)
 #include "bits/syscall_nums_i386.h"
+#elif defined(__aarch64__)
+#include "bits/syscall_nums_aarch64.h"
 #else
 #error unsupported architecture
 #endif
@@ -504,21 +506,6 @@ int sys_flock(int fd, int operation) {
 	return syscall_error(syscall(SYS_flock, fd, operation));
 }
 
-int sys_select(
-	int num_fds,
-	fd_set* __restrict read_fds,
-	fd_set* __restrict write_fds,
-	fd_set* __restrict except_fds,
-	timeval* __restrict timeout,
-	int* ret) {
-	auto res = syscall(SYS_select, num_fds, read_fds, write_fds, except_fds, timeout);
-	if (int err = syscall_error(res)) {
-		return err;
-	}
-	*ret = static_cast<int>(res);
-	return 0;
-}
-
 int sys_pselect(
 	int num_fds,
 	fd_set* __restrict read_fds,
@@ -664,7 +651,11 @@ int sys_pwrite(int fd, const void* buf, size_t count, off64_t offset, ssize_t* r
 }
 
 int sys_poll(pollfd* fds, nfds_t num_fds, int timeout, int* ret) {
-	auto res = syscall(SYS_poll, fds, num_fds, timeout);
+	timespec tm {};
+	tm.tv_sec = timeout / 1000;
+	tm.tv_nsec = timeout % 1000 * 1000000;
+
+	auto res = syscall(SYS_ppoll, fds, num_fds, timeout >= 0 ? &tm : nullptr, nullptr, NSIG / 8);
 	if (int err = syscall_error(res)) {
 		return err;
 	}
@@ -722,7 +713,7 @@ int sys_epoll_ctl(int epfd, int op, int fd, epoll_event* event) {
 }
 
 int sys_epoll_wait(int epfd, epoll_event* events, int max_events, int timeout, int* ret) {
-	auto res = syscall(SYS_epoll_wait, epfd, events, max_events, timeout);
+	auto res = syscall(SYS_epoll_pwait, epfd, events, max_events, timeout, nullptr, NSIG / 8);
 	if (int err = syscall_error(res)) {
 		return err;
 	}
@@ -870,7 +861,7 @@ int sys_utimensat(int dir_fd, const char* path, const timespec64 times[2], int f
 }
 
 int sys_rmdir(const char* path) {
-	return syscall_error(syscall(SYS_rmdir, path));
+	return syscall_error(syscall(SYS_unlinkat, AT_FDCWD, path, AT_REMOVEDIR));
 }
 
 int sys_renameat(int old_dir_fd, const char* old_path, int new_dir_fd, const char* new_path) {
@@ -1079,6 +1070,9 @@ int sys_tcb_set(void* tp) {
 	}
 	asm volatile("mov %w0, %%gs" : : "q"(desc.entry_number * 8 + 3));
 	return 0;
+#elif defined(__aarch64__)
+	asm volatile("msr tpidr_el0, %0" : : "r"(tp));
+	return 0;
 #else
 	#error missing architecture specific code
 #endif
@@ -1186,9 +1180,13 @@ int sys_prctl(int option, unsigned long arg2, unsigned long arg3, unsigned long 
 	return 0;
 }
 
+#if defined(__x86_64__) || defined(__i386__)
+
 int sys_iopl(int level) {
 	return syscall_error(syscall(SYS_iopl, level));
 }
+
+#endif
 
 int sys_setuid(uid_t uid) {
 	return syscall_error(syscall(SYS_setuid, uid));
@@ -1456,6 +1454,21 @@ sys_signal_restore:
 .popsection
 )");
 
+#elif defined(__aarch64__)
+
+asm(R"(
+.pushsection .text
+.hidden sys_signal_restore_rt
+.hidden sys_signal_restore
+.type sys_signal_restore_rt, @function
+.type sys_signal_restore, @function
+sys_signal_restore_rt:
+sys_signal_restore:
+	mov x8, #139
+	svc #0
+.popsection
+)");
+
 #else
 #error missing architecture specific code
 #endif
@@ -1578,8 +1591,8 @@ int sys_clock_nanosleep(clockid_t id, int flags, const timespec64* req, timespec
 #endif
 }
 
-unsigned int sys_alarm(unsigned int seconds) {
-	return static_cast<unsigned int>(syscall(SYS_alarm, seconds));
+int sys_setitimer(int which, const itimerval* value, itimerval* old) {
+	return syscall_error(syscall(SYS_setitimer, which, value, old));
 }
 
 int sys_inotify_init1(int flags, int* ret) {
@@ -1771,6 +1784,24 @@ int sys_thread_create(
 		"d"(tid),
 		"S"(tp) :
 		"memory");
+#elif defined(__aarch64__)
+	register long x8 asm("x8") = SYS_clone;
+	register long ret asm("x0");
+	register long x0 asm("x0") = static_cast<long>(flags);
+	register long x1 asm("x1") = reinterpret_cast<long>(stack_ptr);
+	register long x2 asm("x2") = reinterpret_cast<long>(tid);
+	register long x3 asm("x3") = reinterpret_cast<long>(tp);
+	register long x4 asm("x4") = reinterpret_cast<long>(nullptr);
+	asm volatile("svc #0; cbnz x0, 1f; ldp x0, x1, [sp], #16; bl hzlibc_thread_entry; brk #0; 1:"
+		: "=r"(ret) :
+		"r"(x8),
+		"r"(x0),
+		"r"(x1),
+		"r"(x2),
+		"r"(x3),
+		"r"(x4) :
+		"memory");
+	res = ret;
 #else
 #error missing architecture specific code
 #endif

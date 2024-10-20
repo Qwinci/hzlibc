@@ -31,6 +31,16 @@ enum class LookupPolicy {
 	LocalAndDeps
 };
 
+#if defined(__x86_64__) || defined(__i386__)
+static constexpr bool TLS_ABOVE_TP = false;
+static constexpr size_t TLS_OFFSET_FROM_TP = 0;
+#elif defined(__aarch64__)
+static constexpr bool TLS_ABOVE_TP = true;
+static constexpr size_t TLS_OFFSET_FROM_TP = 16;
+#else
+#error missing architecture specific code
+#endif
+
 struct ObjectStorage {
 	ObjectStorage();
 

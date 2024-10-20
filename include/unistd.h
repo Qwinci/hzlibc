@@ -208,11 +208,6 @@ __begin_decls
 
 #define _CS_PATH 0
 
-#define _SC_PAGESIZE 30
-#define _SC_LOGIN_NAME_MAX 71
-#define _SC_NPROCESSORS_CONF 83
-#define _SC_PHYS_PAGES 85
-
 #define F_OK 0
 #define X_OK 1
 #define W_OK 2

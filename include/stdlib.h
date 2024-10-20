@@ -157,12 +157,19 @@ void qsort_r(
 	int (*__comp)(const void* __a, const void* __b, void* __arg),
 	void* __arg);
 
+#if defined(__x86_64__) || defined(__i386__)
+
 int strfromf128(
 	char* __restrict __buf,
 	size_t __buf_size,
 	const char* __restrict __fmt,
 	__float128 __value);
 __float128 strtof128(const char* __restrict __str, char** __restrict __end_ptr);
+
+#elif defined(__aarch64__)
+#else
+#error missing architecture specific code
+#endif
 
 #endif
 

@@ -6,7 +6,7 @@
 __begin_decls
 
 typedef union {
-#ifdef __x86_64__
+#if defined(__x86_64__) || defined(__aarch64__)
 	char __size[32];
 #elif defined(__i386__)
 	char __size[16];

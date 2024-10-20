@@ -11,6 +11,8 @@ __begin_decls
 typedef long __jmp_buf[8];
 #elif defined(__i386__)
 typedef long __jmp_buf[6];
+#elif defined(__aarch64__)
+typedef unsigned long __jmp_buf[22];
 #else
 #error missing architecture specific code
 #endif

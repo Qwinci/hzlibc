@@ -5,6 +5,7 @@
 #include "stdio.h"
 #include "sys/mman.h"
 #include "opts.hpp"
+#include "tcb.hpp"
 
 #if !ANSI_ONLY
 #include "dirent.h"
@@ -703,7 +704,13 @@ void ObjectStorage::init_tls(void* tcb) {
 			continue;
 		}
 
-		char* ptr = static_cast<char*>(tcb) - object->tls_offset;
+		char* ptr;
+		if constexpr (TLS_ABOVE_TP) {
+			ptr = static_cast<char*>(tcb) + sizeof(Tcb) + object->tls_offset;
+		}
+		else {
+			ptr = static_cast<char*>(tcb) - object->tls_offset;
+		}
 		rtld_memcpy(ptr, object->tls_image, object->tls_image_size);
 		rtld_memset(ptr + object->tls_image_size, 0, object->tls_size - object->tls_image_size);
 		object->tls_initialized = true;

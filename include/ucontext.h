@@ -148,6 +148,38 @@ typedef struct ucontext_t {
 	sigset_t uc_sigmask;
 } ucontext_t;
 
+#elif defined(__aarch64__)
+
+#define NREG 34
+
+typedef uint64_t greg_t;
+typedef greg_t gregset_t[NREG];
+
+struct __fpstate {
+	__uint128_t vregs[32];
+	unsigned int fpsr;
+	unsigned int fpcr;
+};
+
+typedef struct __fpstate fpregset_t;
+
+typedef struct {
+	uint64_t fault_address;
+	uint64_t regs[31];
+	uint64_t sp;
+	uint64_t pc;
+	uint64_t pstate;
+	uint8_t __reserved[4096] __attribute__((__aligned__(16)));
+} mcontext_t;
+
+typedef struct ucontext_t {
+	unsigned long uc_flags;
+	struct ucontext_t* uc_link;
+	stack_t uc_stack;
+	sigset_t uc_sigmask;
+	mcontext_t uc_mcontext;
+} ucontext_t;
+
 #else
 
 #error missing architecture specific code

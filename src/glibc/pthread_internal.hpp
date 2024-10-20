@@ -3,7 +3,7 @@
 
 static_assert(sizeof(hz::atomic<int>) == 4);
 
-#ifdef __x86_64__
+#if defined(__x86_64__) || defined(__aarch64__)
 
 struct pthread_mutex_internal {
 	hz::atomic<int> state;

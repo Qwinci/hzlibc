@@ -174,6 +174,8 @@ EXPORT void qsort_r(
 	}
 }
 
+#if defined(__x86_64__) || defined(__i386__)
+
 EXPORT int strfromf128(
 	char* __restrict buf,
 	size_t buf_size,
@@ -185,3 +187,8 @@ EXPORT int strfromf128(
 EXPORT __float128 strtof128(const char* __restrict str, char** __restrict end_ptr) {
 	__ensure(!"strtof128 is not implemented");
 }
+
+#elif defined(__aarch64__)
+#else
+#error missing architecture specific code
+#endif

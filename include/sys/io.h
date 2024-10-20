@@ -5,6 +5,8 @@
 
 __begin_decls
 
+#if defined(__x86_64__) || defined(__i386__)
+
 __attribute__((deprecated)) int iopl(int __level);
 
 static __inline unsigned char inb(unsigned short __port) {
@@ -36,6 +38,8 @@ static __inline void outw(unsigned short __value, unsigned short __port) {
 static __inline void outl(unsigned int __value, unsigned short __port) {
 	__asm__ __volatile__("outl %0, %w1" : : "a"(__value), "Nd"(__port));
 }
+
+#endif
 
 __end_decls
 

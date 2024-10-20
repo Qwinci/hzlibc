@@ -22,4 +22,5 @@ a check for your system in sys/CMakeLists.txt.
 - Rust Libstd, some pthread primitives are ported from it.
 - Musl, math functions are from it.
 - llvm libunwind (thirdparty/libunwind) used for `backtrace` function.
+- llvm compiler-rt, some compiler support functions (in src/internal/float_gcc.cpp) are from it.
 - [libucontext](https://github.com/kaniini/libucontext), ucontext functions are based on it.

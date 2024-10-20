@@ -83,6 +83,38 @@ get_ehdr:
 .popsection
 )");
 
+#elif defined(__aarch64__)
+
+asm(R"(
+.pushsection .text
+.globl _start
+.hidden _start
+.hidden start
+_start:
+	mov x0, sp
+	bl start
+	br x0
+
+.globl get_dynamic
+.globl get_ehdr
+
+.weak _DYNAMIC
+.hidden _DYNAMIC
+get_dynamic:
+	adrp x0, _DYNAMIC
+	add x0, x0, :lo12:_DYNAMIC
+	ret
+
+.weak __ehdr_start
+.hidden __ehdr_start
+get_ehdr:
+	adrp x0, __ehdr_start
+	add x0, x0, :lo12:__ehdr_start
+	ret
+
+.popsection
+)");
+
 #else
 
 #error missing architecture startup code

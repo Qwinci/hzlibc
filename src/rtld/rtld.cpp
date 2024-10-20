@@ -393,6 +393,8 @@ bool __dlapi_create_tcb(void** tcb, void** tp) {
 
 #if defined(__x86_64__) || defined(__i386__)
 	*tp = tcb_ptr;
+#elif defined(__aarch64__)
+	*tp = reinterpret_cast<void*>(reinterpret_cast<uintptr_t>(tcb_ptr) + sizeof(Tcb) - 0x10);
 #else
 #error missing architecture specific code
 #endif

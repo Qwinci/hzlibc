@@ -183,16 +183,6 @@ int sys_flock(int fd, int operation) {
 	STUB_ENOSYS;
 }
 
-int sys_select(
-	int num_fds,
-	fd_set* __restrict read_fds,
-	fd_set* __restrict write_fds,
-	fd_set* __restrict except_fds,
-	timeval* __restrict timeout,
-	int* ret) {
-	STUB_ENOSYS;
-}
-
 int sys_pselect(
 	int num_fds,
 	fd_set* __restrict read_fds,
@@ -759,9 +749,8 @@ int sys_clock_nanosleep(clockid_t id, int flags, const timespec64* req, timespec
 	STUB_ENOSYS;
 }
 
-unsigned int sys_alarm(unsigned int seconds) {
-	println("sys_alarm is a stub");
-	return 0;
+int sys_setitimer(int which, const itimerval* value, itimerval* old) {
+	STUB_ENOSYS;
 }
 
 int sys_inotify_init1(int flags, int* ret) {

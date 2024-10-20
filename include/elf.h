@@ -79,6 +79,7 @@ typedef struct {
 #define EM_NONE 0
 #define EM_386 3
 #define EM_X86_64 0x3E
+#define EM_AARCH64 0xB7
 
 typedef struct {
 	Elf64_Word p_type;
@@ -284,6 +285,15 @@ typedef struct {
 #define R_386_TLS_DESC 41
 #define R_386_IRELATIVE 42
 
+#define R_AARCH64_ABS64 257
+#define R_AARCH64_COPY 1024
+#define R_AARCH64_GLOB_DAT 1025
+#define R_AARCH64_JUMP_SLOT 1026
 #define R_AARCH64_RELATIVE 1027
+#define R_AARCH64_TLS_DTPMOD 1028
+#define R_AARCH64_TLS_DTPREL 1029
+#define R_AARCH64_TLS_TPREL 1030
+#define R_AARCH64_TLSDESC 1031
+#define R_AARCH64_IRELATIVE 1032
 
 #endif

@@ -50,3 +50,6 @@ target_sources(c PRIVATE
 	wchar.cpp
 	wctype.cpp
 )
+
+set_source_files_properties(${CMAKE_CURRENT_LIST_DIR}/ucontext.cpp
+	PROPERTIES COMPILE_FLAGS -fomit-frame-pointer)
