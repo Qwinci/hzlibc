@@ -360,13 +360,23 @@ EXPORT char* strerror(int err_num) {
 	}
 }
 
-#if defined(__x86_64__) && defined(OPTIMIZED_ASM)
+#if defined(__x86_64__)
 
 EXPORT void* memset(void* __restrict dest, int ch, size_t size) {
 	void* dest_copy = dest;
 	asm volatile("rep stosb" : "+D"(dest_copy), "+c"(size) : "a"(ch) : "flags", "memory");
 	return dest;
 }
+
+#if !defined(OPTIMIZED_ASM)
+
+EXPORT void* memcpy(void* __restrict dest, const void* __restrict src, size_t size) {
+	void* dest_copy = dest;
+	asm volatile("rep movsb" : "+D"(dest_copy), "+S"(src), "+c"(size) : : "flags", "memory");
+	return dest;
+}
+
+#else
 
 EXPORT void* memcpy(void* __restrict dest, const void* __restrict src, size_t size) {
 	auto* dest_ptr = static_cast<unsigned char*>(dest);
@@ -452,6 +462,8 @@ slow:
 
 	return dest;
 }
+
+#endif
 
 #else
 
