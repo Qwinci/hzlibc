@@ -541,10 +541,12 @@ EXPORT int getaddrinfo(
 	hz::string<Allocator> resolved_node_name {Allocator {}};
 
 	bool use_ipv4 = family == AF_INET || family == AF_UNSPEC;
-	bool use_ipv6 = family == AF_INET6 || family == AF_UNSPEC;
+	/*bool use_ipv6 = family == AF_INET6 || family == AF_UNSPEC;
 	if (use_ipv6 && !(flags & AI_V4MAPPED)) {
 		use_ipv4 = false;
-	}
+	}*/
+	// todo
+	bool use_ipv6 = false;
 
 	NameResolveResult result {};
 

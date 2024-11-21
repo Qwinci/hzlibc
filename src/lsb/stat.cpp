@@ -24,3 +24,7 @@ extern "C" EXPORT int __lxstat64(int ver, const char* __restrict path, struct st
 extern "C" EXPORT int __fxstat64(int ver, int fd, struct stat64* __restrict buf) {
 	return fstat64(fd, buf);
 }
+
+extern "C" EXPORT int __xmknod(int ver, const char* path, mode_t mode, dev_t* dev) {
+	return mknod(path, mode, *dev);
+}

@@ -70,7 +70,7 @@ ObjectStorage::ObjectStorage() {
 void add_object_to_debug_list(SharedObject* object);
 
 void ObjectStorage::add_object(SharedObject* object) {
-	objects.push_back(object);
+	objects.get_unsafe().push_back(object);
 	add_object_to_debug_list(object);
 }
 
@@ -219,6 +219,19 @@ hz::result<SharedObject*, LoadError> ObjectStorage::load_object(
 				reinterpret_cast<void*>(load_base + phdr->p_vaddr + phdr->p_filesz),
 				0,
 				phdr->p_memsz - phdr->p_filesz);
+
+			// protect executable sections for irelative
+			if (phdr->p_flags & PF_X) {
+				int prot = PROT_READ | PROT_EXEC;
+				if (phdr->p_flags & PF_W) {
+					prot |= PROT_WRITE;
+				}
+
+				__ensure(sys_mprotect(
+					reinterpret_cast<void*>(load_base + (phdr->p_vaddr & ~(0x1000 - 1))),
+					(phdr->p_memsz + phdr->p_vaddr % 0x1000 + 0x1000 - 1) & ~(0x1000 - 1),
+					prot) == 0);
+			}
 		}
 	}
 
@@ -331,7 +344,7 @@ void ObjectStorage::protect_object(SharedObject* object) {
 
 void remove_object_from_debug_list(SharedObject* object);
 
-LoadError ObjectStorage::load_dependencies(SharedObject* object, bool global) {
+LoadError ObjectStorage::load_dependencies(SharedObject* object, bool global, bool initial) {
 	hz::vector<SharedObject*, Allocator> load_list {Allocator {}};
 	load_list.push_back(object);
 
@@ -341,13 +354,17 @@ LoadError ObjectStorage::load_dependencies(SharedObject* object, bool global) {
 	}
 
 	auto tls_size_at_start = initial_tls_size;
-	auto objects_at_start = objects.size();
+	auto objects_at_start = objects.get_unsafe().size();
 
 	while (!load_list.empty()) {
 		object = load_list.back();
 		load_list.pop_back();
 
 		init_list.push_back(object);
+
+		if (initial) {
+			object->initial_tls_model = true;
+		}
 
 		if (object->tls_size) {
 			if (object->initial_tls_model && object->rtld_loaded) {
@@ -380,7 +397,7 @@ LoadError ObjectStorage::load_dependencies(SharedObject* object, bool global) {
 						}
 					}
 
-					objects.resize(objects_at_start);
+					objects.get_unsafe().resize(objects_at_start);
 					initial_tls_size = tls_size_at_start;
 					return LoadError::NoMemory;
 				}
@@ -388,11 +405,10 @@ LoadError ObjectStorage::load_dependencies(SharedObject* object, bool global) {
 				object->tls_offset = offset;
 				initial_tls_size = offset;
 			}
-			else if (object->rtld_loaded) {
-				auto tls_guard = runtime_tls_map.lock();
-				object->tls_module_index = tls_guard->size();
-				tls_guard->push_back(object);
-			}
+
+			auto tls_guard = runtime_tls_map.lock();
+			object->tls_module_index = tls_guard->size();
+			tls_guard->push_back(object);
 		}
 
 		for (auto* dyn = object->dynamic; dyn->d_tag != DT_NULL; ++dyn) {
@@ -409,7 +425,7 @@ LoadError ObjectStorage::load_dependencies(SharedObject* object, bool global) {
 			hz::result<SharedObject*, LoadError> result;
 			if (name.find('/') != hz::string_view::npos) {
 				bool already_loaded = false;
-				for (auto added_object : objects) {
+				for (auto added_object : objects.get_unsafe()) {
 					if (added_object->path == name) {
 						object->dependencies.push_back(added_object);
 						already_loaded = true;
@@ -431,7 +447,7 @@ LoadError ObjectStorage::load_dependencies(SharedObject* object, bool global) {
 			}
 			else {
 				bool already_loaded = false;
-				for (auto added_object : objects) {
+				for (auto added_object : objects.get_unsafe()) {
 					if (added_object->name == name) {
 						object->dependencies.push_back(added_object);
 						already_loaded = true;
@@ -477,7 +493,7 @@ LoadError ObjectStorage::load_dependencies(SharedObject* object, bool global) {
 					}
 				}
 
-				objects.resize(objects_at_start);
+				objects.get_unsafe().resize(objects_at_start);
 				initial_tls_size = tls_size_at_start;
 				return result.error();
 			}
@@ -698,9 +714,10 @@ void ObjectStorage::init_objects() {
 	init_list.clear();
 }
 
-void ObjectStorage::init_tls(void* tcb) {
-	for (auto object : objects) {
-		if (!object->initial_tls_model || object->tls_initialized || !object->tls_size) {
+void ObjectStorage::init_tls(void* tcb, bool check_initialized) {
+	auto guard = objects.lock();
+	for (auto object : *guard) {
+		if (!object->initial_tls_model || (check_initialized && object->tls_initialized) || !object->tls_size) {
 			continue;
 		}
 
@@ -718,7 +735,7 @@ void ObjectStorage::init_tls(void* tcb) {
 }
 
 void ObjectStorage::destruct_objects() {
-	__ensure(destruct_list.size() == objects.size());
+	__ensure(destruct_list.size() == objects.get_unsafe().size());
 
 	for (size_t i = destruct_list.size(); i > 0; --i) {
 		__ensure(!destruct_list[i - 1]->destructed);
@@ -728,7 +745,8 @@ void ObjectStorage::destruct_objects() {
 }
 
 void ObjectStorage::unload_objects() {
-	for (auto object : objects) {
+	auto guard = objects.lock();
+	for (auto object : *guard) {
 		object->~SharedObject();
 		if (object->rtld_loaded) {
 			__ensure(sys_munmap(reinterpret_cast<void*>(object->base), object->end - object->base) == 0);
@@ -737,4 +755,4 @@ void ObjectStorage::unload_objects() {
 	}
 }
 
-hz::spinlock<hz::manually_init<ObjectStorage>> OBJECT_STORAGE;
+hz::manually_init<ObjectStorage> OBJECT_STORAGE;

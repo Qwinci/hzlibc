@@ -99,6 +99,42 @@ EXPORT struct dirent64* readdir64(DIR* dir) {
 	return &dir->entry64;
 }
 
+EXPORT int readdir_r(DIR* dir, dirent* __restrict entry, dirent** __restrict result) {
+	__ensure(dir->ptr <= dir->size);
+	if (dir->ptr == dir->size) {
+		size_t new_size;
+		if (auto err = sys_read_dir(dir->handle, dir->buf, sizeof(dir->buf), &new_size)) {
+			errno = err;
+			return err;
+		}
+		dir->ptr = 0;
+		dir->size = new_size;
+		if (!dir->size) {
+			*result = nullptr;
+			return 0;
+		}
+	}
+
+	auto* entry_ptr = reinterpret_cast<dirent64*>(dir->buf + dir->ptr);
+#if UINTPTR_MAX == UINT64_MAX
+	memcpy(entry, entry_ptr, offsetof(dirent64, d_name) + strlen(entry_ptr->d_name) + 1);
+#else
+	if (entry_ptr->d_ino > LONG_MAX ||
+		entry_ptr->d_off > LONG_MAX) {
+		errno = EOVERFLOW;
+		return EOVERFLOW;
+	}
+	memcpy(&entry->d_ino, &entry_ptr->d_ino, 4);
+	memcpy(&entry->d_off, &entry_ptr->d_off, 4);
+	memcpy(&entry->d_reclen, &entry_ptr->d_reclen, 2);
+	memcpy(&entry->d_type, &entry_ptr->d_type, 1);
+	memcpy(&entry->d_name, &entry_ptr->d_name, strlen(entry_ptr->d_name) + 1);
+#endif
+	dir->ptr += entry_ptr->d_reclen;
+	*result = entry;
+	return 0;
+}
+
 EXPORT int closedir(DIR* dir) {
 	if (auto err = sys_close(dir->handle)) {
 		errno = err;

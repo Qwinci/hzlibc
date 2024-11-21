@@ -37,3 +37,8 @@ EXPORT int dladdr1(const void* addr, Dl_info* info, void** extra_info, int flags
 EXPORT int dlinfo(void* __restrict handle, int request, void* __restrict info) {
 	return __dlapi_dlinfo(handle, request, info);
 }
+
+EXPORT void* dlvsym(void* __restrict handle, const char* __restrict symbol, const char* __restrict version) {
+	println("dlvsym ", symbol, " ignores version");
+	return dlsym(handle, symbol);
+}

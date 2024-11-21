@@ -12,6 +12,10 @@ option(OPTIMIZED_ASM "Use optimized assembly routines (turn off if you get compi
 option(ENABLE_LIBC_TESTING "Enable libc testing" OFF)
 option(ANSI_ONLY "Only enable the ansi c part of the libc along with the dynamic linker" OFF)
 
+if(ANSI_ONLY)
+	option(DYNAMIC_LINKER_FUNCTIONS "Compile rtld functions (dlfcn.h) even in ansi only mode" ON)
+endif()
+
 if(CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64")
 	set(ARCH_DEFAULT_LIBRARY_PATHS "/usr/local/lib64;/usr/lib64;/usr/local/lib;/usr/lib")
 else()

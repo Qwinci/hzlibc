@@ -104,6 +104,9 @@ int fflush(FILE* __file);
 
 FILE* tmpfile(void);
 
+int remove(const char* __path);
+int rename(const char* __old_path, const char* __new_path);
+
 #if !__HZLIBC_ANSI_ONLY
 
 // posix
@@ -149,9 +152,6 @@ int putchar_unlocked(int __ch);
 
 int vasprintf(char** __restrict __ptr, const char* __fmt, va_list __ap);
 int asprintf(char** __restrict __ptr, const char* __fmt, ...);
-
-int remove(const char* __path);
-int rename(const char* __old_path, const char* __new_path);
 
 // bsd
 #define P_tmpdir "/tmp"

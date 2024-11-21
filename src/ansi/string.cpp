@@ -54,6 +54,10 @@ EXPORT char* strrchr(const char* str, int ch) {
 
 EXPORT char* strstr(const char* str, const char* substr) {
 	hz::string_view a {str};
+	if (!*substr) {
+		return const_cast<char*>(str);
+	}
+
 	if (auto pos = a.find(substr); pos != hz::string_view::npos) {
 		return const_cast<char*>(str + pos);
 	}
@@ -82,8 +86,8 @@ EXPORT char* strncpy(char* __restrict dest, const char* __restrict src, size_t c
 	for (; count && *src; --count) {
 		*dest++ = *src++;
 	}
-	if (count) {
-		*dest = 0;
+	for (; count; --count) {
+		*dest++ = 0;
 	}
 	return orig_dest;
 }
@@ -110,10 +114,13 @@ EXPORT void* memccpy(void* __restrict dest, const void* __restrict src, int ch, 
 
 EXPORT char* strncat(char* __restrict dest, const char* __restrict src, size_t count) {
 	size_t len = strlen(dest);
-	size_t src_len = strlen(src);
-	auto to_write = hz::max(src_len, count);
-	memcpy(dest + len, src, to_write);
-	dest[len + to_write] = 0;
+	auto* ptr = dest + len;
+
+	for (; count && *src; --count) {
+		*ptr++ = *src++;
+	}
+
+	*ptr = 0;
 	return dest;
 }
 
@@ -129,7 +136,7 @@ EXPORT char* strdup(const char* str) {
 
 EXPORT char* strndup(const char* str, size_t size) {
 	size_t len = 0;
-	for (auto* ptr = str; *ptr && size; --size, ++ptr) {
+	for (auto* ptr = str; size && *ptr; --size, ++ptr) {
 		++len;
 	}
 
@@ -193,14 +200,8 @@ EXPORT int strcoll(const char* lhs, const char* rhs) {
 EXPORT size_t strxfrm(char* __restrict dest, const char* __restrict src, size_t count) {
 	//println("strxfrm ignores locale");
 	size_t len = strlen(src);
-	if (dest && count) {
-		if (len + 1 < count) {
-			memcpy(dest, src, len + 1);
-		}
-		else {
-			memcpy(dest, src, count - 1);
-			dest[count - 1] = 0;
-		}
+	if (dest && count > len) {
+		memcpy(dest, src, len + 1);
 	}
 	return len;
 }
@@ -360,7 +361,7 @@ EXPORT char* strerror(int err_num) {
 	}
 }
 
-#if defined(__x86_64__) && defined(OPTIMIZED_ASM)
+#if defined(__x86_64__)
 
 EXPORT void* memset(void* __restrict dest, int ch, size_t size) {
 	void* dest_copy = dest;
@@ -369,87 +370,8 @@ EXPORT void* memset(void* __restrict dest, int ch, size_t size) {
 }
 
 EXPORT void* memcpy(void* __restrict dest, const void* __restrict src, size_t size) {
-	auto* dest_ptr = static_cast<unsigned char*>(dest);
-	auto* src_ptr = static_cast<const unsigned char*>(src);
-
-	if (reinterpret_cast<uintptr_t>(dest_ptr) % 8 != reinterpret_cast<uintptr_t>(src_ptr) % 8) {
-		goto slow;
-	}
-	else if (size < 16) {
-		goto fast_8;
-	}
-
-	while (reinterpret_cast<uintptr_t>(dest_ptr) % 8 ||
-		   reinterpret_cast<uintptr_t>(src_ptr) % 8) {
-		*dest_ptr++ = *src_ptr++;
-		--size;
-	}
-
-	for (; size >= 64; size -= 64) {
-		auto value0 = *reinterpret_cast<const uint64_t*>(src_ptr);
-		auto value1 = *reinterpret_cast<const uint64_t*>(src_ptr + 8);
-		auto value2 = *reinterpret_cast<const uint64_t*>(src_ptr + 16);
-		auto value3 = *reinterpret_cast<const uint64_t*>(src_ptr + 24);
-		auto value4 = *reinterpret_cast<const uint64_t*>(src_ptr + 32);
-		auto value5 = *reinterpret_cast<const uint64_t*>(src_ptr + 40);
-		auto value6 = *reinterpret_cast<const uint64_t*>(src_ptr + 48);
-		auto value7 = *reinterpret_cast<const uint64_t*>(src_ptr + 56);
-		asm volatile(
-			"movnti %0, %1;"
-			"movnti %2, %3;"
-			"movnti %4, %5;"
-			"movnti %6, %7;"
-
-			"movnti %8, %9;"
-			"movnti %10, %11;"
-			"movnti %12, %13;"
-			"movnti %14, %15" : :
-			"r"(value0), "m"(*dest_ptr),
-			"r"(value1), "m"(*(dest_ptr + 8)),
-			"r"(value2), "m"(*(dest_ptr + 16)),
-			"r"(value3), "m"(*(dest_ptr + 24)),
-
-			"r"(value4), "m"(*(dest_ptr + 32)),
-			"r"(value5), "m"(*(dest_ptr + 40)),
-			"r"(value6), "m"(*(dest_ptr + 48)),
-			"r"(value7), "m"(*(dest_ptr + 56)));
-		src_ptr += 64;
-		dest_ptr += 64;
-	}
-
-	for (; size >= 32; size -= 32) {
-		auto value0 = *reinterpret_cast<const uint64_t*>(src_ptr);
-		auto value1 = *reinterpret_cast<const uint64_t*>(src_ptr + 8);
-		auto value2 = *reinterpret_cast<const uint64_t*>(src_ptr + 16);
-		auto value3 = *reinterpret_cast<const uint64_t*>(src_ptr + 24);
-		asm volatile(
-			"movnti %0, %1;"
-			"movnti %2, %3;"
-			"movnti %4, %5;"
-			"movnti %6, %7;" : :
-			"r"(value0), "m"(*dest_ptr),
-			"r"(value1), "m"(*(dest_ptr + 8)),
-			"r"(value2), "m"(*(dest_ptr + 16)),
-			"r"(value3), "m"(*(dest_ptr + 24)));
-		src_ptr += 32;
-		dest_ptr += 32;
-	}
-
-fast_8:
-	for (; size >= 8; size -= 8) {
-		auto value0 = *reinterpret_cast<const uint64_t*>(src_ptr);
-		asm volatile(
-			"movnti %0, %1;": :
-			"r"(value0), "m"(*dest_ptr));
-		src_ptr += 8;
-		dest_ptr += 8;
-	}
-
-slow:
-	for (; size; --size) {
-		*dest_ptr++ = *src_ptr++;
-	}
-
+	void* dest_copy = dest;
+	asm volatile("rep movsb" : "+D"(dest_copy), "+S"(src), "+c"(size) : : "flags", "memory");
 	return dest;
 }
 
@@ -500,17 +422,18 @@ EXPORT void* memmove(void* dest, const void* src, size_t size) {
 	auto dest_addr = reinterpret_cast<uintptr_t>(dest);
 	auto src_addr = reinterpret_cast<uintptr_t>(src);
 
-	if (dest_addr > src_addr && dest_addr - src_addr < size) {
+	if (dest_addr < src_addr || src_addr + size <= dest_addr) {
+		return memcpy(dest, src, size);
+	}
+	else if (dest_addr > src_addr) {
 		auto* dest_ptr = static_cast<unsigned char*>(dest);
 		auto* src_ptr = static_cast<const unsigned char*>(src);
 		for (size_t i = size; i > 0; --i) {
 			dest_ptr[i - 1] = src_ptr[i - 1];
 		}
-		return dest;
 	}
-	else {
-		return memcpy(dest, src, size);
-	}
+
+	return dest;
 }
 
 ALIAS(strdup, __strdup);

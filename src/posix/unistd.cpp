@@ -7,6 +7,7 @@
 #include "stdio.h"
 #include "sys/ioctl.h"
 #include "allocator.hpp"
+#include "string.h"
 #include <hz/vector.hpp>
 
 EXPORT __attribute__((noreturn)) void _exit(int status) {
@@ -116,6 +117,39 @@ EXPORT int dup2(int old_fd, int new_fd) {
 		return -1;
 	}
 	return new_fd;
+}
+
+EXPORT int lockf(int fd, int op, off_t len) {
+	struct flock lock {
+		.l_type = F_WRLCK,
+		.l_whence = SEEK_CUR,
+		.l_start = 0,
+		.l_len = len,
+		.l_pid = 0
+	};
+
+	switch (op) {
+		case F_ULOCK:
+			lock.l_type = F_UNLCK;
+			return fcntl(fd, F_SETLK, &lock);
+		case F_LOCK:
+			return fcntl(fd, F_SETLKW, &lock);
+		case F_TLOCK:
+			return fcntl(fd, F_SETLK, &lock);
+		case F_TEST:
+			lock.l_type = F_RDLCK;
+			if (fcntl(fd, F_GETLK, &lock) < 0) {
+				return -1;
+			}
+			if (lock.l_type == F_UNLCK || lock.l_pid == getpid()) {
+				return 0;
+			}
+			errno = EACCES;
+			return -1;
+		default:
+			errno = EINVAL;
+			return -1;
+	}
 }
 
 EXPORT int access(const char* path, int mode) {
@@ -360,6 +394,25 @@ EXPORT pid_t getpgrp() {
 
 EXPORT char* getlogin() {
 	return getenv("LOGNAME");
+}
+
+EXPORT int getlogin_r(char* buf, size_t buf_size) {
+	auto value = getenv("LOGNAME");
+	if (!value) {
+		errno = ENOENT;
+		return ENOENT;
+	}
+
+	auto len = strlen(value);
+	if (len + 1 > buf_size) {
+		memcpy(buf, value, buf_size);
+		errno = ERANGE;
+		return ERANGE;
+	}
+	else {
+		memcpy(buf, value, len + 1);
+		return 0;
+	}
 }
 
 EXPORT pid_t tcgetpgrp(int fd) {
@@ -727,6 +780,25 @@ EXPORT int execl(const char* path, const char* arg, ...) {
 	}
 	va_end(ap);
 	return execve(path, args.data(), environ);
+}
+
+EXPORT int execle(const char* path, const char* arg, ...) {
+	va_list ap;
+	va_start(ap, arg);
+
+	hz::vector<char*, Allocator> args {Allocator {}};
+	args.push_back(const_cast<char*>(arg));
+	while (true) {
+		auto* arg2 = va_arg(ap, char*);
+		args.push_back(arg2);
+		if (!arg2) {
+			break;
+		}
+	}
+
+	auto envp = va_arg(ap, char**);
+	va_end(ap);
+	return execve(path, args.data(), envp);
 }
 
 EXPORT int execlp(const char* file, const char* arg, ...) {

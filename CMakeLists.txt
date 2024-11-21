@@ -163,6 +163,7 @@ target_sources(c PUBLIC FILE_SET HEADERS
 	include/fenv.h
 	include/inttypes.h
 	include/limits.h
+	include/locale.h
 	include/math.h
 	include/setjmp.h
 	include/signal.h
@@ -189,6 +190,16 @@ target_sources(c PUBLIC FILE_SET HEADERS
 	FILES "${CMAKE_CURRENT_BINARY_DIR}/bits/config.h"
 )
 
+if(DYNAMIC_LINKER_FUNCTIONS)
+	target_sources(c PUBLIC FILE_SET HEADERS
+		BASE_DIRS include
+		FILES
+		include/dlfcn.h
+		include/link.h
+		include/elf.h
+	)
+endif()
+
 if(NOT ANSI_ONLY)
 	target_sources(c PUBLIC FILE_SET HEADERS
 		BASE_DIRS include
@@ -207,7 +218,6 @@ if(NOT ANSI_ONLY)
 		include/iconv.h
 		include/ifaddrs.h
 		include/langinfo.h
-		include/locale.h
 		include/mntent.h
 		include/mqueue.h
 		include/netdb.h

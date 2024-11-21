@@ -126,6 +126,10 @@ int posix_fadvise(int __fd, off_t __offset, off_t __len, int __advice);
 int posix_fallocate(int __fd, off_t __offset, off_t __len);
 int posix_fallocate64(int __fd, off64_t __offset, off64_t __len);
 
+// linux
+int fallocate(int __fd, int __mode, off_t __offset, off_t __len);
+int fallocate64(int __fd, int __mode, off64_t __offset, off64_t __len);
+
 __end_decls
 
 #endif

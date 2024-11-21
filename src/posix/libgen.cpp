@@ -30,3 +30,20 @@ EXPORT char* basename(char* path) {
 		return path;
 	}
 }
+
+EXPORT char* dirname(char* path) {
+	if (!path || !*path) {
+		return const_cast<char*>(".");
+	}
+
+	if (auto ptr = strrchr(path, '/')) {
+		if (ptr == path && !ptr[1]) {
+			return ptr;
+		}
+		*ptr = 0;
+		return path;
+	}
+	else {
+		return const_cast<char*>(".");
+	}
+}

@@ -63,24 +63,25 @@ struct ObjectStorage {
 
 	static void protect_object(SharedObject* object);
 
-	LoadError load_dependencies(SharedObject* object, bool global);
+	LoadError load_dependencies(SharedObject* object, bool global, bool initial);
 
 	hz::optional<ObjectSymbol> lookup(SharedObject* local, const char* name, LookupPolicy policy);
 
 	void init_objects();
-	void init_tls(void* tcb);
+	void init_tls(void* tcb, bool check_initialized);
 	void destruct_objects();
 	void unload_objects();
 
-	hz::vector<SharedObject*, Allocator> objects {Allocator {}};
+	hz::spinlock<hz::vector<SharedObject*, Allocator>> objects {hz::vector<SharedObject*, Allocator> {Allocator {}}};
 	hz::vector<SharedObject*, Allocator> global_scope {Allocator {}};
 	hz::unordered_map<hz::string<Allocator>, ObjectSymbol, Allocator> unique_map {Allocator {}};
 	hz::vector<SharedObject*, Allocator> init_list {Allocator {}};
 	hz::vector<SharedObject*, Allocator> destruct_list {Allocator {}};
 	uintptr_t initial_tls_size {};
 	uintptr_t total_initial_tls_size {};
+	hz::spinlock<void> lock {};
 	hz::spinlock<hz::vector<SharedObject*, Allocator>> runtime_tls_map {
 		hz::vector<SharedObject*, Allocator> {Allocator {}}};
 };
 
-extern hz::spinlock<hz::manually_init<ObjectStorage>> OBJECT_STORAGE;
+extern hz::manually_init<ObjectStorage> OBJECT_STORAGE;

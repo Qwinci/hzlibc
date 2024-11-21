@@ -62,6 +62,13 @@ wchar_t* wcstok(wchar_t* __restrict __str, const wchar_t* __restrict __delim, wc
 wchar_t* wcspbrk(const wchar_t* __str, const wchar_t* __break_set);
 
 long wcstol(const wchar_t* __restrict __str, wchar_t** __restrict __end, int __base);
+long long wcstoll(const wchar_t* __restrict __str, wchar_t** __restrict __end, int __base);
+unsigned long wcstoul(const wchar_t* __restrict __str, wchar_t** __restrict __end, int __base);
+unsigned long long wcstoull(const wchar_t* __restrict __str, wchar_t** __restrict __end, int __base);
+
+float wcstof(const wchar_t* __restrict __str, wchar_t** __restrict __end);
+double wcstod(const wchar_t* __restrict __str, wchar_t** __restrict __end);
+long double wcstold(const wchar_t* __restrict __str, wchar_t** __restrict __end);
 
 size_t wcsftime(
 	wchar_t* __restrict __str,

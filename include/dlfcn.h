@@ -73,6 +73,7 @@ int dladdr(const void* __addr, Dl_info* __info);
 int dladdr1(const void* __addr, Dl_info* __info, void** __extra_info, int __flags);
 int dlinfo(void* __restrict __handle, int __request, void* __restrict __info);
 int _dl_find_object(void* __addr, struct dl_find_object* __result);
+void* dlvsym(void* __restrict __handle, const char* __restrict __symbol, const char* __restrict __version);
 
 __end_decls
 

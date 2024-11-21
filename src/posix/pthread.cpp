@@ -352,6 +352,48 @@ EXPORT int pthread_cond_timedwait(
 	return thread_cond_timedwait(cond, mutex, abs_timeout);
 }
 
+EXPORT int pthread_cond_clockwait(
+	pthread_cond_t* __restrict cond,
+	pthread_mutex_t* __restrict mutex,
+	clockid_t clock_id,
+	const struct timespec* __restrict abs_timeout) {
+	if (!abs_timeout) {
+		return thread_cond_wait(cond, mutex);
+	}
+	else {
+		auto* ptr = reinterpret_cast<Cond*>(cond);
+
+		while (true) {
+			timespec current {};
+			if (auto err = sys_clock_gettime(clock_id, &current)) {
+				return err;
+			}
+
+			timespec timeout {
+				.tv_sec = abs_timeout->tv_sec - current.tv_sec,
+				.tv_nsec = abs_timeout->tv_nsec - current.tv_nsec
+			};
+			if (timeout.tv_sec < 0 || (timeout.tv_sec == 0 && timeout.tv_nsec < 0)) {
+				return ETIMEDOUT;
+			}
+
+			auto value = ptr->futex.load(hz::memory_order::relaxed);
+			thread_mutex_unlock(mutex);
+			int err = sys_futex_wait(ptr->futex.data(), value, &timeout);
+			thread_mutex_lock(mutex);
+			if (err == ETIMEDOUT) {
+				return ETIMEDOUT;
+			}
+			else if (err == EINTR) {
+				continue;
+			}
+			else {
+				return 0;
+			}
+		}
+	}
+}
+
 EXPORT int pthread_cond_broadcast(pthread_cond_t* cond) {
 	return thread_cond_broadcast(cond);
 }
@@ -457,6 +499,28 @@ EXPORT int pthread_attr_setstacksize(pthread_attr_t* attr, size_t stack_size) {
 
 	auto* ptr = reinterpret_cast<ThreadAttr*>(attr);
 	ptr->stack_size = stack_size;
+	return 0;
+}
+
+EXPORT int pthread_attr_setschedpolicy(pthread_attr_t* __restrict attr, int policy) {
+	auto* ptr = reinterpret_cast<ThreadAttr*>(attr);
+	ptr->policy = policy;
+	return 0;
+}
+
+EXPORT int pthread_attr_setschedparam(pthread_attr_t* __restrict attr, const sched_param* __restrict param) {
+	auto* ptr = reinterpret_cast<ThreadAttr*>(attr);
+	ptr->priority = param->sched_priority;
+	return 0;
+}
+
+EXPORT int pthread_attr_setinheritsched(pthread_attr_t* attr, int inherit_sched) {
+	if (inherit_sched != PTHREAD_INHERIT_SCHED && inherit_sched != PTHREAD_EXPLICIT_SCHED) {
+		return EINVAL;
+	}
+
+	auto* ptr = reinterpret_cast<ThreadAttr*>(attr);
+	ptr->inherit_sched = inherit_sched;
 	return 0;
 }
 

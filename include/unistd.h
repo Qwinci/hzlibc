@@ -213,6 +213,11 @@ __begin_decls
 #define W_OK 2
 #define R_OK 4
 
+#define F_ULOCK 0
+#define F_LOCK 1
+#define F_TLOCK 2
+#define F_TEST 3
+
 #define STDIN_FILENO 0
 #define STDOUT_FILENO 1
 #define STDERR_FILENO 2
@@ -231,6 +236,7 @@ int close(int __fd);
 int pipe(int __pipe_fd[2]);
 int dup(int __old_fd);
 int dup2(int __old_fd, int __new_fd);
+int lockf(int __fd, int __op, off_t __len);
 
 int access(const char* __path, int __mode);
 int faccessat(int __dir_fd, const char* __path, int __mode, int __flags);
@@ -266,6 +272,7 @@ pid_t getpgid(pid_t __pid);
 pid_t getpgrp(void);
 
 char* getlogin(void);
+int getlogin_r(char* __buf, size_t __buf_size);
 
 pid_t tcgetpgrp(int __fd);
 int tcsetpgrp(int __fd, pid_t __pgrp);
@@ -304,6 +311,7 @@ long sysconf(int __name);
 int execv(const char* __path, char* const __argv[]);
 int execve(const char* __path, char* const __argv[], char* const __envp[]);
 int execl(const char* __path, const char* __arg, ...);
+int execle(const char* __path, const char* __arg, ...);
 int execlp(const char* __file, const char* __arg, ...);
 int execvp(const char* __file, char* const __argv[]);
 pid_t fork(void);

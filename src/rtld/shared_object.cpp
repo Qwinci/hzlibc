@@ -602,7 +602,7 @@ void SharedObject::relocate() {
 		auto* sym = &symtab[ELF_R_SYM(entry.r_info)];
 		if (ELF_R_SYM(entry.r_info)) {
 			const char* sym_name = strtab + sym->st_name;
-			resolved_sym = OBJECT_STORAGE.get_unsafe()->lookup(this, sym_name, lookup_policy);
+			resolved_sym = OBJECT_STORAGE->lookup(this, sym_name, lookup_policy);
 		}
 
 		has_unresolved_symbols |= !process_relocation({this, entry}, resolved_sym);
@@ -652,7 +652,7 @@ void SharedObject::relocate() {
 		auto* sym = &symtab[ELF_R_SYM(entry.r_info)];
 		if (ELF_R_SYM(entry.r_info)) {
 			const char* sym_name = strtab + sym->st_name;
-			resolved_sym = OBJECT_STORAGE.get_unsafe()->lookup(this, sym_name, lookup_policy);
+			resolved_sym = OBJECT_STORAGE->lookup(this, sym_name, lookup_policy);
 
 			if (SAVED_LIBC_REL_ADDENDS) {
 				reloc.rela.r_addend = SAVED_LIBC_REL_ADDENDS[libc_saved_addend_index++];
@@ -676,12 +676,16 @@ void SharedObject::relocate() {
 		if (plt_rel_type == DT_RELA) {
 			for (uintptr_t i = 0; i < plt_rel_size; i += sizeof(Elf_Rela)) {
 				auto entry = *reinterpret_cast<Elf_Rela*>(plt_rel + i);
+				auto type = ELF_R_TYPE(entry.r_info);
+				if (type == R_COPY || type == R_IRELATIVE) {
+					continue;
+				}
 
 				hz::optional<ObjectSymbol> resolved_sym;
 				auto* sym = &symtab[ELF_R_SYM(entry.r_info)];
 				if (ELF_R_SYM(entry.r_info)) {
 					const char* sym_name = strtab + sym->st_name;
-					resolved_sym = OBJECT_STORAGE.get_unsafe()->lookup(this, sym_name, lookup_policy);
+					resolved_sym = OBJECT_STORAGE->lookup(this, sym_name, lookup_policy);
 				}
 
 				has_unresolved_symbols |= !process_relocation({this, entry}, resolved_sym);
@@ -692,6 +696,10 @@ void SharedObject::relocate() {
 
 			for (uintptr_t i = 0; i < plt_rel_size; i += sizeof(Elf_Rel)) {
 				auto entry = *reinterpret_cast<Elf_Rel*>(plt_rel + i);
+				auto type = ELF_R_TYPE(entry.r_info);
+				if (type == R_COPY || type == R_IRELATIVE) {
+					continue;
+				}
 
 				Relocation reloc {this, entry, 0};
 
@@ -699,7 +707,7 @@ void SharedObject::relocate() {
 				auto* sym = &symtab[ELF_R_SYM(entry.r_info)];
 				if (ELF_R_SYM(entry.r_info)) {
 					const char* sym_name = strtab + sym->st_name;
-					resolved_sym = OBJECT_STORAGE.get_unsafe()->lookup(this, sym_name, lookup_policy);
+					resolved_sym = OBJECT_STORAGE->lookup(this, sym_name, lookup_policy);
 
 					if (SAVED_LIBC_REL_ADDENDS) {
 						reloc.rela.r_addend = SAVED_LIBC_REL_ADDENDS[libc_saved_addend_index++];
@@ -731,9 +739,15 @@ void SharedObject::late_relocate() {
 	uintptr_t rel = 0;
 	uintptr_t rela_size = 0;
 	uintptr_t rel_size = 0;
+	uintptr_t plt_rel_size = 0;
+	uintptr_t plt_rel_type = 0;
+	uintptr_t plt_rel = 0;
 
 	for (auto* dyn = dynamic; dyn->d_tag != DT_NULL; ++dyn) {
 		switch (dyn->d_tag) {
+			case DT_PLTRELSZ:
+				plt_rel_size = dyn->d_un.d_val;
+				break;
 			case DT_RELA:
 				rela = base + dyn->d_un.d_ptr;
 				break;
@@ -745,6 +759,12 @@ void SharedObject::late_relocate() {
 				break;
 			case DT_RELSZ:
 				rel_size = dyn->d_un.d_val;
+				break;
+			case DT_PLTREL:
+				plt_rel_type = dyn->d_un.d_val;
+				break;
+			case DT_JMPREL:
+				plt_rel = base + dyn->d_un.d_ptr;
 				break;
 			default:
 				break;
@@ -763,7 +783,7 @@ void SharedObject::late_relocate() {
 		auto* sym = &symtab[ELF_R_SYM(entry.r_info)];
 		if (ELF_R_SYM(entry.r_info)) {
 			const char* sym_name = strtab + sym->st_name;
-			resolved_sym = OBJECT_STORAGE.get_unsafe()->lookup(this, sym_name, LookupPolicy::IgnoreLocal);
+			resolved_sym = OBJECT_STORAGE->lookup(this, sym_name, LookupPolicy::IgnoreLocal);
 		}
 
 		process_late_relocation({this, entry}, resolved_sym);
@@ -781,10 +801,51 @@ void SharedObject::late_relocate() {
 		auto* sym = &symtab[ELF_R_SYM(entry.r_info)];
 		if (ELF_R_SYM(entry.r_info)) {
 			const char* sym_name = strtab + sym->st_name;
-			resolved_sym = OBJECT_STORAGE.get_unsafe()->lookup(this, sym_name, LookupPolicy::IgnoreLocal);
+			resolved_sym = OBJECT_STORAGE->lookup(this, sym_name, LookupPolicy::IgnoreLocal);
 		}
 
 		process_late_relocation({this, entry}, resolved_sym);
+	}
+
+	if (plt_rel_size) {
+		if (plt_rel_type == DT_RELA) {
+			for (uintptr_t i = 0; i < plt_rel_size; i += sizeof(Elf_Rela)) {
+				auto entry = *reinterpret_cast<Elf_Rela*>(plt_rel + i);
+				auto type = ELF_R_TYPE(entry.r_info);
+				if (type != R_COPY && type != R_IRELATIVE) {
+					continue;
+				}
+
+				hz::optional<ObjectSymbol> resolved_sym;
+				auto* sym = &symtab[ELF_R_SYM(entry.r_info)];
+				if (ELF_R_SYM(entry.r_info)) {
+					const char* sym_name = strtab + sym->st_name;
+					resolved_sym = OBJECT_STORAGE->lookup(this, sym_name, LookupPolicy::IgnoreLocal);
+				}
+
+				process_late_relocation({this, entry}, resolved_sym);
+			}
+		}
+		else {
+			__ensure(plt_rel_type == DT_REL);
+
+			for (uintptr_t i = 0; i < plt_rel_size; i += sizeof(Elf_Rel)) {
+				auto entry = *reinterpret_cast<Elf_Rel*>(plt_rel + i);
+				auto type = ELF_R_TYPE(entry.r_info);
+				if (type != R_COPY && type != R_IRELATIVE) {
+					continue;
+				}
+
+				hz::optional<ObjectSymbol> resolved_sym;
+				auto* sym = &symtab[ELF_R_SYM(entry.r_info)];
+				if (ELF_R_SYM(entry.r_info)) {
+					const char* sym_name = strtab + sym->st_name;
+					resolved_sym = OBJECT_STORAGE->lookup(this, sym_name, LookupPolicy::IgnoreLocal);
+				}
+
+				process_late_relocation({this, entry}, resolved_sym);
+			}
+		}
 	}
 }
 
@@ -908,6 +969,10 @@ void SharedObject::relocate_libc(intptr_t* saved_rel_addends) {
 		if (plt_rel_type == DT_RELA) {
 			for (uintptr_t i = 0; i < plt_rel_size; i += sizeof(Elf_Rela)) {
 				auto entry = *reinterpret_cast<Elf_Rela*>(plt_rel + i);
+				auto type = ELF_R_TYPE(entry.r_info);
+				if (type == R_COPY || type == R_IRELATIVE) {
+					continue;
+				}
 
 				hz::optional<ObjectSymbol> resolved_sym;
 				auto* sym = &symtab[ELF_R_SYM(entry.r_info)];
@@ -926,6 +991,10 @@ void SharedObject::relocate_libc(intptr_t* saved_rel_addends) {
 
 			for (uintptr_t i = 0; i < plt_rel_size; i += sizeof(Elf_Rel)) {
 				auto entry = *reinterpret_cast<Elf_Rel*>(plt_rel + i);
+				auto type = ELF_R_TYPE(entry.r_info);
+				if (type == R_COPY || type == R_IRELATIVE) {
+					continue;
+				}
 
 				hz::optional<ObjectSymbol> resolved_sym;
 				auto* sym = &symtab[ELF_R_SYM(entry.r_info)];

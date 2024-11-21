@@ -33,6 +33,9 @@ enum {
 #define PTHREAD_CREATE_JOINABLE __HZLIBC_THREAD_CREATE_JOINABLE
 #define PTHREAD_CREATE_DETACHED __HZLIBC_THREAD_CREATE_DETACHED
 
+#define PTHREAD_INHERIT_SCHED 0
+#define PTHREAD_EXPLICIT_SCHED 1
+
 #define PTHREAD_STACK_MIN __HZLIBC_THREAD_STACK_MIN
 
 #define PTHREAD_RWLOCK_INITIALIZER __HZLIBC_RWLOCK_INITIALIZER
@@ -103,6 +106,11 @@ int pthread_cond_timedwait(
 	pthread_cond_t* __restrict __cond,
 	pthread_mutex_t* __restrict __mutex,
 	const struct timespec* __restrict __abs_timeout);
+int pthread_cond_clockwait(
+	pthread_cond_t* __restrict __cond,
+	pthread_mutex_t* __restrict __mutex,
+	clockid_t __clock_id,
+	const struct timespec* __restrict __abs_timeout);
 int pthread_cond_broadcast(pthread_cond_t* __cond);
 int pthread_cond_signal(pthread_cond_t* __cond);
 
@@ -117,6 +125,9 @@ int pthread_attr_init(pthread_attr_t* __attr);
 int pthread_attr_destroy(pthread_attr_t* __attr);
 int pthread_attr_setdetachstate(pthread_attr_t* __attr, int __detach_state);
 int pthread_attr_setstacksize(pthread_attr_t* __attr, size_t __stack_size);
+int pthread_attr_setschedpolicy(pthread_attr_t* __restrict __attr, int __policy);
+int pthread_attr_setschedparam(pthread_attr_t* __restrict __attr, const struct sched_param* __restrict __param);
+int pthread_attr_setinheritsched(pthread_attr_t* __attr, int __inherit_sched);
 
 int pthread_mutexattr_init(pthread_mutexattr_t* __attr);
 int pthread_mutexattr_destroy(pthread_mutexattr_t* __attr);

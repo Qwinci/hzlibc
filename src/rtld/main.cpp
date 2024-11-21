@@ -235,15 +235,20 @@ extern "C" [[gnu::used]] uintptr_t start(uintptr_t* sp) {
 	LIBC_OBJECT->rtld_loaded = false;
 
 	size_t exe_tls_size = 0;
+	size_t exe_tls_align = 1;
 	for (int i = 0; i < exe_phnum; ++i) {
 		auto phdr = reinterpret_cast<Elf_Phdr*>(reinterpret_cast<uintptr_t>(exe_phdr) + i * exe_phent);
 		if (phdr->p_type == PT_TLS) {
 			exe_tls_size = phdr->p_memsz;
+			exe_tls_align = phdr->p_align;
 			break;
 		}
 	}
 
-	LIBC_OBJECT->tls_offset = (exe_tls_size + LIBC_OBJECT->tls_size + LIBC_OBJECT->tls_align - 1) & ~(LIBC_OBJECT->tls_align - 1);
+	auto exe_tls_offset = (exe_tls_size + (exe_tls_align - 1)) & ~(exe_tls_align - 1);
+
+	LIBC_OBJECT->tls_offset = (exe_tls_offset + LIBC_OBJECT->tls_size + (LIBC_OBJECT->tls_align - 1))
+		& ~(LIBC_OBJECT->tls_align - 1);
 
 	intptr_t libc_addends[MAX_SAVED_LIBC_REL_ADDENDS];
 	LIBC_OBJECT->relocate_libc(libc_addends);
@@ -296,6 +301,7 @@ extern "C" [[gnu::used]] uintptr_t start(uintptr_t* sp) {
 
 	LIBC_OBJECT->path = std::move(libc_path);
 	LIBC_OBJECT->name = std::move(libc_name);
+	LIBC_OBJECT->initial_tls_model = true;
 	LIBC_OBJECT->link_map.name = LIBC_OBJECT->path.data();
 
 	auto* exe_dynamic = reinterpret_cast<Elf_Dyn*>(exe_base + exe_dynamic_offset);
@@ -317,16 +323,17 @@ extern "C" [[gnu::used]] uintptr_t start(uintptr_t* sp) {
 		exe_phent,
 		exe_phnum);
 	EXE_OBJECT->rtld_loaded = false;
-	EXE_OBJECT->tls_offset = (EXE_OBJECT->tls_size + EXE_OBJECT->tls_align - 1) & ~(EXE_OBJECT->tls_align - 1);
+	EXE_OBJECT->tls_offset = exe_tls_offset;
 	EXE_OBJECT->executable = true;
+	EXE_OBJECT->initial_tls_model = true;
 
-	OBJECT_STORAGE.get_unsafe().initialize();
-	OBJECT_STORAGE.get_unsafe()->add_object(&*EXE_OBJECT);
-	OBJECT_STORAGE.get_unsafe()->global_scope.push_back(&*EXE_OBJECT);
-	OBJECT_STORAGE.get_unsafe()->add_object(&*LIBC_OBJECT);
-	OBJECT_STORAGE.get_unsafe()->global_scope.push_back(&*LIBC_OBJECT);
-	OBJECT_STORAGE.get_unsafe()->initial_tls_size = LIBC_OBJECT->tls_offset;
-	__ensure(OBJECT_STORAGE.get_unsafe()->load_dependencies(&*EXE_OBJECT, true) == LoadError::Success);
+	OBJECT_STORAGE.initialize();
+	OBJECT_STORAGE->add_object(&*EXE_OBJECT);
+	OBJECT_STORAGE->global_scope.push_back(&*EXE_OBJECT);
+	OBJECT_STORAGE->add_object(&*LIBC_OBJECT);
+	OBJECT_STORAGE->global_scope.push_back(&*LIBC_OBJECT);
+	OBJECT_STORAGE->initial_tls_size = LIBC_OBJECT->tls_offset;
+	__ensure(OBJECT_STORAGE->load_dependencies(&*EXE_OBJECT, true, true) == LoadError::Success);
 
 	// relocate libc again to take into account preloads
 	SAVED_LIBC_REL_ADDENDS = libc_addends;
@@ -341,7 +348,7 @@ extern "C" [[gnu::used]] uintptr_t start(uintptr_t* sp) {
 		PROT_READ) == 0 && "failed to make executable dynamic section readable");
 
 	// allocate the tls
-	OBJECT_STORAGE.get_unsafe()->total_initial_tls_size = OBJECT_STORAGE.get_unsafe()->initial_tls_size + 1024 * 4;
+	OBJECT_STORAGE->total_initial_tls_size = OBJECT_STORAGE->initial_tls_size + 1024 * 4;
 
 	void* initial_tcb;
 	void* initial_tp;
@@ -369,10 +376,10 @@ extern "C" [[gnu::used]] uintptr_t start(uintptr_t* sp) {
 		}
 	}
 
-	OBJECT_STORAGE.get_unsafe()->destruct_list.push_back(&*LIBC_OBJECT);
+	OBJECT_STORAGE->destruct_list.push_back(&*LIBC_OBJECT);
 	LIBC_OBJECT->run_init();
 
-	OBJECT_STORAGE.get_unsafe()->init_objects();
+	OBJECT_STORAGE->init_objects();
 
 	return exe_entry;
 }

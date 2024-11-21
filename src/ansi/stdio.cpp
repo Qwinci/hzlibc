@@ -13,11 +13,13 @@
 #include <hz/algorithm.hpp>
 #include <hz/string_utils.hpp>
 #include <limits.h>
+#include <float.h>
 
 ssize_t fd_file_write(FILE* file, const void* data, size_t size) {
 	ssize_t written;
 	if (auto err = sys_write(file->fd, data, size, &written)) {
 		file->error = err;
+		file->flags |= FILE_ERR_FLAG;
 		return -1;
 	}
 	file->last_was_read = false;
@@ -197,6 +199,18 @@ EXPORT int vfprintf(FILE* __restrict file, const char* __restrict fmt, va_list a
 		int right_pad;
 		bool upper;
 		int write_prefix;
+	};
+
+	auto pad = [&](int min_width, int written, char pad_c) {
+		if (written < min_width) {
+			for (int i = 0; i < min_width - written; ++i) {
+				if (!write(&pad_c, 1)) {
+					return false;
+				}
+			}
+		}
+
+		return true;
 	};
 
 	auto write_int = [&](
@@ -581,200 +595,16 @@ EXPORT int vfprintf(FILE* __restrict file, const char* __restrict fmt, va_list a
 			}
 			case 'f':
 			case 'F':
-			{
-				auto specific = *fmt;
-				bool upper = specific == 'F';
-
-				++fmt;
-
-				long double value;
-				if (state == State::L) {
-					value = va_arg(ap, long double);
-				}
-				else {
-					__ensure(state == State::None || state == State::l);
-					value = va_arg(ap, double);
-				}
-
-				if (isinf(value)) {
-					if (!write(upper ? "INF" : "inf", 3)) {
-						return -1;
-					}
-					break;
-				}
-				else if (isnan(value)) {
-					if (!write(upper ? "NAN" : "nan", 3)) {
-						return -1;
-					}
-					break;
-				}
-
-				bool negative = false;
-				if (value < 0) {
-					value *= -1;
-					negative = true;
-				}
-
-				auto int_part = static_cast<long long>(value);
-				auto dec_part = value - static_cast<long double>(int_part);
-
-				IntOpts opts {
-					.min_width = 0,
-					.precision = 1,
-					.negative = negative,
-					.always_write_sign = flags & flags::SIGN,
-					.plus_as_space = flags & flags::SPACE,
-					.pad_with_zero = flags & flags::ZERO,
-					.right_pad = flags & flags::LJUST,
-					.upper = false,
-					.write_prefix = false
-				};
-
-				if (!write_int(int_part, 10, opts)) {
-					return -1;
-				}
-
-				if (!has_precision) {
-					precision = 6;
-				}
-
-				if (precision > 0 || (flags & flags::ALT)) {
-					if (!write(".", 1)) {
-						return -1;
-					}
-				}
-
-				dec_part *= 10;
-				auto dec_part_int = static_cast<long long>(dec_part);
-				dec_part -= dec_part_int;
-
-				int i = 0;
-				for (; i < precision; ++i) {
-					if (!write(&CHARS[dec_part_int], 1)) {
-						return -1;
-					}
-					dec_part *= 10;
-					dec_part_int = static_cast<long long>(dec_part);
-					dec_part -= dec_part_int;
-				}
-
-				break;
-			}
 			case 'e':
 			case 'E':
-			{
-				auto specific = *fmt;
-				bool upper = specific == 'E';
-
-				++fmt;
-
-				long double value;
-				if (state == State::L) {
-					value = va_arg(ap, long double);
-				}
-				else {
-					__ensure(state == State::None || state == State::l);
-					value = va_arg(ap, double);
-				}
-
-				if (isinf(value)) {
-					if (!write(upper ? "INF" : "inf", 3)) {
-						return -1;
-					}
-					break;
-				}
-				else if (isnan(value)) {
-					if (!write(upper ? "NAN" : "nan", 3)) {
-						return -1;
-					}
-					break;
-				}
-
-				bool negative = false;
-				if (value < 0) {
-					value *= -1;
-					negative = true;
-				}
-
-				int exponent;
-				value = frexp10l(value, &exponent) * 10;
-				if (value != 0) {
-					--exponent;
-				}
-
-				auto int_part = static_cast<long long>(value);
-				auto dec_part = value - static_cast<long double>(int_part);
-
-				IntOpts opts {
-					.min_width = 0,
-					.precision = 1,
-					.negative = negative,
-					.always_write_sign = flags & flags::SIGN,
-					.plus_as_space = flags & flags::SPACE,
-					.pad_with_zero = flags & flags::ZERO,
-					.right_pad = flags & flags::LJUST,
-					.upper = false,
-					.write_prefix = false
-				};
-
-				if (!write_int(int_part, 10, opts)) {
-					return -1;
-				}
-
-				if (!has_precision) {
-					precision = 6;
-				}
-
-				if (precision > 0 || (flags & flags::ALT)) {
-					if (!write(".", 1)) {
-						return -1;
-					}
-				}
-
-				dec_part *= 10;
-				auto dec_part_int = static_cast<long long>(dec_part);
-				dec_part -= dec_part_int;
-
-				int i = 0;
-				for (; i < precision; ++i) {
-					if (!write(&CHARS[dec_part_int], 1)) {
-						return -1;
-					}
-					dec_part *= 10;
-					dec_part_int = static_cast<long long>(dec_part);
-					dec_part -= dec_part_int;
-				}
-
-				if (upper) {
-					if (!write(exponent >= 0 ? "E+" : "E-", 2)) {
-						return -1;
-					}
-				}
-				else {
-					if (!write(exponent >= 0 ? "e+" : "e-", 2)) {
-						return -1;
-					}
-				}
-
-				if (exponent < 0) {
-					exponent *= -1;
-				}
-
-				opts.precision = 2;
-				opts.negative = false;
-				opts.always_write_sign = false;
-				opts.plus_as_space = false;
-
-				if (!write_int(static_cast<uintmax_t>(exponent), 10, opts)) {
-					return -1;
-				}
-
-				break;
-			}
+			case 'g':
+			case 'G':
 			case 'a':
 			case 'A':
 			{
-				bool upper = *fmt == 'A';
+				auto specific = *fmt;
+				auto specific_lower = specific | 1 << 5;
+				bool upper = !(specific & 1 << 5);
 
 				++fmt;
 
@@ -787,22 +617,38 @@ EXPORT int vfprintf(FILE* __restrict file, const char* __restrict fmt, va_list a
 					value = va_arg(ap, double);
 				}
 
-				if (isinf(value)) {
-					if (!write(upper ? "INF": "inf", 3)) {
-						return -1;
+				if (!isfinite(value)) {
+					const char* str;
+					if (isinf(value)) {
+						str = upper ? "INF" : "inf";
 					}
-					break;
-				}
-				else if (isnan(value)) {
-					if (!write(upper ? "NAN" : "nan", 3)) {
-						return -1;
+					else {
+						str = upper ? "NAN" : "nan";
 					}
+
+					if (flags & flags::LJUST) {
+						if (!write(str, 3)) {
+							return -1;
+						}
+						if (!pad(width, 3, ' ')) {
+							return -1;
+						}
+					}
+					else {
+						if (!pad(width, 3, ' ')) {
+							return -1;
+						}
+						if (!write(str, 3)) {
+							return -1;
+						}
+					}
+
 					break;
 				}
 
 				bool negative = false;
 				if (value < 0) {
-					value *= -1;
+					value = -value;
 					negative = true;
 				}
 
@@ -812,229 +658,374 @@ EXPORT int vfprintf(FILE* __restrict file, const char* __restrict fmt, va_list a
 					--exponent;
 				}
 
-				auto int_part = static_cast<long long>(value);
-				auto dec_part = value - static_cast<long double>(int_part);
+				char buf[9 + LDBL_MANT_DIG / 4];
+				char e_buf0[3 * sizeof(int)];
+				char* e_buf = &e_buf0[3 * sizeof(int)];
+				char* e_str;
 
-				IntOpts opts {
-					.min_width = 0,
-					.precision = 1,
-					.negative = negative,
-					.always_write_sign = flags & flags::SIGN,
-					.plus_as_space = flags & flags::SPACE,
-					.pad_with_zero = flags & flags::ZERO,
-					.right_pad = flags & flags::LJUST,
-					.upper = upper,
-					.write_prefix = true
+				auto write_int_to_buf = [](uintmax_t value, char* ptr) {
+					while (value) {
+						*--ptr = static_cast<char>('0' + value % 10);
+						value /= 10;
+					}
+					return ptr;
 				};
 
-				if (!write_int(int_part, 16, opts)) {
-					return -1;
+				if (specific_lower == 'a') {
+					if (has_precision && precision >= 0 && precision < (LDBL_MANT_DIG - 1 + 3) / 4) {
+						double round = scalbn(1, LDBL_MANT_DIG - 1 - (precision * 4));
+						if (negative) {
+							value = -value;
+							value -= round;
+							value += round;
+							value = -value;
+						}
+						else {
+							value += round;
+							value -= round;
+						}
+					}
+
+					e_str = write_int_to_buf(exponent < 0 ? -exponent : exponent, e_buf);
+					if (e_str == e_buf) {
+						*--e_str = '0';
+					}
+					*--e_str = exponent < 0 ? '-' : '+';
+					*--e_str = upper ? 'P' : 'p';
+
+					static constexpr char HEX_CHARS[] = "0123456789ABCDEF";
+
+					char* str = buf;
+					do {
+						int x = static_cast<int>(value);
+						*str++ = static_cast<char>(HEX_CHARS[x] | (specific & 1 << 5));
+						value = 16 * (value - x);
+						if (str - buf == 1 &&
+							(static_cast<bool>(value) ||
+							precision > 0 ||
+							(flags & flags::ALT))) {
+							*str++ = '.';
+						}
+					} while (static_cast<bool>(value));
+
+					int tmp_len;
+					if (has_precision && precision && str - buf - 2 < precision) {
+						tmp_len = static_cast<int>((precision + 2) + (e_buf - e_str));
+					}
+					else {
+						tmp_len = static_cast<int>((str - buf) + (e_buf - e_str));
+					}
+
+					if (negative) {
+						if (!write("-", 1)) {
+							return -1;
+						}
+					}
+
+					if (!write(upper ? "0X" : "0x", 2)) {
+						return -1;
+					}
+
+					if (!write(buf, str - buf)) {
+						return -1;
+					}
+
+					if (!pad(
+						static_cast<int>(tmp_len - (e_buf - e_str) - (str - buf)),
+						0,
+						'0')) {
+						return -1;
+					}
+
+					if (!write(e_str, e_buf - e_str)) {
+						return -1;
+					}
+
+					break;
+				}
+
+				if (value != 0) {
+					value *= 0x1p28;
+					exponent -= 28;
+				}
+
+				uint32_t* a;
+				uint32_t* d;
+				uint32_t* r;
+				uint32_t* z;
+				uint32_t big[
+					(LDBL_MANT_DIG + 28) / 29 + 1 +
+					(LDBL_MAX_EXP + LDBL_MANT_DIG + 28 + 8) / 9];
+
+				if (exponent < 0) {
+					a = big;
+					r = big;
+					z = big;
+				}
+				else {
+					a = big + sizeof(big) / sizeof(*big) - LDBL_MANT_DIG - 1;
+					r = big + sizeof(big) / sizeof(*big) - LDBL_MANT_DIG - 1;
+					z = big + sizeof(big) / sizeof(*big) - LDBL_MANT_DIG - 1;
+				}
+
+				do {
+					*z = static_cast<uint32_t>(value);
+					value = 1000000000 * (value - *z++);
+				} while (static_cast<bool>(value));
+
+				if (exponent > 0) {
+					uint32_t carry = 0;
+					int shift = hz::min(exponent, 29);
+					for (d = z - 1; d >= a; --d) {
+						uint64_t x = (static_cast<uint64_t>(*d) << shift) + carry;
+						*d = x % 1000000000;
+						carry = x / 1000000000;
+					}
+					if (carry) {
+						*--a = carry;
+					}
+					while (z > a && !z[-1]) {
+						--z;
+					}
+					exponent -= shift;
 				}
 
 				if (!has_precision) {
 					precision = 6;
 				}
 
-				if (dec_part == 0.0) {
-					precision = 0;
+				while (exponent < 0) {
+					uint32_t carry = 0;
+					uint32_t* b;
+					int shift = hz::min(-exponent, 9);
+					int need = 1 + (precision + LDBL_MANT_DIG / 3 + 8) / 9;
+					for (d = a; d < z; ++d) {
+						uint32_t rm = *d & ((1 << shift) - 1);
+						*d = (*d >> shift) + carry;
+						carry = (1000000000 >> shift) * rm;
+					}
+					if (!*a) {
+						++a;
+					}
+					if (carry) {
+						*z++ = carry;
+					}
+
+					b = specific_lower == 'f' ? r : a;
+					if (z - b > need) {
+						z = b + need;
+					}
+					exponent += shift;
 				}
 
-				if (precision > 0 || (flags & flags::ALT)) {
-					if (!write(".", 1)) {
-						return -1;
-					}
-				}
-
-				dec_part *= 16;
-				auto dec_part_int = static_cast<long long>(dec_part);
-				dec_part -= dec_part_int;
-
-				auto chars = upper ? CHARS : LOWER_CHARS;
-
-				int i = 0;
-				for (; i < precision; ++i) {
-					if (!write(&chars[dec_part_int], 1)) {
-						return -1;
-					}
-					dec_part *= 16;
-					dec_part_int = static_cast<long long>(dec_part);
-					dec_part -= dec_part_int;
-				}
-
-				if (upper) {
-					if (!write(exponent >= 0 ? "P+" : "P-", 2)) {
-						return -1;
-					}
+				if (a < z) {
+					exponent = static_cast<int>(9 * (r - a));
+					for (uint32_t i = 10; *a >= i; i *= 10, ++exponent);
 				}
 				else {
-					if (!write(exponent >= 0 ? "p+" : "p-", 2)) {
-						return -1;
-					}
+					exponent = 0;
 				}
 
-				if (exponent < 0) {
-					exponent *= -1;
-				}
-
-				opts.negative = false;
-				opts.always_write_sign = false;
-				opts.plus_as_space = false;
-
-				if (!write_int(static_cast<uintmax_t>(exponent), 10, opts)) {
-					return -1;
-				}
-
-				break;
-			}
-			case 'g':
-			case 'G':
-			{
-				auto specific = *fmt;
-				bool upper = specific == 'G';
-
-				++fmt;
-
-				long double value;
-				if (state == State::L) {
-					value = va_arg(ap, long double);
-				}
-				else {
-					__ensure(state == State::None || state == State::l);
-					value = va_arg(ap, double);
-				}
-
-				if (isinf(value)) {
-					if (!write(upper ? "INF" : "inf", 3)) {
-						return -1;
-					}
-					break;
-				}
-				else if (isnan(value)) {
-					if (!write(upper ? "NAN" : "nan", 3)) {
-						return -1;
-					}
-					break;
-				}
-
-				bool negative = false;
-				if (value < 0) {
-					value *= -1;
-					negative = true;
-				}
-
-				int tmp_precision = precision;
-				if (!has_precision) {
-					tmp_precision = 6;
-				}
-				else if (tmp_precision == 0) {
-					tmp_precision = 1;
-				}
-
-				int exponent;
-				auto possible_value = frexp10l(value, &exponent) * 10;
-				if (possible_value != 0) {
-					--exponent;
-				}
-
-				bool write_exponent = false;
-				if (tmp_precision > exponent && exponent >= -4) {
-					precision = tmp_precision - 1 - exponent;
-				}
-				else {
-					value = possible_value;
-					precision = tmp_precision - 1;
-					write_exponent = true;
-				}
-
-				auto int_part = static_cast<long long>(value);
-				auto dec_part = value - static_cast<long double>(int_part);
-
-				IntOpts opts {
-					.min_width = 0,
-					.precision = 1,
-					.negative = negative,
-					.always_write_sign = flags & flags::SIGN,
-					.plus_as_space = flags & flags::SPACE,
-					.pad_with_zero = flags & flags::ZERO,
-					.right_pad = flags & flags::LJUST,
-					.upper = false,
-					.write_prefix = false
-				};
-
-				if (!write_int(int_part, 10, opts)) {
-					return -1;
-				}
-
-				if (dec_part == 0.0) {
-					precision = 0;
-				}
-
-				if (precision > 0 || (flags & flags::ALT)) {
-					if (!write(".", 1)) {
-						return -1;
-					}
-				}
-
-				dec_part *= 10;
-				auto dec_part_int = static_cast<long long>(dec_part);
-				dec_part -= dec_part_int;
-
-				auto tmp_dec_part = dec_part;
-				auto tmp_dec_part_int = dec_part_int;
-
-				int last_non_zero = 0;
-				for (int i = 0; i < precision; ++i) {
-					if (tmp_dec_part_int == 0) {
-						tmp_dec_part *= 10;
-						tmp_dec_part_int = static_cast<long long>(tmp_dec_part);
-						tmp_dec_part -= tmp_dec_part_int;
-						continue;
-					}
-
-					last_non_zero = i;
-
-					tmp_dec_part *= 10;
-					tmp_dec_part_int = static_cast<long long>(tmp_dec_part);
-					tmp_dec_part -= tmp_dec_part_int;
-				}
-
-				precision = last_non_zero;
-
-				int i = 0;
-				for (; i < precision; ++i) {
-					if (!write(&CHARS[dec_part_int], 1)) {
-						return -1;
-					}
-					dec_part *= 10;
-					dec_part_int = static_cast<long long>(dec_part);
-					dec_part -= dec_part_int;
-				}
-
-				if (write_exponent) {
-					if (upper) {
-						if (!write(exponent >= 0 ? "E+" : "E-", 2)) {
-							return -1;
+				// j == precision after radix (possibly negative)
+				int j = precision - (specific_lower != 'f') * exponent - (specific_lower == 'g' && precision);
+				if (j < 9 * (z - r - 1)) {
+					d = r + 1 + ((j + 9 * LDBL_MAX_EXP) / 9 - LDBL_MAX_EXP);
+					j += 9 * LDBL_MAX_EXP;
+					j %= 9;
+					int i;
+					for (i = 10, ++j; j < 9; i *= 10, ++j);
+					int x = static_cast<int>(*d % i);
+					if (x || d + 1 != z) {
+						long double round = 2 / LDBL_EPSILON;
+						if (((*d / i) & 1) || (i == 1000000000 && d > a && (d[-1] & 1))) {
+							round += 2;
 						}
+						long double small;
+						if (x < i / 2) {
+							small=0x0.8p0;
+						}
+						else if (x == i / 2 && d + 1 == z) {
+							small=0x1.0p0;
+						}
+						else {
+							small=0x1.8p0;
+						}
+						if (negative) {
+							round *= -1;
+							small *= -1;
+						}
+						*d -= x;
+						if (round + small != round) {
+							*d = *d + i;
+							while (*d > 999999999) {
+								*d-- = 0;
+								if (d < a) {
+									*--a = 0;
+								}
+								(*d)++;
+							}
+							exponent = static_cast<int>(9 * (r - a));
+							for (i=10; *a >= static_cast<uint32_t>(i); i *= 10, exponent++);
+						}
+					}
+
+					if (z > d + 1) {
+						z = d + 1;
+					}
+				}
+
+				for (; z > a && !z[-1]; --z);
+
+				if (specific_lower == 'g') {
+					if (!precision) {
+						++precision;
+					}
+
+					if (precision > exponent && exponent >= -4) {
+						--specific;
+						--specific_lower;
+						precision -= exponent + 1;
 					}
 					else {
-						if (!write(exponent >= 0 ? "e+" : "e-", 2)) {
+						specific -= 2;
+						specific_lower -= 2;
+						--precision;
+					}
+
+					if (!(flags & flags::ALT)) {
+						if (z > a && z[-1]) {
+							int i;
+							for (i = 10, j = 0; z[-1] % i == 0; i *= 10, ++j);
+						}
+						else {
+							j = 9;
+						}
+
+						if (specific_lower == 'f') {
+							precision = hz::min(
+								precision,
+								hz::max(static_cast<int>(9 * (z - r - 1) - j), 0));
+						}
+						else {
+							precision = hz::min(
+								precision,
+								hz::max(static_cast<int>(9 * (z - r - 1) + exponent - j), 0));
+						}
+					}
+				}
+
+				int tmp_len = 1 + precision + (precision || (flags & flags::ALT));
+				if (specific_lower == 'f') {
+					if (exponent > 0) {
+						tmp_len += exponent;
+					}
+				}
+				else {
+					e_str = write_int_to_buf(exponent < 0 ? -exponent : exponent, e_buf);
+					while (e_buf - e_str < 2) {
+						*--e_str = '0';
+					}
+					*--e_str = (exponent < 0 ? '-' : '+');
+					*--e_str = specific;
+					tmp_len += e_buf - e_str;
+				}
+
+				if (negative) {
+					if (!write("-", 1)) {
+						return -1;
+					}
+				}
+				else if (flags & flags::SIGN) {
+					if (!write("+", 1)) {
+						return -1;
+					}
+				}
+
+				if (specific_lower == 'f') {
+					if (a > r) {
+						a = r;
+					}
+
+					for (d = a; d <= r; ++d) {
+						char* str = write_int_to_buf(*d, buf + 9);
+						if (d != a) {
+							while (str > buf) {
+								*--str = '0';
+							}
+						}
+						else if (str == buf + 9) {
+							*--str = '0';
+						}
+
+						if (!write(str, buf + 9 - str)) {
 							return -1;
 						}
 					}
 
-					if (exponent < 0) {
-						exponent *= -1;
+					if (precision || (flags & flags::ALT)) {
+						if (!write(".", 1)) {
+							return -1;
+						}
 					}
 
-					opts.precision = 2;
-					opts.negative = false;
-					opts.always_write_sign = false;
-					opts.plus_as_space = false;
+					for (; d < z && precision > 0; ++d, precision -= 9) {
+						char* str = write_int_to_buf(*d, buf + 9);
+						while (str > buf) {
+							*--str = '0';
+						}
 
-					if (!write_int(static_cast<uintmax_t>(exponent), 10, opts)) {
+						if (!write(str, hz::min(precision, 9))) {
+							return -1;
+						}
+					}
+
+					if (!pad(precision + 9, 9, '0')) {
 						return -1;
 					}
 				}
+				else {
+					if (z <= a) {
+						z = a + 1;
+					}
+
+					for (d = a; d < z && precision >= 0; ++d) {
+						char* str = write_int_to_buf(*d, buf + 9);
+						if (str == buf + 9) {
+							*--str = '0';
+						}
+						if (d != a) {
+							while (str > buf) {
+								*--str = '0';
+							}
+						}
+						else {
+							if (!write(str++, 1)) {
+								return -1;
+							}
+							if (precision > 0 || (flags & flags::ALT)) {
+								if (!write(".", 1)) {
+									return -1;
+								}
+							}
+						}
+
+						if (!write(str, hz::min(static_cast<int>(buf + 9 - str), precision))) {
+							return -1;
+						}
+
+						precision -= static_cast<int>(buf + 9 - str);
+					}
+
+					if (!pad(precision + 18, 18, '0')) {
+						return -1;
+					}
+
+					if (!write(e_str, e_buf - e_str)) {
+						return -1;
+					}
+				}
+
+				// todo space pad
 
 				break;
 			}
@@ -1221,7 +1212,8 @@ EXPORT int vfprintf(FILE* __restrict file, const char* __restrict fmt, va_list a
 			case 's':
 			{
 				++fmt;
-				__ensure(flags == 0);
+				// todo
+				//__ensure(flags == 0);
 
 				if (state == State::l) {
 					const wchar_t* str = va_arg(ap, const wchar_t*);
@@ -2649,3 +2641,5 @@ ALIAS(vfscanf, __isoc23_vfscanf);
 ALIAS(fscanf, __isoc99_fscanf);
 ALIAS(fscanf, __isoc23_fscanf);
 ALIAS(tmpfile, tmpfile64);
+ALIAS(putc, _IO_putc);
+ALIAS(getc, _IO_getc);

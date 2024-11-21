@@ -6,6 +6,10 @@ EXPORT int malloc_trim(size_t) {
 	return 0;
 }
 
+EXPORT struct mallinfo mallinfo() {
+	return {};
+}
+
 EXPORT struct mallinfo2 mallinfo2() {
 	return {};
 }

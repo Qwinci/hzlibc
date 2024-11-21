@@ -9,6 +9,7 @@
 #include "internal/time.hpp"
 #include "internal/string.hpp"
 #include "str_to_int.hpp"
+#include "str_to_float.hpp"
 
 EXPORT int mbsinit(const mbstate_t*) {
 	return 1;
@@ -304,6 +305,30 @@ EXPORT wchar_t* wcspbrk(const wchar_t* str, const wchar_t* break_set) {
 
 EXPORT long wcstol(const wchar_t* __restrict str, wchar_t** __restrict end, int base) {
 	return str_to_int<long, unsigned long, wchar_t>(str, end, base);
+}
+
+EXPORT long long wcstoll(const wchar_t* __restrict str, wchar_t** __restrict end, int base) {
+	return str_to_int<long long, unsigned long long, wchar_t>(str, end, base);
+}
+
+EXPORT unsigned long wcstoul(const wchar_t* __restrict str, wchar_t** __restrict end, int base) {
+	return str_to_int<unsigned long, unsigned long, wchar_t>(str, end, base);
+}
+
+EXPORT unsigned long long wcstoull(const wchar_t* __restrict str, wchar_t** __restrict end, int base) {
+	return str_to_int<unsigned long long, unsigned long long, wchar_t>(str, end, base);
+}
+
+EXPORT float wcstof(const wchar_t* __restrict str, wchar_t** __restrict end) {
+	return str_to_float<float, wchar_t>(str, end);
+}
+
+EXPORT double wcstod(const wchar_t* __restrict str, wchar_t** __restrict end) {
+	return str_to_float<double, wchar_t>(str, end);
+}
+
+EXPORT long double wcstold(const wchar_t* __restrict str, wchar_t** __restrict end) {
+	return str_to_float<long double, wchar_t>(str, end);
 }
 
 static constexpr wchar_t CHARS[] = L"0123456789ABCDEF";

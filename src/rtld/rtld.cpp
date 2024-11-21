@@ -6,8 +6,8 @@
 
 namespace {
 	SharedObject* object_from_addr(uintptr_t addr) {
-		auto guard = OBJECT_STORAGE.lock();
-		for (auto object : (*guard)->objects) {
+		auto guard = OBJECT_STORAGE->objects.lock();
+		for (auto object : *guard) {
 			for (auto& phdr : object->phdrs_vec) {
 				if (phdr.p_type != PT_LOAD) {
 					continue;
@@ -57,105 +57,132 @@ namespace {
 void set_debug_state_to_load();
 void set_debug_state_to_normal();
 
+extern "C" int __cxa_atexit(void (*func)(void*), void* arg, void* dso_handle);
+
+void __dlapi_exit(void*);
+
 void* __dlapi_open(const char* filename, int flags, uintptr_t return_addr) {
 	if (!filename) {
-		return (*OBJECT_STORAGE.lock())->objects[0];
+		return OBJECT_STORAGE->objects.get_unsafe()[0];
 	}
 
 	hz::string_view name {filename};
 	auto* origin = object_from_addr(return_addr);
 	__ensure(origin);
 
-	auto guard = OBJECT_STORAGE.lock();
+	if (name == "ld-linux.so.2" || name == "ld-linux-x86-64.so.2" || name == "libc.so.6" ||
+		name == "libpthread.so.0") {
+		name = "libc.so";
+	}
 
-	if (name.contains('/')) {
-		for (auto object : (*guard)->objects) {
-			if (object->path == name) {
-				return object;
+	hz::vector<SharedObject*, Allocator> init_list {Allocator {}};
+	SharedObject* new_object;
+	{
+		auto storage_guard = OBJECT_STORAGE->lock.lock();
+
+		if (name.contains('/')) {
+			auto guard = OBJECT_STORAGE->objects.lock();
+
+			for (auto object : *guard) {
+				if (object->path == name) {
+					return object;
+				}
+			}
+
+			// todo promote to global scope with RTLD_NOLOAD | RTLD_GLOBAL
+
+			if (flags & RTLD_NOLOAD) {
+				set_error(OBJECT_NOT_FOUND);
+				return nullptr;
+			}
+
+			set_debug_state_to_load();
+
+			hz::string<Allocator> path {Allocator {}};
+			path = name;
+			auto result = OBJECT_STORAGE->load_object_at_path(origin, path);
+			if (!result) {
+				set_error(result.error());
+				set_debug_state_to_normal();
+				return nullptr;
+			}
+			OBJECT_STORAGE->add_object(result.value());
+
+			new_object = result.value();
+			auto status = OBJECT_STORAGE->load_dependencies(new_object, flags & RTLD_GLOBAL, false);
+			if (status != LoadError::Success) {
+				// object is destroyed by load_dependencies
+				guard->pop_back();
+				set_error(status);
+				set_debug_state_to_normal();
+				return nullptr;
+			}
+		}
+		else {
+			auto guard = OBJECT_STORAGE->objects.lock();
+
+			for (auto object : *guard) {
+				if (object->name == name || object->path.as_view().ends_with(name)) {
+					return object;
+				}
+			}
+
+			// todo promote to global scope with RTLD_NOLOAD | RTLD_GLOBAL
+
+			if (flags & RTLD_NOLOAD) {
+				set_error(OBJECT_NOT_FOUND);
+				return nullptr;
+			}
+
+			set_debug_state_to_load();
+
+			auto result = OBJECT_STORAGE->load_object_with_name(origin, name);
+			if (!result) {
+				set_error(result.error());
+				set_debug_state_to_normal();
+				return nullptr;
+			}
+			OBJECT_STORAGE->add_object(result.value());
+
+			new_object = result.value();
+			auto status = OBJECT_STORAGE->load_dependencies(new_object, flags & RTLD_GLOBAL, false);
+			if (status != LoadError::Success) {
+				// object is destroyed by load_dependencies
+				guard->pop_back();
+				set_error(status);
+				set_debug_state_to_normal();
+				return nullptr;
 			}
 		}
 
-		// todo promote to global scope with RTLD_NOLOAD | RTLD_GLOBAL
-
-		if (flags & RTLD_NOLOAD) {
-			set_error(OBJECT_NOT_FOUND);
-			return nullptr;
-		}
-
-		set_debug_state_to_load();
-
-		hz::string<Allocator> path {Allocator {}};
-		path = name;
-		auto result = (*guard)->load_object_at_path(origin, path);
-		if (!result) {
-			set_error(result.error());
-			set_debug_state_to_normal();
-			return nullptr;
-		}
-		(*guard)->add_object(result.value());
-
-		auto* object = result.value();
-		auto status = (*guard)->load_dependencies(object, flags & RTLD_GLOBAL);
-		if (status != LoadError::Success) {
-			// object is destroyed by load_dependencies
-			(*guard)->objects.pop_back();
-			set_error(status);
-			set_debug_state_to_normal();
-			return nullptr;
-		}
-
 		if (!(flags & RTLD_GLOBAL)) {
-			origin->local_scope.push_back(object);
+			origin->local_scope.push_back(new_object);
 		}
 
 		set_debug_state_to_normal();
-		(*guard)->init_tls(get_current_tcb());
-		(*guard)->init_objects();
-		return object;
+		OBJECT_STORAGE->init_tls(get_current_tcb(), true);
+
+		// todo this is a hack to avoid deadlocks with constructors calling dlopen
+		init_list = std::move(OBJECT_STORAGE->init_list);
 	}
-	else {
-		for (auto object : (*guard)->objects) {
-			if (object->name == name || object->path.as_view().ends_with(name)) {
-				return object;
+
+	for (size_t i = init_list.size(); i > 0; --i) {
+		if (!init_list[i - 1]->initialized) {
+			if (init_list[i - 1]->executable) {
+				__cxa_atexit(__dlapi_exit, nullptr, nullptr);
 			}
+
+			{
+				auto guard = OBJECT_STORAGE->objects.lock();
+				OBJECT_STORAGE->destruct_list.push_back(init_list[i - 1]);
+			}
+
+			init_list[i - 1]->run_init();
+			init_list[i - 1]->initialized = true;
 		}
-
-		// todo promote to global scope with RTLD_NOLOAD | RTLD_GLOBAL
-
-		if (flags & RTLD_NOLOAD) {
-			set_error(OBJECT_NOT_FOUND);
-			return nullptr;
-		}
-
-		set_debug_state_to_load();
-
-		auto result = (*guard)->load_object_with_name(origin, name);
-		if (!result) {
-			set_error(result.error());
-			set_debug_state_to_normal();
-			return nullptr;
-		}
-		(*guard)->add_object(result.value());
-
-		auto* object = result.value();
-		auto status = (*guard)->load_dependencies(object, flags & RTLD_GLOBAL);
-		if (status != LoadError::Success) {
-			// object is destroyed by load_dependencies
-			(*guard)->objects.pop_back();
-			set_error(status);
-			set_debug_state_to_normal();
-			return nullptr;
-		}
-
-		if (!(flags & RTLD_GLOBAL)) {
-			origin->local_scope.push_back(object);
-		}
-
-		set_debug_state_to_normal();
-		(*guard)->init_tls(get_current_tcb());
-		(*guard)->init_objects();
-		return object;
 	}
+
+	return new_object;
 }
 
 int __dlapi_close(void* handle) {
@@ -163,9 +190,10 @@ int __dlapi_close(void* handle) {
 }
 
 void* __dlapi_get_sym(void* __restrict handle, const char* __restrict symbol) {
+	auto guard = OBJECT_STORAGE->objects.lock();
+
 	if (handle == RTLD_DEFAULT) {
-		auto guard = OBJECT_STORAGE.lock();
-		auto sym = (*guard)->lookup(nullptr, symbol, LookupPolicy::None);
+		auto sym = OBJECT_STORAGE->lookup(nullptr, symbol, LookupPolicy::None);
 		if (!sym) {
 			set_error(SYMBOL_NOT_FOUND);
 			return nullptr;
@@ -178,8 +206,7 @@ void* __dlapi_get_sym(void* __restrict handle, const char* __restrict symbol) {
 				__builtin_extract_return_addr(
 					__builtin_return_address(0))));
 		__ensure(origin);
-		auto guard = OBJECT_STORAGE.lock();
-		auto sym = (*guard)->lookup(origin, symbol, LookupPolicy::IgnoreLocal);
+		auto sym = OBJECT_STORAGE->lookup(origin, symbol, LookupPolicy::IgnoreLocal);
 		if (!sym) {
 			set_error(SYMBOL_NOT_FOUND);
 			return nullptr;
@@ -188,8 +215,7 @@ void* __dlapi_get_sym(void* __restrict handle, const char* __restrict symbol) {
 	}
 
 	auto* object = static_cast<SharedObject*>(handle);
-	auto guard = OBJECT_STORAGE.lock();
-	auto sym = (*guard)->lookup(object, symbol, LookupPolicy::LocalAndDeps);
+	auto sym = OBJECT_STORAGE->lookup(object, symbol, LookupPolicy::LocalAndDeps);
 	if (!sym) {
 		set_error(SYMBOL_NOT_FOUND);
 		return nullptr;
@@ -248,8 +274,8 @@ int __dlapi_dlinfo(void* __restrict handle, int request, void* __restrict info) 
 }
 
 EXPORT int _dl_find_object(void* addr, struct dl_find_object* result) {
-	auto guard = OBJECT_STORAGE.lock();
-	for (auto object : (*guard)->objects) {
+	auto guard = OBJECT_STORAGE->objects.lock();
+	for (auto object : *guard) {
 		if (object->base > reinterpret_cast<uintptr_t>(addr) ||
 			object->end < reinterpret_cast<uintptr_t>(addr)) {
 			continue;
@@ -285,13 +311,12 @@ void* access_tls_for_object(SharedObject* object) {
 	auto* tcb = get_current_tcb();
 
 	if (object->tls_module_index >= tcb->dtv.size()) {
-		auto guard = OBJECT_STORAGE.get_unsafe()->runtime_tls_map.lock();
+		auto guard = OBJECT_STORAGE->runtime_tls_map.lock();
 		tcb->dtv.resize(guard->size());
 	}
 
 	auto& entry = tcb->dtv[object->tls_module_index];
 	if (!entry) {
-		__ensure(!object->initial_tls_model);
 		auto* mem = static_cast<char*>(Allocator::allocate(object->tls_size));
 		__ensure(mem);
 		rtld_memset(
@@ -338,16 +363,16 @@ int __dlapi_iterate_phdr(
 		size_t size,
 		void* data),
 	void* data) {
-	auto& storage = OBJECT_STORAGE.get_unsafe();
+	auto guard = OBJECT_STORAGE->objects.lock();
 	int ret = 0;
-	for (size_t i = 0; i < storage->objects.size(); ++i) {
-		auto object = storage->objects[i];
+	for (size_t i = 0; i < guard->size(); ++i) {
+		auto object = (*guard)[i];
 		dl_phdr_info info {
 			.dlpi_addr = object->base,
 			.dlpi_name = object->name.data(),
 			.dlpi_phdr = object->phdrs_vec.data(),
 			.dlpi_phnum = static_cast<ElfW(Half)>(object->phdrs_vec.size()),
-			.dlpi_adds = storage->objects.size(),
+			.dlpi_adds = guard->size(),
 			.dlpi_subs = 0,
 			.dlpi_tls_modid = object->tls_module_index,
 			.dlpi_tls_data = try_access_tls_for_object(object)
@@ -368,28 +393,33 @@ char* __dlapi_get_error() {
 }
 
 void __dlapi_exit(void*) {
-	auto guard = OBJECT_STORAGE.lock();
-	(*guard)->destruct_objects();
+	auto guard = OBJECT_STORAGE->lock.lock();
+	OBJECT_STORAGE->destruct_objects();
 }
 
 void __dlapi_destroy() {
-	auto guard = OBJECT_STORAGE.lock();
-	(*guard)->unload_objects();
-	guard->destroy();
+	OBJECT_STORAGE->unload_objects();
+	OBJECT_STORAGE.destroy();
 }
 
 bool __dlapi_create_tcb(void** tcb, void** tp) {
-	auto guard = OBJECT_STORAGE.lock();
-	uintptr_t tcb_offset = ((*guard)->total_initial_tls_size + alignof(Tcb) - 1) & ~(alignof(Tcb) - 1);
+	auto guard = OBJECT_STORAGE->lock.lock();
+	uintptr_t tcb_offset = (OBJECT_STORAGE->total_initial_tls_size + alignof(Tcb) - 1) & ~(alignof(Tcb) - 1);
 	uintptr_t total_tls_size = tcb_offset + sizeof(Tcb);
 
 	auto* mem = Allocator::allocate(total_tls_size);
 	if (!mem) {
 		return false;
 	}
-	auto* tcb_ptr = new (reinterpret_cast<void*>(reinterpret_cast<uintptr_t>(mem) + tcb_offset)) Tcb {};
+	Tcb* tcb_ptr;
+	if constexpr (TLS_ABOVE_TP) {
+		tcb_ptr = new (mem) Tcb {};
+	}
+	else {
+		tcb_ptr = new (reinterpret_cast<void*>(reinterpret_cast<uintptr_t>(mem) + tcb_offset)) Tcb {};
+	}
 	*tcb = tcb_ptr;
-	(*guard)->init_tls(tcb_ptr);
+	OBJECT_STORAGE->init_tls(tcb_ptr, false);
 
 #if defined(__x86_64__) || defined(__i386__)
 	*tp = tcb_ptr;
@@ -402,7 +432,7 @@ bool __dlapi_create_tcb(void** tcb, void** tp) {
 }
 
 void __dlapi_destroy_tcb(void* tcb) {
-	auto guard = OBJECT_STORAGE.lock();
-	uintptr_t tcb_offset = ((*guard)->total_initial_tls_size + alignof(Tcb) - 1) & ~(alignof(Tcb) - 1);
+	auto guard = OBJECT_STORAGE->lock.lock();
+	uintptr_t tcb_offset = (OBJECT_STORAGE->total_initial_tls_size + alignof(Tcb) - 1) & ~(alignof(Tcb) - 1);
 	Allocator::deallocate(static_cast<char*>(tcb) - tcb_offset);
 }

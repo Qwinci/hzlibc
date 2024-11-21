@@ -1,6 +1,7 @@
 #include "utils.hpp"
 #include "allocator.hpp"
 #include <hz/vector.hpp>
+#include <hz/manually_init.hpp>
 
 using DestructorFn = void (*)(void*);
 
@@ -10,11 +11,17 @@ namespace {
 		void* object;
 	};
 
-	hz::vector<Destructor, Allocator> DESTRUCTOR_LIST {Allocator {}};
+	thread_local hz::manually_init<hz::vector<Destructor, Allocator>> DESTRUCTOR_LIST {};
+	thread_local bool initialized = false;
 }
 
 extern "C" EXPORT int __cxa_thread_atexit_impl(DestructorFn fn, void* object, void* dso_handle) {
-	DESTRUCTOR_LIST.push_back({
+	if (!initialized) {
+		DESTRUCTOR_LIST.initialize(Allocator {});
+		initialized = true;
+	}
+
+	DESTRUCTOR_LIST->push_back({
 		.fn = fn,
 		.object = object
 	});
@@ -22,9 +29,14 @@ extern "C" EXPORT int __cxa_thread_atexit_impl(DestructorFn fn, void* object, vo
 }
 
 void call_cxx_tls_destructors() {
-	for (size_t i = DESTRUCTOR_LIST.size(); i > 0; --i) {
-		auto& destructor = DESTRUCTOR_LIST[i];
+	if (!initialized) {
+		return;
+	}
+
+	auto list = DESTRUCTOR_LIST.data();
+	for (size_t i = DESTRUCTOR_LIST->size(); i > 0; --i) {
+		auto& destructor = (*DESTRUCTOR_LIST)[i - 1];
 		destructor.fn(destructor.object);
 	}
-	DESTRUCTOR_LIST.clear();
+	DESTRUCTOR_LIST.destroy();
 }

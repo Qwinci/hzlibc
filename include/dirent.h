@@ -39,6 +39,8 @@ DIR* opendir64(const char* __path);
 DIR* fdopendir(int __fd);
 struct dirent* readdir(DIR* __dir);
 struct dirent64* readdir64(DIR* __dir);
+__attribute__((__deprecated__("use readdir instead")))
+int readdir_r(DIR* __dir, struct dirent* __restrict __entry, struct dirent** __restrict __result);
 int closedir(DIR* __dir);
 void rewinddir(DIR* __dir);
 int dirfd(DIR* __dir);

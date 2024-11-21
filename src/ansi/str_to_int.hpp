@@ -29,8 +29,6 @@ namespace {
 
 template<typename T, typename U, typename C = char>
 T str_to_int(const C* __restrict ptr, C** __restrict end_ptr, int base) {
-	constexpr char CHARS[] = "0123456789abcdefghijklmnopqrstuvwxyz";
-
 	while (isspace_helper(*ptr)) {
 		++ptr;
 	}
@@ -44,8 +42,17 @@ T str_to_int(const C* __restrict ptr, C** __restrict end_ptr, int base) {
 		++ptr;
 	}
 
+	auto valid_char = [&](C c) {
+		if (base <= 10) {
+			return c >= '0' && c <= '0' + base - 1;
+		}
+		else {
+			return (c >= '0' && c <= '9') || ((c | 1 << 5) >= 'a' && (c | 1 << 5) <= 'a' + (base - 10));
+		}
+	};
+
 	if (base == 0) {
-		if (ptr[0] == '0' && tolower_helper(ptr[1]) == 'x' && (ptr[2] >= '0' && tolower_helper(ptr[2]) <= CHARS[16 - 1])) {
+		if (ptr[0] == '0' && tolower_helper(ptr[1]) == 'x' && (valid_char(ptr[2]))) {
 			base = 16;
 			ptr += 2;
 		}
@@ -89,7 +96,7 @@ T str_to_int(const C* __restrict ptr, C** __restrict end_ptr, int base) {
 	U value = 0;
 	bool overflow = false;
 	if (base <= 36) {
-		for (; *ptr >= '0' && tolower_helper(*ptr) <= CHARS[base - 1]; ++ptr) {
+		for (; valid_char(*ptr); ++ptr) {
 			auto old = value;
 			value *= base;
 			if (value / base != old || value > max_value) {

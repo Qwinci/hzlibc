@@ -26,6 +26,7 @@ int sem_post(sem_t* __sem);
 int sem_wait(sem_t* __sem);
 int sem_trywait(sem_t* __sem);
 int sem_timedwait(sem_t* __restrict __sem, const struct timespec* __restrict __abs_timeout);
+int sem_getvalue(sem_t* __restrict __sem, int* __restrict __value);
 
 __end_decls
 

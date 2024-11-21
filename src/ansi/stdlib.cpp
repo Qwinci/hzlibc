@@ -11,6 +11,7 @@
 #include "wchar.h"
 #include "signal.h"
 #include "str_to_int.hpp"
+#include "str_to_float.hpp"
 #include "env.hpp"
 #include <hz/bit.hpp>
 #include <hz/algorithm.hpp>
@@ -390,161 +391,8 @@ EXPORT long long atoll(const char* str) {
 	return value;
 }
 
-static int str_case_cmp(const char* s1, const char* s2, size_t count) {
-	for (; count; --count, ++s1, ++s2) {
-		int res = tolower(*s1) - tolower(*s2);
-		if (res != 0 || !*s1) {
-			return res;
-		}
-	}
-	return 0;
-}
-
-template<typename T>
-T str_to_float(const char* __restrict ptr, char** __restrict end_ptr) {
-	while (isspace(*ptr)) {
-		++ptr;
-	}
-
-	bool sign = false;
-	if (*ptr == '-') {
-		++ptr;
-		sign = true;
-	}
-	else if (*ptr == '+') {
-		++ptr;
-	}
-
-	if (str_case_cmp(ptr, "nan", 3) == 0) {
-		ptr += 3;
-		if (*ptr == '(') {
-			while (*ptr != ')') {
-				++ptr;
-			}
-			++ptr;
-		}
-
-		if (end_ptr) {
-			*end_ptr = const_cast<char*>(ptr);
-		}
-
-		if constexpr (sizeof(T) == 4) {
-			return __builtin_nanf("");
-		}
-		else if constexpr (sizeof(T) == 8) {
-			return __builtin_nan("");
-		}
-		else {
-			return __builtin_nanl("");
-		}
-	}
-	else {
-		bool inf = false;
-		if (str_case_cmp(ptr, "inf", 3) == 0) {
-			ptr += 3;
-			inf = true;
-		}
-		else if (str_case_cmp(ptr, "infinity", 8) == 0) {
-			ptr += 8;
-			inf = true;
-		}
-
-		if (inf) {
-			if (end_ptr) {
-				*end_ptr = const_cast<char*>(ptr);
-			}
-
-			if constexpr (sizeof(T) == 4) {
-				return __builtin_inff();
-			}
-			else if constexpr (sizeof(T) == 8) {
-				return __builtin_inf();
-			}
-			else {
-				return __builtin_infl();
-			}
-		}
-	}
-
-	int base = 10;
-	if (*ptr == '0' && tolower(ptr[1]) == 'x') {
-		ptr += 2;
-		base = 16;
-	}
-
-	T value {};
-	while (*ptr >= '0' && *ptr <= CHARS[base - 1]) {
-		auto c = *ptr++;
-		auto digit = c <= '9' ? (c - '0') : (tolower(c) - 'a' + 10);
-		value *= base;
-		value += digit;
-	}
-
-	if (*ptr == '.') {
-		++ptr;
-
-		T decimal {1};
-		while (*ptr >= '0' && *ptr <= CHARS[base - 1]) {
-			auto c = *ptr++;
-			auto digit = c <= '9' ? (c - '0') : (tolower(c) - 'a' + 10);
-			decimal /= base;
-			value += decimal * digit;
-		}
-	}
-
-	char exponent_char;
-	if (base == 10) {
-		exponent_char = 'e';
-	}
-	else {
-		exponent_char = 'p';
-	}
-
-	if (tolower(*ptr) == exponent_char) {
-		++ptr;
-
-		bool exponent_sign = false;
-		if (*ptr == '-') {
-			++ptr;
-			exponent_sign = true;
-		}
-		else if (*ptr == '+') {
-			++ptr;
-		}
-
-		int exponent = 0;
-		while (*ptr >= '0' && *ptr <= '9') {
-			auto digit = *ptr++ - '0';
-			exponent *= 10;
-			exponent += digit;
-		}
-
-		int exponent_value = base == 10 ? 10 : 2;
-		if (exponent_sign) {
-			for (int i = 0; i < exponent; ++i) {
-				value /= exponent_value;
-			}
-		}
-		else {
-			for (int i = 0; i < exponent; ++i) {
-				value *= exponent_value;
-			}
-		}
-	}
-
-	if (isinf(value)) {
-		errno = ERANGE;
-	}
-
-	if (end_ptr) {
-		*end_ptr = const_cast<char*>(ptr);
-	}
-
-	return sign ? -value : value;
-}
-
 EXPORT double atof(const char* str) {
-	return str_to_float<double>(str, nullptr);
+	return str_to_float<double, char>(str, nullptr);
 }
 
 EXPORT long strtol(const char* __restrict ptr, char** __restrict end_ptr, int base) {
@@ -564,15 +412,15 @@ EXPORT unsigned long long strtoull(const char* __restrict ptr, char** __restrict
 }
 
 EXPORT float strtof(const char* __restrict ptr, char** __restrict end_ptr) {
-	return str_to_float<float>(ptr, end_ptr);
+	return str_to_float<float, char>(ptr, end_ptr);
 }
 
 EXPORT double strtod(const char* __restrict ptr, char** __restrict end_ptr) {
-	return str_to_float<double>(ptr, end_ptr);
+	return str_to_float<double, char>(ptr, end_ptr);
 }
 
 EXPORT long double strtold(const char* __restrict ptr, char** __restrict end_ptr) {
-	return str_to_float<long double>(ptr, end_ptr);
+	return str_to_float<long double, char>(ptr, end_ptr);
 }
 
 EXPORT void qsort(void* ptr, size_t count, size_t size, int (*comp)(const void* a, const void* b)) {
@@ -621,7 +469,7 @@ EXPORT int mbtowc(wchar_t* __restrict pwc, const char* __restrict str, size_t le
 	    size == static_cast<size_t>(-2)) {
 		return -1;
 	}
-	return *str == 0 ? 0 : static_cast<int>(size);
+	return static_cast<int>(size);
 }
 
 EXPORT int wctomb(char* str, wchar_t wc) {

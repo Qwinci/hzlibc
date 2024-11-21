@@ -2,6 +2,7 @@
 #define _LOCALE_H
 
 #include <bits/utils.h>
+#include <bits/config.h>
 #include <stddef.h>
 
 __begin_decls
@@ -88,11 +89,15 @@ typedef __locale_t locale_t;
 char* setlocale(int __category, const char* __locale);
 struct lconv* localeconv(void);
 
+#if !__HZLIBC_ANSI_ONLY
+
 // posix
 locale_t newlocale(int __category, const char* __locale, locale_t __base);
 void freelocale(locale_t __locale);
 locale_t duplocale(locale_t __locale);
 locale_t uselocale(locale_t __new_locale);
+
+#endif
 
 __end_decls
 

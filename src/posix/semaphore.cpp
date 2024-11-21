@@ -151,3 +151,9 @@ EXPORT int sem_timedwait(sem_t* __restrict sem, const struct timespec* __restric
 		}
 	}
 }
+
+EXPORT int sem_getvalue(sem_t* __restrict sem, int* __restrict value) {
+	auto* ptr = reinterpret_cast<Semaphore*>(sem);
+	*value = ptr->state.load(hz::memory_order::relaxed) & ~SEMAPHORE_WAITERS;
+	return 0;
+}

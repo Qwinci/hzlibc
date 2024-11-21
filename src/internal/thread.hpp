@@ -8,6 +8,9 @@ extern "C" [[noreturn]] void hzlibc_thread_entry(void* (*fn)(void* arg), void* a
 
 struct ThreadAttr {
 	size_t stack_size;
+	int policy;
+	int priority;
+	int inherit_sched;
 	bool detached;
 };
 static_assert(sizeof(ThreadAttr) <= sizeof(__hzlibc_attr_t));

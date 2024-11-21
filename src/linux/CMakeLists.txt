@@ -2,6 +2,7 @@ target_sources(c PRIVATE
 	cap.cpp
 	epoll.cpp
 	eventfd.cpp
+	fcntl.cpp
 	ifaddrs.cpp
 	inotify.cpp
 	io.cpp
