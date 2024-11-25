@@ -33,7 +33,7 @@ int sys_mmap(void* addr, size_t length, int prot, int flags, int fd, off64_t off
 		return 0;
 	}
 
-	int crescent_prot = CRESCENT_PROT_READ | CRESCENT_PROT_WRITE;
+	int crescent_prot = CRESCENT_PROT_READ | CRESCENT_PROT_WRITE | CRESCENT_PROT_EXEC;
 
 	__ensure(flags == (MAP_PRIVATE | MAP_ANON));
 	__ensure(fd == -1);
@@ -62,7 +62,7 @@ int sys_munmap(void* addr, size_t length) {
 }
 
 int sys_mprotect(void* addr, size_t length, int prot) {
-	int crescent_prot = 0;
+	/*int crescent_prot = 0;
 	if (prot & PROT_READ) {
 		crescent_prot |= CRESCENT_PROT_READ;
 	}
@@ -80,22 +80,14 @@ int sys_mprotect(void* addr, size_t length, int prot) {
 	else {
 		__ensure(status == 0);
 		return 0;
-	}
+	}*/
+	return 0;
 }
 
 int sys_openat(int dir_fd, const char* path, int flags, mode_t mode, int* ret) {
 	int crescent_flags = 0;
 
 	int acc_mode = flags & O_ACCMODE;
-	if (acc_mode == O_RDONLY) {
-		crescent_flags = OPEN_READ;
-	}
-	else if (acc_mode == O_WRONLY) {
-		crescent_flags = OPEN_WRITE;
-	}
-	else {
-		crescent_flags = OPEN_READ_WRITE;
-	}
 
 	CrescentHandle ret_handle;
 
@@ -248,7 +240,7 @@ int sys_futex_wait(int* addr, int value, const timespec* timeout, bool pshared) 
 		addr,
 		value,
 		timeout_ns));
-	if (status == ERR_TIMED_OUT) {
+	if (status == ERR_TIMEOUT) {
 		return ETIMEDOUT;
 	}
 	else if (status == ERR_TRY_AGAIN) {
@@ -273,7 +265,6 @@ int sys_futex_wake_all(int* addr, bool pshared) {
 }
 
 int sys_sched_yield() {
-	__ensure(syscall(SYS_YIELD) == 0);
 	return 0;
 }
 
