@@ -339,6 +339,32 @@ static inline fixint_t __fixint(tf_float x) {
 		return (fixint_t) (sign * ((fixuint_t) significand << (exponent - significandBits)));
 }
 
+static inline fixuint_t __fixuint(tf_float x) {
+	using namespace flt128;
+
+	// Break x into sign, exponent, significand parts.
+	const rep_t aRep = toRep(x);
+	const rep_t aAbs = aRep & absMask;
+	const int sign = aRep & signBit ? -1 : 1;
+	const int exponent = static_cast<int>((aAbs >> significandBits) - exponentBias);
+	const rep_t significand = (aAbs & significandMask) | implicitBit;
+
+	// If either the value or the exponent is negative, the result is zero.
+	if (sign == -1 || exponent < 0)
+		return 0;
+
+	// If the value is too large for the integer type, saturate.
+	if ((unsigned int) exponent >= sizeof(fixuint_t) * 8)
+		return ~fixuint_t {0};
+
+	// If 0 <= exponent < significandBits, right shift to get the result.
+	// Otherwise, shift left.
+	if (exponent < significandBits)
+		return (fixuint_t) (significand >> (significandBits - exponent));
+	else
+		return (fixuint_t) significand << (exponent - significandBits);
+}
+
 using di_int = int64_t;
 using du_int = uint64_t;
 
@@ -1325,3 +1351,24 @@ extern "C" CMP_RESULT __getf2(tf_float a, tf_float b) {
 }
 
 extern "C" [[gnu::alias("__getf2")]] typeof(__getf2) __gttf2;
+
+extern "C" tf_float __floatunsitf(su_int x) {
+	using namespace flt128;
+
+	constexpr int x_width = sizeof(x) * 8;
+	if (x == 0) {
+		return fromRep(0);
+	}
+
+	const int exponent = (x_width - 1) - clzsi(x);
+
+	const int shift = significandBits - exponent;
+	rep_t result = (static_cast<rep_t>(x) << shift) ^ implicitBit;
+
+	result += static_cast<rep_t>(exponent + exponentBias) << significandBits;
+	return fromRep(result);
+}
+
+extern "C" su_int __fixunstfsi(tf_float x) {
+	return __fixuint(x);
+}
