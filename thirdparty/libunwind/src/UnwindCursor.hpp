@@ -30,18 +30,6 @@
 #include <sys/pseg.h>
 #endif
 
-#if defined(_LIBUNWIND_TARGET_LINUX) &&                                        \
-    (defined(_LIBUNWIND_TARGET_AARCH64) || defined(_LIBUNWIND_TARGET_RISCV) || \
-     defined(_LIBUNWIND_TARGET_S390X))
-#include <errno.h>
-#include <signal.h>
-#include <sys/syscall.h>
-#include <unistd.h>
-#define _LIBUNWIND_CHECK_LINUX_SIGRETURN 1
-#endif
-
-#undef _LIBUNWIND_CHECK_LINUX_SIGRETURN
-
 #include "AddressSpace.hpp"
 #include "CompactUnwinder.hpp"
 #include "config.h"
