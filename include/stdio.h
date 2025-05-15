@@ -110,6 +110,9 @@ int rename(const char* __old_path, const char* __new_path);
 #if !__HZLIBC_ANSI_ONLY
 
 // posix
+
+#define FILENAME_MAX 4096
+
 FILE* fdopen(int __fd, const char* __mode);
 int fileno(FILE* __file);
 int fseeko(FILE* __file, off_t __offset, int __whence);

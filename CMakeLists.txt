@@ -238,10 +238,16 @@ if(NOT ANSI_ONLY)
 		include/ucontext.h
 		include/unistd.h
 		include/utime.h
+		include/utmpx.h
 		include/arpa/inet.h
 		include/arpa/nameser.h
+		include/bits/termios.h
 		include/net/if.h
+		include/net/if_arp.h
+		include/netinet/icmp6.h
 		include/netinet/in.h
+		include/netinet/ip.h
+		include/netinet/ip_icmp.h
 		include/netinet/tcp.h
 		include/sys/ioctl.h
 		include/sys/msg.h
@@ -275,9 +281,11 @@ if(NOT ANSI_ONLY)
 		include/link.h
 		include/malloc.h
 		include/memory.h
+		include/netinet/in_systm.h
 		include/values.h
 		include/stdc-predef.h
 		include/stdio_ext.h
+		include/sys/endian.h
 		include/sys/mtio.h
 		include/sys/procfs.h
 		include/sys/soundcard.h

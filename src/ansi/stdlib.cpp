@@ -91,7 +91,7 @@ EXPORT void* calloc(size_t num, size_t size) {
 	return ptr;
 }
 
-EXPORT void free(void* ptr) {
+EXPORT __nothrow void free(void* ptr) {
 	deallocate(ptr);
 }
 

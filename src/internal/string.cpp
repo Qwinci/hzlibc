@@ -24,7 +24,7 @@ namespace internal {
 			*save_ptr += end_pos + 1;
 		}
 		else {
-			*save_ptr += end_pos;
+			*save_ptr += str_view.size();
 		}
 		return start + start_pos;
 	}

@@ -265,7 +265,7 @@ __tlsdesc_dynamic:
 
 	mrs x3, tpidr_el0
 	// (*tp).dtv.data
-	mov x0, #-16416
+	mov x0, #-16432
 	add x0, x3, x0
 	ldr x0, [x0, x1, lsl #3]
 

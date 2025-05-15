@@ -3,9 +3,9 @@
 
 #include <bits/utils.h>
 #include <bits/seek.h>
+#include <bits/termios.h>
 #include <sys/types.h>
 #include <sys/select.h>
-#include <termios.h>
 
 __begin_decls
 
@@ -207,6 +207,8 @@ __begin_decls
 #define _PC_2_SYMLINKS 20
 
 #define _CS_PATH 0
+#define _CS_GNU_LIBC_VERSION 2
+#define _CS_GNU_LIBPTHREAD_VERSION 3
 
 #define F_OK 0
 #define X_OK 1
@@ -318,6 +320,7 @@ pid_t fork(void);
 pid_t vfork(void);
 pid_t getpid(void);
 pid_t getppid(void);
+pid_t gettid(void);
 
 unsigned int sleep(unsigned int __seconds);
 int usleep(useconds_t __usec);

@@ -98,7 +98,7 @@ EXPORT size_t strftime_l(
 	const char* __restrict fmt,
 	const struct tm* time,
 	locale_t locale) {
-	println("strftime_l ignores locale");
+	//println("strftime_l ignores locale");
 	return strftime(str, count, fmt, time);
 }
 

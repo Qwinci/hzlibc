@@ -130,17 +130,6 @@ EXPORT void perror(const char* str) {
 	}
 }
 
-static long double frexp10l(long double x, int* exp) {
-	if (x != 0.0) {
-		*exp = 1 + static_cast<int>(floorl(log10l(fabsl(x))));
-	}
-	else {
-		*exp = 0;
-	}
-
-	return x * pow10l(-*exp);
-}
-
 enum class State {
 	None,
 	hh,

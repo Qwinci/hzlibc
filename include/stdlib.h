@@ -3,6 +3,7 @@
 
 #include <bits/utils.h>
 #include <bits/config.h>
+#include <alloca.h>
 #include <stddef.h>
 #include <stdint.h>
 
@@ -112,6 +113,11 @@ char* realpath(const char* __restrict __path, char* __restrict __resolved_path);
 float strtof_l(const char* __restrict __ptr, char** __restrict __end_ptr, locale_t __locale);
 double strtod_l(const char* __restrict __ptr, char** __restrict __end_ptr, locale_t __locale);
 long double strtold_l(const char* __restrict __ptr, char** __restrict __end_ptr, locale_t __locale);
+
+long strtol_l(const char* __restrict __ptr, char** __restrict __end_ptr, int __base, locale_t __locale);
+unsigned long strtoul_l(const char* __restrict __ptr, char** __restrict __end_ptr, int __base, locale_t __locale);
+long long strtoll_l(const char* __restrict __ptr, char** __restrict __end_ptr, int __base, locale_t __locale);
+unsigned long long strtoull_l(const char* __restrict __ptr, char** __restrict __end_ptr, int __base, locale_t __locale);
 
 int mkstemp(char* __template);
 char* mkdtemp(char* __template);

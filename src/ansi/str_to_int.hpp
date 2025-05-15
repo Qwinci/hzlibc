@@ -44,10 +44,12 @@ T str_to_int(const C* __restrict ptr, C** __restrict end_ptr, int base) {
 
 	auto valid_char = [&](C c) {
 		if (base <= 10) {
-			return c >= '0' && c <= '0' + base - 1;
+			return c >= C {'0'} && c <= static_cast<C>('0' + base - 1);
 		}
 		else {
-			return (c >= '0' && c <= '9') || ((c | 1 << 5) >= 'a' && (c | 1 << 5) <= 'a' + (base - 10));
+			return (c >= C {'0'} && c <= C {'9'}) ||
+				(static_cast<C>(c | 1 << 5) >= C {'a'} &&
+				static_cast<C>(c | 1 << 5) <= static_cast<C>('a' + (base - 10)));
 		}
 	};
 

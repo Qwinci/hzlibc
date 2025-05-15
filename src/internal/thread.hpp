@@ -7,7 +7,9 @@
 extern "C" [[noreturn]] void hzlibc_thread_entry(void* (*fn)(void* arg), void* arg);
 
 struct ThreadAttr {
+	void* stack_addr;
 	size_t stack_size;
+	size_t guard_size;
 	int policy;
 	int priority;
 	int inherit_sched;

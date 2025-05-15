@@ -27,6 +27,9 @@ struct [[gnu::aligned(16)]] Tcb {
 		void* value;
 	};
 	Key keys[PTHREAD_KEYS_MAX] {};
+	void* stack_addr {};
+	size_t stack_size {};
+	size_t guard_size {};
 	bool detached {};
 };
 #ifdef __x86_64__
@@ -35,7 +38,7 @@ static_assert(offsetof(Tcb, dtv) == 64);
 #elif defined(__i386__)
 static_assert(offsetof(Tcb, stack_canary) == 0x14);
 #elif defined(__aarch64__)
-static_assert(sizeof(Tcb) - 0x10 - offsetof(Tcb, dtv) == 16416);
+static_assert(sizeof(Tcb) - 0x10 - offsetof(Tcb, dtv) == 16432);
 static_assert(sizeof(Tcb) % 16 == 0);
 #endif
 

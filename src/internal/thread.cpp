@@ -32,9 +32,8 @@ static void thread_call_destructors();
 }
 
 extern "C" [[noreturn]] void hzlibc_thread_entry(void* (*fn)(void* arg), void* arg) {
-	auto* tcb = get_current_tcb();
-
 #if !ANSI_ONLY
+	auto* tcb = get_current_tcb();
 	while (!__atomic_load_n(&tcb->tid, __ATOMIC_RELAXED)) {
 		sys_futex_wait(&tcb->tid, 0, nullptr);
 	}
@@ -58,15 +57,25 @@ int thread_create(
 	void* stack_base = nullptr;
 	size_t stack_size = 0x200000;
 
+	auto tcb_ptr = static_cast<Tcb*>(tcb);
+
 	if (attr) {
 		auto* ptr = reinterpret_cast<const ThreadAttr*>(attr);
+		if (ptr->stack_addr) {
+			stack_base = ptr->stack_addr;
+		}
 		if (ptr->stack_size) {
 			stack_size = ptr->stack_size;
 		}
 		if (ptr->detached) {
-			static_cast<Tcb*>(tcb)->detached = true;
+			tcb_ptr->detached = true;
 		}
 	}
+
+	// todo propagate from sys_thread_create
+	tcb_ptr->stack_addr = stack_base;
+	tcb_ptr->stack_size = stack_size;
+	tcb_ptr->guard_size = 0;
 
 	pid_t tid;
 	if (auto err = sys_thread_create(stack_base, stack_size, start_fn, arg, tp, &tid)) {
@@ -75,8 +84,6 @@ int thread_create(
 	}
 
 	*thread = reinterpret_cast<__hzlibc_thread_t>(tcb);
-
-	auto* tcb_ptr = static_cast<Tcb*>(tcb);
 
 #if !ANSI_ONLY
 	__atomic_store_n(&tcb_ptr->tid, tid, __ATOMIC_RELAXED);

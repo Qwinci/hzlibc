@@ -25,6 +25,8 @@ struct sysinfo {
 	char __pad[20 - 2 * sizeof(unsigned long) - sizeof(uint32_t)];
 };
 
+int sysinfo(struct sysinfo* __info);
+
 // glibc
 int get_nprocs(void);
 

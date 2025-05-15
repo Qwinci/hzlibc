@@ -20,6 +20,7 @@ target_sources(c PRIVATE
 	socket.cpp
 	stat.cpp
 	swap.cpp
+	sysinfo.cpp
 	uio.cpp
 	unistd.cpp
 	wait.cpp

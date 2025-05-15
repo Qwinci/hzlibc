@@ -19,6 +19,7 @@ __begin_decls
 #define SEM_STAT 18
 #define SEM_INFO 19
 #define SEM_STAT_ANY 20
+#define SEM_UNDO 0x1000
 
 #define _SEM_SEMUN_UNDEFINED 1
 

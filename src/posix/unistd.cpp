@@ -350,6 +350,12 @@ EXPORT size_t confstr(int name, char* buffer, size_t size) {
 	if (name == _CS_PATH) {
 		return static_cast<size_t>(snprintf(buffer, size, "/bin:/usr/bin")) + 1;
 	}
+	else if (name == _CS_GNU_LIBC_VERSION) {
+		return static_cast<size_t>(snprintf(buffer, size, "glibc %d.%d.0", __GLIBC__, __GLIBC_MINOR__));
+	}
+	else if (name == _CS_GNU_LIBPTHREAD_VERSION) {
+		return static_cast<size_t>(snprintf(buffer, size, "NPTL %d.%d", __GLIBC__, __GLIBC_MINOR__));
+	}
 	else {
 		panic("confstr ", name, " is not implemented");
 	}
@@ -850,6 +856,10 @@ EXPORT pid_t getpid() {
 
 EXPORT pid_t getppid() {
 	return sys_getppid();
+}
+
+EXPORT pid_t gettid() {
+	return sys_get_thread_id();
 }
 
 EXPORT unsigned int sleep(unsigned int seconds) {

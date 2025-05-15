@@ -37,6 +37,20 @@ int iswctype(wint_t __wc, wctype_t __desc);
 // posix
 wint_t towupper_l(wint_t __ch, locale_t __locale);
 wint_t towlower_l(wint_t __ch, locale_t __locale);
+
+int iswupper_l(wint_t __ch, locale_t __locale);
+int iswlower_l(wint_t __ch, locale_t __locale);
+int iswalpha_l(wint_t __ch, locale_t __locale);
+int iswdigit_l(wint_t __ch, locale_t __locale);
+int iswxdigit_l(wint_t __ch, locale_t __locale);
+int iswspace_l(wint_t __ch, locale_t __locale);
+int iswprint_l(wint_t __ch, locale_t __locale);
+int iswgraph_l(wint_t __ch, locale_t __locale);
+int iswblank_l(wint_t __ch, locale_t __locale);
+int iswcntrl_l(wint_t __ch, locale_t __locale);
+int iswpunct_l(wint_t __ch, locale_t __locale);
+int iswalnum_l(wint_t __ch, locale_t __locale);
+
 wctype_t wctype_l(const char* __property, locale_t __locale);
 int iswctype_l(wint_t __wc, wctype_t __desc, locale_t __locale);
 

@@ -41,7 +41,7 @@ EXPORT int wcswidth(const wchar_t* str, size_t len) {
 }
 
 EXPORT int wcscoll_l(const wchar_t* lhs, const wchar_t* rhs, locale_t locale) {
-	println("wcscoll_l ignores locale");
+	//println("wcscoll_l ignores locale");
 	return wcscoll(lhs, rhs);
 }
 
@@ -60,7 +60,7 @@ EXPORT size_t wcsxfrm_l(
 	const wchar_t* __restrict src,
 	size_t count,
 	locale_t locale) {
-	println("wcsxfrm_l ignores locale");
+	//println("wcsxfrm_l ignores locale");
 	return wcsxfrm(dest, src, count);
 }
 
@@ -70,7 +70,7 @@ EXPORT size_t wcsftime_l(
 	const wchar_t* __restrict fmt,
 	const struct tm* time,
 	locale_t locale) {
-	println("wcsftime_l ignores locale");
+	//println("wcsftime_l ignores locale");
 	return wcsftime(str, count, fmt, time);
 }
 

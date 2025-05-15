@@ -54,6 +54,8 @@ typedef int sig_atomic_t;
 #define SIGPWR 30
 #define SIGSYS 31
 #define SIGUNUSED SIGSYS
+#define SIGRTMIN 35
+#define SIGRTMAX 64
 
 sighandler_t signal(int __sig_num, sighandler_t __handler);
 int raise(int __sig);
@@ -110,6 +112,49 @@ typedef void (*__sighandler)(int);
 #define CLD_TRAPPED 4
 #define CLD_STOPPED 5
 #define CLD_CONTINUED 6
+
+#define FPE_INTDIV 1
+#define FPE_INTOVF 2
+#define FPE_FLTDIV 3
+#define FPE_FLTOVF 4
+#define FPE_FLTUND 5
+#define FPE_FLTRES 6
+#define FPE_FLTINV 7
+#define FPE_FLTSUB 8
+
+#define ILL_ILLOPC 1
+#define ILL_ILLOPN 2
+#define ILL_ILLADR 3
+#define ILL_ILLTRP 4
+#define ILL_PRVOPC 5
+#define ILL_PRVREG 6
+#define ILL_COPROC 7
+#define ILL_BADSTK 8
+#define ILL_BADIADDR 9
+
+#define BUS_ADRALN 1
+#define BUS_ADRERR 2
+#define BUS_OBJERR 3
+#define BUS_MCEERR_AR 4
+#define BUS_MCEERR_AO 5
+
+#define SEGV_MAPERR 1
+#define SEGV_ACCERR 2
+#define SEGV_BNDERR 3
+#define SEGV_PKUERR 4
+#define SEGV_ACCADI 5
+#define SEGV_ADIDERR 6
+#define SEGV_ADIPERR 7
+#define SEGV_MTEAERR 8
+#define SEGV_MTESERR 9
+#define SEGV_CPERR 10
+
+#define POLL_IN 1
+#define POLL_OUT 2
+#define POLL_MSG 3
+#define POLL_ERR 4
+#define POLL_PRI 5
+#define POLL_HUP 6
 
 #define NSIG 65
 #define _NSIG NSIG

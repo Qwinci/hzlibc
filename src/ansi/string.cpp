@@ -304,7 +304,7 @@ namespace {
 		array[EPROTOTYPE] = "Protocol wrong type for socket";
 		array[ENOPROTOOPT] = "Protocol not available";
 		array[EPROTONOSUPPORT] = "Protocol not supported";
-		array[ESOCKNOSUPPORT] = "Socket type not supported";
+		array[ESOCKTNOSUPPORT] = "Socket type not supported";
 		array[EOPNOTSUPP] = "Operation not supported on transport endpoint";
 		array[EPFNOSUPPORT] = "Protocol family not supported";
 		array[EAFNOSUPPORT] = "Address family not supported";

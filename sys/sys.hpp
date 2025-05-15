@@ -13,6 +13,7 @@
 #include <sys/shm.h>
 #include <sys/sem.h>
 #include <sys/sysinfo.h>
+#include <sys/times.h>
 #include <sys/wait.h>
 #include <sys/ptrace.h>
 #include <sys/epoll.h>
@@ -225,6 +226,7 @@ int sys_clock_settime(clockid_t id, const timespec* tp);
 int sys_clock_getres(clockid_t id, timespec* res);
 int sys_clock_nanosleep(clockid_t id, int flags, const timespec64* req, timespec64* rem);
 int sys_setitimer(int which, const itimerval* value, itimerval* old);
+int sys_times(struct tms* tms, clock_t* ret);
 
 int sys_inotify_init1(int flags, int* ret);
 int sys_inotify_add_watch(int fd, const char* path, uint32_t mask, int* ret);

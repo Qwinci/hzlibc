@@ -301,18 +301,38 @@ EXPORT char* realpath(const char* __restrict path, char* __restrict resolved_pat
 }
 
 EXPORT float strtof_l(const char* __restrict ptr, char** __restrict end_ptr, locale_t locale) {
-	println("strtof_l ignores locale");
+	//println("strtof_l ignores locale");
 	return strtof(ptr, end_ptr);
 }
 
 EXPORT double strtod_l(const char* __restrict ptr, char** __restrict end_ptr, locale_t locale) {
-	println("strtod_l ignores locale");
+	//println("strtod_l ignores locale");
 	return strtod(ptr, end_ptr);
 }
 
 EXPORT long double strtold_l(const char* __restrict ptr, char** __restrict end_ptr, locale_t locale) {
-	println("strtold_l ignores locale");
+	//println("strtold_l ignores locale");
 	return strtold(ptr, end_ptr);
+}
+
+EXPORT long strtol_l(const char* __restrict ptr, char** __restrict end_ptr, int base, locale_t __locale) {
+	//println("strtol_l ignores locale");
+	return strtol(ptr, end_ptr, base);
+}
+
+EXPORT unsigned long strtoul_l(const char* __restrict ptr, char** __restrict end_ptr, int base, locale_t __locale) {
+	//println("strtoul_l ignores locale");
+	return strtoul(ptr, end_ptr, base);
+}
+
+EXPORT long long strtoll_l(const char* __restrict ptr, char** __restrict end_ptr, int base, locale_t __locale) {
+	//println("strtoll_l ignores locale");
+	return strtoll(ptr, end_ptr, base);
+}
+
+EXPORT unsigned long long strtoull_l(const char* __restrict ptr, char** __restrict end_ptr, int base, locale_t __locale) {
+	//println("strtoull_l ignores locale");
+	return strtoull(ptr, end_ptr, base);
 }
 
 EXPORT int mkstemp(char* template_str) {

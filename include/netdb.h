@@ -105,6 +105,15 @@ struct servent* getservbyname(const char* __name, const char* __proto);
 
 const char* gai_strerror(int __err_code);
 
+// bsd extensions
+int gethostbyname_r(
+	const char* __name,
+	struct hostent* __ret,
+	char* __buf,
+	size_t __buf_len,
+	struct hostent** __res,
+	int* __h_errnop);
+
 __end_decls
 
 #endif

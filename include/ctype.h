@@ -4,6 +4,7 @@
 #include <bits/utils.h>
 #include <bits/config.h>
 #include <stdint.h>
+#include <locale.h>
 
 __begin_decls
 
@@ -21,6 +22,8 @@ enum {
 	_ISpunct = 1 << 2,
 	_ISalnum = 1 << 3
 };
+
+#define _ISbit(bit) ((bit) < 8 ? ((1 << ((bit) + 8))) : ((1 << ((bit) - 8))))
 
 extern const unsigned short** __ctype_b_loc(void);
 extern const int32_t** __ctype_tolower_loc(void);
@@ -46,6 +49,22 @@ int isalnum(int __ch);
 
 // posix
 int isascii(int __ch);
+
+int toupper_l(int __ch, locale_t __locale);
+int tolower_l(int __ch, locale_t __locale);
+
+int isupper_l(int __ch, locale_t __locale);
+int islower_l(int __ch, locale_t __locale);
+int isalpha_l(int __ch, locale_t __locale);
+int isdigit_l(int __ch, locale_t __locale);
+int isxdigit_l(int __ch, locale_t __locale);
+int isspace_l(int __ch, locale_t __locale);
+int isprint_l(int __ch, locale_t __locale);
+int isgraph_l(int __ch, locale_t __locale);
+int isblank_l(int __ch, locale_t __locale);
+int iscntrl_l(int __ch, locale_t __locale);
+int ispunct_l(int __ch, locale_t __locale);
+int isalnum_l(int __ch, locale_t __locale);
 
 #endif
 

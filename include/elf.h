@@ -65,11 +65,20 @@ typedef struct {
 #define ELFMAG2 'L'
 #define ELFMAG3 'F'
 
+#define ELFMAG "\177ELF"
+#define SELFMAG 4
+
+#define ET_EXEC 2
+#define ET_DYN 3
+#define ET_CORE 4
+
 #define EI_CLASS 4
+#define ELFCLASSNONE 0
 #define ELFCLASS32 1
 #define ELFCLASS64 2
 
 #define EI_DATA 5
+#define ELFDATANONE 0
 #define ELFDATA2LSB 1
 #define ELFDATA2MSB 2
 
@@ -80,6 +89,57 @@ typedef struct {
 #define EM_386 3
 #define EM_X86_64 0x3E
 #define EM_AARCH64 0xB7
+
+typedef struct {
+	Elf64_Word sh_name;
+	Elf64_Word sh_type;
+	Elf64_Xword sh_flags;
+	Elf64_Addr sh_addr;
+	Elf64_Off sh_offset;
+	Elf64_Xword sh_size;
+	Elf64_Word sh_link;
+	Elf64_Word sh_info;
+	Elf64_Xword sh_addralign;
+	Elf64_Xword sh_entsize;
+} Elf64_Shdr;
+
+typedef struct {
+	Elf32_Word sh_name;
+	Elf32_Word sh_type;
+	Elf32_Word sh_flags;
+	Elf32_Addr sh_addr;
+	Elf32_Off sh_offset;
+	Elf32_Word sh_size;
+	Elf32_Word sh_link;
+	Elf32_Word sh_info;
+	Elf32_Word sh_addralign;
+	Elf32_Word sh_entsize;
+} Elf32_Shdr;
+
+#define SHT_SYMTAB 2
+#define SHT_STRTAB 3
+#define SHT_NOTE 7
+#define SHT_NOBITS 8
+#define SHT_DYNSYM 11
+
+#define STT_OBJECT 1
+#define STT_FUNC 2
+
+typedef struct {
+	Elf64_Word n_namesz;
+	Elf64_Word n_descsz;
+	Elf64_Word n_type;
+} Elf64_Nhdr;
+
+typedef struct {
+	Elf32_Word n_namesz;
+	Elf32_Word n_descsz;
+	Elf32_Word n_type;
+} Elf32_Nhdr;
+
+#define NT_PRSTATUS 1
+
+#define NT_AUXV 6
 
 typedef struct {
 	Elf64_Word p_type;
@@ -106,9 +166,11 @@ typedef struct {
 #define PT_LOAD 1
 #define PT_DYNAMIC 2
 #define PT_INTERP 3
+#define PT_NOTE 4
 #define PT_PHDR 6
 #define PT_TLS 7
 #define PT_GNU_EH_FRAME 0x6474E550
+#define PT_GNU_STACK 0x6474E551
 
 #define PF_X 1
 #define PF_W 2

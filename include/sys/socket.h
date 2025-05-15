@@ -54,6 +54,12 @@ struct linger {
 	int l_linger;
 };
 
+struct ucred {
+	pid_t pid;
+	uid_t uid;
+	gid_t gid;
+};
+
 #define SCM_RIGHTS 1
 #define SCM_CREDENTIALS 2
 #define SCM_SECURITY 3

@@ -16,6 +16,8 @@ struct tms {
 	clock_t tms_cstime;
 };
 
+clock_t times(struct tms* __tms);
+
 __end_decls
 
 #endif

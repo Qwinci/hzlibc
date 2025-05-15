@@ -24,6 +24,8 @@ struct user_regs_struct {
 	uint64_t r14;
 	uint64_t r13;
 	uint64_t r12;
+	uint64_t rbp;
+	uint64_t rbx;
 	uint64_t r11;
 	uint64_t r10;
 	uint64_t r9;
@@ -51,18 +53,18 @@ struct user {
 	struct user_regs_struct regs;
 	int u_fpvalid;
 	struct user_fpregs_struct i387;
-	unsigned long u_tsize;
-	unsigned long u_dsize;
-	unsigned long u_ssize;
-	unsigned long start_code;
-	unsigned long start_stack;
-	long signal;
+	uint64_t u_tsize;
+	uint64_t u_dsize;
+	uint64_t u_ssize;
+	uint64_t start_code;
+	uint64_t start_stack;
+	int64_t signal;
 	int reserved;
 	struct user_regs_struct* u_ar0;
 	struct user_fpregs_struct* u_fpstate;
-	unsigned long magic;
+	uint64_t magic;
 	char u_comm[32];
-	unsigned long u_debugreg[8];
+	uint64_t u_debugreg[8];
 };
 
 #define PAGE_SHIFT 12

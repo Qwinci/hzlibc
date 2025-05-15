@@ -171,6 +171,7 @@ void set_debug_state_to_normal() {
 
 void hzlibc_env_init(char** env);
 void hzlibc_posix_env_init();
+void init_stack_guard(void* entropy);
 
 extern "C" [[gnu::used]] uintptr_t start(uintptr_t* sp) {
 	auto argc = *sp;
@@ -185,6 +186,8 @@ extern "C" [[gnu::used]] uintptr_t start(uintptr_t* sp) {
 	uint16_t exe_phent = 0;
 	uint16_t exe_phnum = 0;
 	uintptr_t exe_entry = 0;
+	void* entropy = nullptr;
+
 	for (auto* aux = auxv; aux->a_type != AT_NULL; ++aux) {
 		switch (aux->a_type) {
 			case AT_PHDR:
@@ -202,6 +205,8 @@ extern "C" [[gnu::used]] uintptr_t start(uintptr_t* sp) {
 			case AT_ENTRY:
 				exe_entry = aux->a_un.a_val;
 				break;
+			case AT_RANDOM:
+				entropy = reinterpret_cast<void*>(aux->a_un.a_val);
 			default:
 				break;
 		}
@@ -257,6 +262,8 @@ extern "C" [[gnu::used]] uintptr_t start(uintptr_t* sp) {
 		auto* phdr = reinterpret_cast<Elf_Phdr*>(reinterpret_cast<uintptr_t>(libc_phdr) + i * libc_ehdr->e_phentsize);
 		LIBC_OBJECT->phdrs_vec.push_back(*phdr);
 	}
+
+	init_stack_guard(entropy);
 
 	hz::string<Allocator> exe_path {Allocator {}};
 	for (auto* aux = auxv; aux->a_type != AT_NULL; ++aux) {

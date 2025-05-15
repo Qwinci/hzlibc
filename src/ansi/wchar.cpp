@@ -232,12 +232,12 @@ EXPORT int wmemcmp(const wchar_t* lhs, const wchar_t* rhs, size_t count) {
 }
 
 EXPORT int wcscoll(const wchar_t* lhs, const wchar_t* rhs) {
-	println("wcscoll ignores locale");
+	//println("wcscoll ignores locale");
 	return wcscmp(lhs, rhs);
 }
 
 EXPORT size_t wcsxfrm(wchar_t* __restrict dest, const wchar_t* __restrict src, size_t count) {
-	println("wcsxfrm ignores locale");
+	//println("wcsxfrm ignores locale");
 	size_t len = wcslen(src);
 	if (dest && count) {
 		if (len + 1 < count) {

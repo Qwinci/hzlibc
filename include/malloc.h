@@ -36,6 +36,7 @@ int malloc_trim(size_t __pad);
 struct mallinfo mallinfo(void);
 struct mallinfo2 mallinfo2(void);
 size_t malloc_usable_size(void* __ptr);
+void* memalign(size_t __alignment, size_t __size);
 
 __end_decls
 

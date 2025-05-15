@@ -22,7 +22,7 @@ EXPORT char* strtok_r(char* __restrict str, const char* __restrict delim, char**
 }
 
 EXPORT int strcoll_l(const char* lhs, const char* rhs, locale_t locale) {
-	println("strcoll_l ignores locale");
+	//println("strcoll_l ignores locale");
 	return strcoll(lhs, rhs);
 }
 
@@ -32,7 +32,7 @@ EXPORT size_t strxfrm_l(char* __restrict dest, const char* __restrict src, size_
 }
 
 EXPORT char* strerror_l(int err_num, locale_t locale) {
-	println("strerror_l ignores locale");
+	//println("strerror_l ignores locale");
 	return strerror(err_num);
 }
 

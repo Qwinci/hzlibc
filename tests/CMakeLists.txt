@@ -20,8 +20,13 @@ macro(libc_test name)
 	)
 
 	gtest_discover_tests(${name}_test)
+
+	add_executable(${name}_host_test ${ARGN})
+	target_link_libraries(${name}_host_test PRIVATE GTest::gtest_main)
+
+	gtest_discover_tests(${name}_host_test)
 endmacro()
 
 libc_test(ansi ansi.cpp)
 libc_test(posix posix.cpp)
-
+libc_test(manual manual.cpp)

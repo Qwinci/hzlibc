@@ -3,6 +3,10 @@
 #include "sys.hpp"
 #include "errno.h"
 
+EXPORT int __getpagesize() {
+	return sys_getpagesize();
+}
+
 EXPORT void* shmat(int shm_id, const void* shm_addr, int shm_flag) {
 	void* ret;
 	if (auto err = sys_shmat(shm_id, shm_addr, shm_flag, &ret)) {

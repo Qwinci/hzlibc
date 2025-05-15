@@ -123,8 +123,18 @@ int pthread_barrier_wait(pthread_barrier_t* __barrier);
 
 int pthread_attr_init(pthread_attr_t* __attr);
 int pthread_attr_destroy(pthread_attr_t* __attr);
+int pthread_getattr_np(pthread_t __thrd, pthread_attr_t* __attr);
 int pthread_attr_setdetachstate(pthread_attr_t* __attr, int __detach_state);
+int pthread_attr_getdetachstate(const pthread_attr_t* __attr, int* __restrict __detach_state);
 int pthread_attr_setstacksize(pthread_attr_t* __attr, size_t __stack_size);
+int pthread_attr_getstacksize(const pthread_attr_t* __restrict __attr, size_t* __restrict __stack_size);
+int pthread_attr_setstack(pthread_attr_t* __attr, void* __stack_addr, size_t __stack_size);
+int pthread_attr_getstack(
+	const pthread_attr_t* __restrict __attr,
+	void** __restrict __stack_addr,
+	size_t* __restrict __stack_size);
+int pthread_attr_setguardsize(pthread_attr_t* __attr, size_t __guard_size);
+int pthread_attr_getguardsize(const pthread_attr_t* __restrict __attr, size_t* __restrict __guard_size);
 int pthread_attr_setschedpolicy(pthread_attr_t* __restrict __attr, int __policy);
 int pthread_attr_setschedparam(pthread_attr_t* __restrict __attr, const struct sched_param* __restrict __param);
 int pthread_attr_setinheritsched(pthread_attr_t* __attr, int __inherit_sched);

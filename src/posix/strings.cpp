@@ -30,6 +30,10 @@ EXPORT void bcopy(const void* src, void* dest, size_t size) {
 	memmove(dest, src, size);
 }
 
+EXPORT void bzero(void* dest, size_t size) {
+	memset(dest, 0, size);
+}
+
 EXPORT int ffs(int value) {
 	for (size_t i = 0; i < sizeof(int) * 8; ++i) {
 		if (value & 1 << i) {

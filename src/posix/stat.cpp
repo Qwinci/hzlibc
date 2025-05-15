@@ -251,6 +251,26 @@ EXPORT int fstatvfs(int fd, struct statvfs* buf) {
 	return 0;
 }
 
+EXPORT int fstatvfs64(int fd, struct statvfs64* buf) {
+	struct statfs64 s {};
+	if (fstatfs64(fd, &s)) {
+		return -1;
+	}
+	buf->f_bsize = s.f_bsize;
+	buf->f_frsize = s.f_frsize;
+	buf->f_blocks = s.f_blocks;
+	buf->f_bfree = s.f_bfree;
+	buf->f_bavail = s.f_bavail;
+	buf->f_files = s.f_files;
+	buf->f_ffree = s.f_ffree;
+	buf->f_favail = s.f_ffree;
+	memcpy(&buf->f_fsid, &s.f_fsid, sizeof(unsigned long));
+	buf->f_flag = s.f_flags;
+	buf->f_namemax = s.f_namelen;
+	buf->f_type = s.f_type;
+	return 0;
+}
+
 EXPORT int chmod(const char* path, mode_t mode) {
 	if (auto err = sys_fchmodat(AT_FDCWD, path, mode, 0)) {
 		errno = err;

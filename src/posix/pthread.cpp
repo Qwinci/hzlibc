@@ -486,9 +486,27 @@ EXPORT int pthread_attr_destroy(pthread_attr_t* attr) {
 	return 0;
 }
 
+EXPORT int pthread_getattr_np(pthread_t thread, pthread_attr_t* attr) {
+	auto* tcb = reinterpret_cast<Tcb*>(thread);
+	auto* ptr = reinterpret_cast<ThreadAttr*>(attr);
+	*ptr = {};
+
+	ptr->stack_addr = tcb->stack_addr;
+	ptr->stack_size = tcb->stack_size;
+	ptr->guard_size = tcb->guard_size;
+	ptr->detached = tcb->detached;
+	return 0;
+}
+
 EXPORT int pthread_attr_setdetachstate(pthread_attr_t* attr, int detach_state) {
 	auto* ptr = reinterpret_cast<ThreadAttr*>(attr);
 	ptr->detached = detach_state == PTHREAD_CREATE_DETACHED;
+	return 0;
+}
+
+EXPORT int pthread_attr_getdetachstate(const pthread_attr_t* attr, int* __restrict detach_state) {
+	auto* ptr = reinterpret_cast<const ThreadAttr*>(attr);
+	*detach_state = ptr->detached;
 	return 0;
 }
 
@@ -499,6 +517,45 @@ EXPORT int pthread_attr_setstacksize(pthread_attr_t* attr, size_t stack_size) {
 
 	auto* ptr = reinterpret_cast<ThreadAttr*>(attr);
 	ptr->stack_size = stack_size;
+	return 0;
+}
+
+EXPORT int pthread_attr_getstacksize(const pthread_attr_t* __restrict attr, size_t* __restrict stack_size) {
+	auto* ptr = reinterpret_cast<const ThreadAttr*>(attr);
+	*stack_size = ptr->stack_size;
+	return 0;
+}
+
+EXPORT int pthread_attr_setstack(pthread_attr_t* attr, void* stack_addr, size_t stack_size) {
+	if (stack_size < PTHREAD_STACK_MIN) {
+		return EINVAL;
+	}
+
+	auto* ptr = reinterpret_cast<ThreadAttr*>(attr);
+	ptr->stack_addr = stack_addr;
+	ptr->stack_size = stack_size;
+	return 0;
+}
+
+EXPORT int pthread_attr_getstack(
+	const pthread_attr_t* __restrict attr,
+	void** __restrict stack_addr,
+	size_t* __restrict stack_size) {
+	auto* ptr = reinterpret_cast<const ThreadAttr*>(attr);
+	*stack_addr = ptr->stack_addr;
+	*stack_size = ptr->stack_size;
+	return 0;
+}
+
+EXPORT int pthread_attr_setguardsize(pthread_attr_t* attr, size_t guard_size) {
+	auto* ptr = reinterpret_cast<ThreadAttr*>(attr);
+	ptr->guard_size = guard_size;
+	return 0;
+}
+
+EXPORT int pthread_attr_getguardsize(const pthread_attr_t* __restrict attr, size_t* __restrict guard_size) {
+	auto* ptr = reinterpret_cast<const ThreadAttr*>(attr);
+	*guard_size = ptr->guard_size;
 	return 0;
 }
 

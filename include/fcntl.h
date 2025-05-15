@@ -19,6 +19,7 @@ __begin_decls
 #define O_NONBLOCK 0x800
 #define O_DSYNC 0x1000
 #define FASYNC 0x2000
+#define O_ASYNC 0x2000
 #define O_DIRECT 0x4000
 #define O_LARGEFILE 0x8000
 #define O_DIRECTORY 0x10000

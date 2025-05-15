@@ -16,6 +16,13 @@ __begin_decls
 #define _IOW(type, num, size) _IOC(_IOC_WRITE, (type), (num), sizeof(size))
 #define _IOWR(type, num, size) _IOC(_IOC_READ | _IOC_WRITE, (type), (num), sizeof(size))
 
+#define SIOCGIFFLAGS 0x8913
+#define SIOCGIFBRDADDR 0x8919
+#define SIOCGIFNETMASK 0x891B
+#define SIOCGIFMTU 0x8921
+#define SIOCGIFHWADDR 0x8927
+#define SIOCGIFINDEX 0x8933
+
 #define TCGETS 0x5401
 #define TCSETS 0x5402
 #define TCSETSW 0x5403

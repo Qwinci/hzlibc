@@ -11,7 +11,13 @@ __begin_decls
 #define SHM_W 0x80
 #define SHM_R 0x100
 
+#define SHM_HUGETLB 0x800
 #define SHM_RDONLY 0x1000
+#define SHM_REMAP 0x4000
+
+int __getpagesize(void);
+
+#define SHMLBA (__getpagesize())
 
 typedef unsigned long shmatt_t;
 

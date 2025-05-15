@@ -20,6 +20,7 @@ target_sources(c PRIVATE
 	mqueue.cpp
 	net_utils.cpp
 	netdb.cpp
+	nl.cpp
 	poll.cpp
 	pthread.cpp
 	pwd.cpp
@@ -42,9 +43,11 @@ target_sources(c PRIVATE
 	strings.cpp
 	syslog.cpp
 	time.cpp
+	times.cpp
 	ucontext.cpp
 	unistd.cpp
 	utime.cpp
+	utmpx.cpp
 	utsname.cpp
 	wait.cpp
 	wchar.cpp

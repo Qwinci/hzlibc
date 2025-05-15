@@ -40,6 +40,8 @@
 #define _LIBUNWIND_CHECK_LINUX_SIGRETURN 1
 #endif
 
+#undef _LIBUNWIND_CHECK_LINUX_SIGRETURN
+
 #include "AddressSpace.hpp"
 #include "CompactUnwinder.hpp"
 #include "config.h"
