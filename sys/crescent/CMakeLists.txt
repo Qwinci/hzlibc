@@ -1,5 +1,4 @@
 target_sources(c PRIVATE
-	sys.cpp
+	ansi_sys.cpp
+	posix_sys.cpp
 )
-
-target_include_directories(c PRIVATE "${PROJECT_SOURCE_DIR}/subprojects/crescent/include")

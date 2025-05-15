@@ -1595,6 +1595,15 @@ int sys_setitimer(int which, const itimerval* value, itimerval* old) {
 	return syscall_error(syscall(SYS_setitimer, which, value, old));
 }
 
+int sys_times(struct tms* tms, clock_t* ret) {
+	auto res = syscall(SYS_times, tms);
+	if (int err = syscall_error(res)) {
+		return err;
+	}
+	*ret = static_cast<clock_t>(res);
+	return 0;
+}
+
 int sys_inotify_init1(int flags, int* ret) {
 	auto res = syscall(SYS_inotify_init1, flags);
 	if (int err = syscall_error(res)) {

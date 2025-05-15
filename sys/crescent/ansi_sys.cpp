@@ -2,13 +2,17 @@
 #include "log.hpp"
 #include "errno.h"
 #include "sys/mman.h"
+#include "sys/stat.h"
 #include "crescent/syscall.h"
 #include "crescent/syscalls.h"
+#include "crescent/posix_syscall.h"
+#include "crescent/posix_syscalls.h"
 #include "utils.hpp"
 #include "string.h"
 #include "fcntl.h"
 #include "thread.hpp"
 #include "stdio.h"
+#include "signal.h"
 
 #define STUB_ENOSYS println("hzlibc: ", __func__, " is a not implemented and returns ENOSYS"); return ENOSYS
 
@@ -26,62 +30,22 @@ void sys_libc_log(hz::string_view str) {
 	__builtin_trap();
 }
 
+#define check_err(res) if ((res).err) return static_cast<int>((res).err)
+#define get_err(res) static_cast<int>((res).err)
+
 int sys_mmap(void* addr, size_t length, int prot, int flags, int fd, off64_t offset, void** ret) {
-	// this code is only valid for ansi-only usage of mmap from rtld
-
-	if (flags & MAP_FIXED) {
-		return 0;
-	}
-
-	int crescent_prot = CRESCENT_PROT_READ | CRESCENT_PROT_WRITE | CRESCENT_PROT_EXEC;
-
-	__ensure(flags == (MAP_PRIVATE | MAP_ANON));
-	__ensure(fd == -1);
-	__ensure(offset == 0);
-
-	auto status = static_cast<int>(syscall(SYS_MAP, &addr, length, crescent_prot));
-	if (status == ERR_NO_MEM) {
-		return ENOMEM;
-	}
-	else {
-		__ensure(status == 0);
-		*ret = addr;
-		return 0;
-	}
+	auto res = posix_syscall(SYS_POSIX_MMAP, addr, length, prot, flags, fd, offset);
+	check_err(res);
+	*ret = reinterpret_cast<void*>(res.ret);
+	return 0;
 }
 
 int sys_munmap(void* addr, size_t length) {
-	auto status = static_cast<int>(syscall(SYS_UNMAP, addr, length));
-	if (status == ERR_INVALID_ARGUMENT) {
-		return EINVAL;
-	}
-	else {
-		__ensure(status == 0);
-		return 0;
-	}
+	return get_err(posix_syscall(SYS_POSIX_MUNMAP, addr, length));
 }
 
 int sys_mprotect(void* addr, size_t length, int prot) {
-	/*int crescent_prot = 0;
-	if (prot & PROT_READ) {
-		crescent_prot |= CRESCENT_PROT_READ;
-	}
-	if (prot & PROT_WRITE) {
-		crescent_prot |= CRESCENT_PROT_WRITE;
-	}
-	if (prot & PROT_EXEC) {
-		crescent_prot |= CRESCENT_PROT_EXEC;
-	}
-
-	auto status = static_cast<int>(syscall(SYS_PROTECT, addr, length, crescent_prot));
-	if (status == ERR_INVALID_ARGUMENT) {
-		return EINVAL;
-	}
-	else {
-		__ensure(status == 0);
-		return 0;
-	}*/
-	return 0;
+	return get_err(posix_syscall(SYS_POSIX_MPROTECT, addr, length, prot));
 }
 
 int sys_openat(int dir_fd, const char* path, int flags, mode_t mode, int* ret) {
@@ -142,6 +106,11 @@ int sys_read(int fd, void* buf, size_t count, ssize_t* ret) {
 		return EBADF;
 	}
 	else {
+		if (status != 0) {
+			auto ad = __builtin_return_address(0);
+			auto addr = __builtin_extract_return_addr(ad);
+			println(Fmt::Hex, reinterpret_cast<uintptr_t>(addr), Fmt::Dec);
+		}
 		__ensure(status == 0);
 		*ret = static_cast<ssize_t>(actual);
 		return 0;
@@ -193,13 +162,38 @@ int sys_renameat(int old_dir_fd, const char* old_path, int new_dir_fd, const cha
 }
 
 int sys_stat(StatTarget target, int dir_fd, const char* path, int flags, struct stat64* s) {
+	switch (target) {
+		case StatTarget::Path:
+		{
+			int fd;
+			int status = sys_openat(AT_FDCWD, path, O_RDONLY, 0, &fd);
+			if (status != 0) {
+				return ENOENT;
+			}
+
+			CrescentStat crescent_stat {};
+			status = syscall(SYS_STAT, static_cast<CrescentHandle>(fd), &crescent_stat);
+
+			sys_close(fd);
+
+			if (status == 0) {
+				s->st_size = crescent_stat.size;
+			}
+
+			return status;
+		}
+		case StatTarget::Fd:
+			break;
+		case StatTarget::FdPath:
+			break;
+	}
+
 	STUB_ENOSYS;
 }
 
 int sys_sleep(const timespec64* duration, timespec64* rem) {
 	auto ns = duration->tv_sec * 1000 * 1000 * 1000 + duration->tv_nsec;
-	auto us = ns / 1000;
-	__ensure(syscall(SYS_SLEEP, us) == 0);
+	__ensure(syscall(SYS_SLEEP, ns) == 0);
 	if (rem) {
 		rem->tv_sec = 0;
 		rem->tv_nsec = 0;
@@ -218,11 +212,80 @@ int sys_system(const char* cmd) {
 }
 
 int sys_sigprocmask(int how, const sigset_t* __restrict set, sigset_t* __restrict old) {
-	STUB_ENOSYS;
+	return get_err(posix_syscall(SYS_POSIX_SIGPROCMASK, how, set, old));
 }
 
+extern "C" void __hzlibc_restorer();
+
+#ifdef __x86_64__
+
+asm(R"(
+.pushsection .text
+
+.globl __hzlibc_restorer
+.hidden __hzlibc_restorer
+__hzlibc_restorer:
+	mov $4101, %edi
+	syscall
+	ud2
+.popsection
+)");
+
+#elif defined(__aarch64__)
+
+asm(R"(
+.pushsection .text
+
+.globl __hzlibc_restorer
+.hidden __hzlibc_restorer
+__hzlibc_restorer:
+	mov x0, #4101
+	svc #0
+	udf #0
+.popsection
+)");
+
+#else
+#error missing architecture specific code
+#endif
+
+static_assert(SYS_POSIX_SIGRESTORE == 4101);
+
+struct kernel_sigaction {
+	void (*sa_handler)(int __sig_num);
+	uint64_t sa_mask;
+	unsigned long sa_flags;
+	void (*sa_restorer)();
+};
+
 int sys_sigaction(int sig_num, const struct sigaction* __restrict action, struct sigaction* __restrict old) {
-	STUB_ENOSYS;
+	kernel_sigaction act {};
+	if (action) {
+		act.sa_handler = action->sa_handler;
+		memcpy(&act.sa_mask, &action->sa_mask, 8);
+		act.sa_flags = action->sa_flags;
+		act.sa_restorer = action->sa_restorer;
+		if (!(act.sa_flags & SA_RESTORER)) {
+			act.sa_restorer = __hzlibc_restorer;
+			act.sa_flags |= SA_RESTORER;
+		}
+	}
+
+	kernel_sigaction old_act {};
+
+	auto err = get_err(posix_syscall(
+		SYS_POSIX_SIGACTION,
+		sig_num,
+		action ? &act : nullptr,
+		old ? &old_act : nullptr));
+	if (old) {
+		old->sa_handler = old_act.sa_handler;
+		memcpy(&old->sa_mask, &old_act.sa_mask, 8);
+		old->sa_flags = old_act.sa_flags;
+		old->sa_restorer = old_act.sa_restorer;
+	}
+
+	return err;
 }
 
 int sys_raise(int sig_num) {
@@ -305,7 +368,8 @@ int sys_thread_create(
 		"libc thread",
 		sizeof("libc thread") - 1,
 		thread_entry,
-		info));
+		info,
+		tid));
 	__ensure(status == 0);
 	return 0;
 }

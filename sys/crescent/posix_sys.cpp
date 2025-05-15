@@ -1,42 +1,19 @@
 #include "sys.hpp"
 #include "log.hpp"
 #include "errno.h"
+#include "stdlib.h"
+#include "crescent/syscall.h"
+#include "crescent/syscalls.h"
+#include "crescent/posix_syscall.h"
+#include "crescent/posix_syscalls.h"
 
-#define STUB_ENOSYS println(__func__, " is a not implemented and returns ENOSYS"); return ENOSYS
+#define STUB_ENOSYS println("hzlibc: ", __func__, " is a not implemented and returns ENOSYS"); return ENOSYS
+#define STUB println("hzlibc: ", __func__, " is a stub")
 
-int sys_sleep(const timespec64* duration, timespec64* rem) {
-	STUB_ENOSYS;
-}
-
-int sys_system(const char* cmd) {
-	STUB_ENOSYS;
-}
-
-void sys_libc_log(hz::string_view str) {
-	
-}
-
-[[noreturn]] void sys_exit(int status) {
-	__builtin_trap();
-}
-
-[[noreturn]] void sys_exit_thread() {
-	__builtin_trap();
-}
-
-int sys_mmap(void* addr, size_t length, int prot, int flags, int fd, off64_t offset, void** ret) {
-	STUB_ENOSYS;
-}
-
-int sys_munmap(void* addr, size_t length) {
-	STUB_ENOSYS;
-}
+#define check_err(res) if ((res).err) return static_cast<int>((res).err)
+#define get_err(res) static_cast<int>((res).err)
 
 int sys_mremap(void* old_addr, size_t old_size, size_t new_size, int flags, void* new_addr, void** ret) {
-	STUB_ENOSYS;
-}
-
-int sys_mprotect(void* addr, size_t length, int prot) {
 	STUB_ENOSYS;
 }
 
@@ -80,10 +57,6 @@ int sys_shmctl(int shm_id, int op, shmid_ds* buf, int* ret) {
 	STUB_ENOSYS;
 }
 
-int get_shm_name(const char* name, char* buf) {
-	STUB_ENOSYS;
-}
-
 int sys_shm_open(const char* name, int oflag, mode_t mode, int* ret) {
 	STUB_ENOSYS;
 }
@@ -92,32 +65,13 @@ int sys_shm_unlink(const char* name) {
 	STUB_ENOSYS;
 }
 
-int sys_openat(int dir_fd, const char* path, int flags, mode_t mode, int* ret) {
-	STUB_ENOSYS;
-}
-
-int sys_close(int fd) {
-	STUB_ENOSYS;
-}
-
-int sys_read(int fd, void* buf, size_t count, ssize_t* ret) {
-	STUB_ENOSYS;
-}
-
-int sys_write(int fd, const void* buf, size_t count, ssize_t* ret) {
-	STUB_ENOSYS;
-}
-
-int sys_lseek(int fd, off64_t offset, int whence, off64_t* ret) {
-	STUB_ENOSYS;
-}
-
-int sys_remove(const char* path) {
-	STUB_ENOSYS;
-}
-
 int sys_ioctl(int fd, unsigned long op, void* arg, int* ret) {
-	STUB_ENOSYS;
+	auto res = posix_syscall(SYS_POSIX_IOCTL, fd, op, arg);
+	if (auto err = get_err(res)) {
+		return err;
+	}
+	*ret = static_cast<int>(res.ret);
+	return 0;
 }
 
 int sys_mount(const char* source, const char* target, const char* fs_type, unsigned long flags, const void* data) {
@@ -129,7 +83,13 @@ int sys_umount2(const char* target, int flags) {
 }
 
 int sys_fcntl(int fd, int cmd, va_list args, int* ret) {
-	STUB_ENOSYS;
+	void* arg = va_arg(args, void*);
+	auto res = posix_syscall(SYS_POSIX_FCNTL, fd, cmd, arg);
+	if (auto err = get_err(res)) {
+		return err;
+	}
+	*ret = static_cast<int>(res.ret);
+	return 0;
 }
 
 int sys_fadvise(int fd, off64_t offset, off64_t len, int advice) {
@@ -137,7 +97,11 @@ int sys_fadvise(int fd, off64_t offset, off64_t len, int advice) {
 }
 
 int sys_isatty(int fd) {
-	STUB_ENOSYS;
+	STUB;
+	if (fd <= 2) {
+		return 0;
+	}
+	return ENOTTY;
 }
 
 int sys_ttyname(int fd, char* buffer, size_t size) {
@@ -153,7 +117,9 @@ int sys_unlockpt(int fd) {
 }
 
 int sys_getpgid(pid_t pid, pid_t* ret) {
-	STUB_ENOSYS;
+	STUB;
+	*ret = 0;
+	return 0;
 }
 
 int sys_pipe2(int pipe_fd[2], int flags) {
@@ -191,7 +157,74 @@ int sys_pselect(
 	const timespec64* __restrict timeout,
 	const sigset_t* __restrict sig_mask,
 	int* ret) {
-	STUB_ENOSYS;
+	auto* fds = static_cast<pollfd*>(malloc(num_fds * sizeof(pollfd)));
+	if (!fds) {
+		return ENOMEM;
+	}
+
+	int count = 0;
+	for (int i = 0; i < num_fds; ++i) {
+		short events = 0;
+		if (read_fds && FD_ISSET(i, read_fds)) {
+			events |= POLLIN;
+		}
+
+		if (write_fds && FD_ISSET(i, write_fds)) {
+			events |= POLLOUT;
+		}
+
+		if (except_fds && FD_ISSET(i, except_fds)) {
+			events |= POLLPRI;
+		}
+
+		if (events) {
+			fds[count].fd = i;
+			fds[count].events = events;
+			fds[count].revents = 0;
+			++count;
+		}
+	}
+
+	int num;
+	if (auto err = sys_ppoll(fds, count, timeout, sig_mask, &num)) {
+		free(fds);
+		return err;
+	}
+
+#define READ_POLL (POLLIN | POLLHUP | POLLERR)
+#define WRITE_POLL (POLLOUT | POLLERR)
+#define EXCEPT_POLL (POLLPRI)
+
+	int ret_count = 0;
+	for (int i = 0; i < count; ++i) {
+		short events = fds[i].events;
+		if ((events & POLLIN) && !(fds[i].revents & READ_POLL)) {
+			FD_CLR(fds[i].fd, read_fds);
+			events &= ~POLLIN;
+		}
+
+		if ((events & POLLOUT) && !(fds[i].revents & WRITE_POLL)) {
+			FD_CLR(fds[i].fd, write_fds);
+			events &= ~POLLOUT;
+		}
+
+		if ((events & POLLPRI) && !(fds[i].revents & EXCEPT_POLL)) {
+			FD_CLR(fds[i].fd, except_fds);
+			events &= ~POLLPRI;
+		}
+
+		if (events) {
+			++ret_count;
+		}
+	}
+
+#undef READ_POLL
+#undef WRITE_POLL
+#undef EXCEPT_POLL
+
+	*ret = ret_count;
+	free(fds);
+	return 0;
 }
 
 int sys_readv(int fd, const iovec* iov, int iov_count, ssize_t* ret) {
@@ -245,7 +278,12 @@ int sys_poll(pollfd* fds, nfds_t num_fds, int timeout, int* ret) {
 }
 
 int sys_ppoll(pollfd* fds, nfds_t num_fds, const timespec64* timeout, const sigset_t* sig_mask, int* ret) {
-	STUB_ENOSYS;
+	auto res = posix_syscall(SYS_POSIX_PPOLL, fds, num_fds, timeout, sig_mask);
+	if (auto err = get_err(res)) {
+		return err;
+	}
+	*ret = static_cast<int>(res.ret);
+	return 0;
 }
 
 int sys_eventfd(unsigned int init_value, int flags, int* ret) {
@@ -284,15 +322,11 @@ int sys_mq_unlink(const char* name) {
 	STUB_ENOSYS;
 }
 
-int sys_stat(StatTarget target, int dir_fd, const char* path, int flags, struct stat64* s) {
-	STUB_ENOSYS;
-}
-
 int sys_statx(int dir_fd, const char* __restrict path, int flags, unsigned int mask, struct statx* __restrict buf) {
 	STUB_ENOSYS;
 }
 
-int sys_statfs(const char* path, struct statfs64* buf){
+int sys_statfs(const char* path, struct statfs64* buf) {
 	STUB_ENOSYS;
 }
 
@@ -301,8 +335,8 @@ int sys_fstatfs(int fd, struct statfs64* buf) {
 }
 
 mode_t sys_umask(mode_t mask) {
-	println("sys_umask is a stub");
-	return 0;
+	STUB;
+	return 022;
 }
 
 int sys_faccessat(int dir_fd, const char* path, int mode, int flags) {
@@ -359,10 +393,6 @@ int sys_utimensat(int dir_fd, const char* path, const timespec64 times[2], int f
 }
 
 int sys_rmdir(const char* path) {
-	STUB_ENOSYS;
-}
-
-int sys_renameat(int old_dir_fd, const char* old_path, int new_dir_fd, const char* new_path) {
 	STUB_ENOSYS;
 }
 
@@ -447,7 +477,13 @@ int sys_flistxattr(int fd, char* list, size_t size, ssize_t* ret) {
 }
 
 int sys_getcwd(char* buf, size_t size) {
-	STUB_ENOSYS;
+	STUB;
+	if (size < 2) {
+		return ERANGE;
+	}
+	buf[0] = '/';
+	buf[1] = 0;
+	return 0;
 }
 
 int sys_gethostname(char* name, size_t len) {
@@ -470,15 +506,7 @@ int sys_fchdir(int fd) {
 	STUB_ENOSYS;
 }
 
-int sys_getpagesize() {
-	return 0x1000;
-}
-
 int sys_sysinfo(struct sysinfo* info) {
-	STUB_ENOSYS;
-}
-
-int sys_tcb_set(void* tcb) {
 	STUB_ENOSYS;
 }
 
@@ -503,10 +531,6 @@ int sys_getrandom(void* buffer, size_t size, unsigned int flags, ssize_t* ret) {
 }
 
 int sys_execve(const char* path, char* const argv[], char* const envp[]) {
-	STUB_ENOSYS;
-}
-
-int sys_sched_yield() {
 	STUB_ENOSYS;
 }
 
@@ -542,7 +566,7 @@ int sys_sched_getcpu(int* ret) {
 	STUB_ENOSYS;
 }
 
-int sys_prctl(int option, unsigned long arg2, unsigned long arg3, unsigned long arg4, unsigned long arg5, int* ret) {
+int sys_prctl(int option, unsigned long arg0, unsigned long arg1, unsigned long arg2, unsigned long arg3, int* ret) {
 	STUB_ENOSYS;
 }
 
@@ -614,54 +638,32 @@ int sys_setns(int fd, int ns_type) {
 	STUB_ENOSYS;
 }
 
-int sys_sysconf(int num, long* ret) {
-	STUB_ENOSYS;
-}
-
-int sys_futex_wait(int* addr, int value, const timespec* timeout, bool pshared) {
-	STUB_ENOSYS;
-}
-
-int sys_futex_wake(int* addr, bool pshared) {
-	STUB_ENOSYS;
-}
-
-int sys_futex_wake_all(int* addr, bool pshared) {
-	STUB_ENOSYS;
-}
-
-pid_t sys_get_thread_id() {
-	println("sys_get_thread_id is a stub");
-	return 0;
-}
-
 pid_t sys_get_process_id() {
-	println("sys_get_process_id is a stub");
-	return 0;
+	return syscall(SYS_GET_PROCESS_ID);
 }
 
 pid_t sys_getppid() {
-	println("sys_getppid is a stub");
+	STUB;
 	return 0;
 }
 
 uid_t sys_getuid() {
-	println("sys_getuid is a stub");
+	STUB;
 	return 0;
 }
 
 uid_t sys_geteuid() {
-	println("sys_geteuid is a stub");
+	STUB;
 	return 0;
 }
 
 gid_t sys_getgid() {
-	println("sys_getgid is a stub");
+	STUB;
 	return 0;
 }
 
 gid_t sys_getegid() {
-	println("sys_getegid is a stub");
+	STUB;
 	return 0;
 }
 
@@ -697,19 +699,7 @@ int sys_semop(int sem_id, sembuf* sops, size_t num_sops) {
 	STUB_ENOSYS;
 }
 
-int sys_sigprocmask(int how, const sigset_t* __restrict set, sigset_t* __restrict old) {
-	STUB_ENOSYS;
-}
-
-int sys_sigaction(int sig_num, const struct sigaction* __restrict action, struct sigaction* __restrict old) {
-	STUB_ENOSYS;
-}
-
 int sys_sigtimedwait(const sigset_t* __restrict set, siginfo_t* __restrict info, const timespec* timeout, int* ret) {
-	STUB_ENOSYS;
-}
-
-int sys_raise(int sig_num) {
 	STUB_ENOSYS;
 }
 
@@ -726,15 +716,11 @@ int sys_sigpending(sigset_t* set) {
 }
 
 int sys_kill(pid_t pid, int sig) {
-	STUB_ENOSYS;
+	return get_err(posix_syscall(SYS_POSIX_KILL, pid, sig));
 }
 
 int sys_tgkill(pid_t pid, pid_t tid, int sig) {
-	STUB_ENOSYS;
-}
-
-int sys_clock_gettime(clockid_t id, timespec* tp) {
-	STUB_ENOSYS;
+	return get_err(posix_syscall(SYS_POSIX_TGKILL, pid, tid, sig));
 }
 
 int sys_clock_settime(clockid_t id, const timespec* tp) {
@@ -840,16 +826,6 @@ int sys_recvfrom(
 }
 
 int sys_recvmsg(int fd, msghdr* msg, int flags, ssize_t* ret) {
-	STUB_ENOSYS;
-}
-
-int sys_thread_create(
-	void* stack_base,
-	size_t stack_size,
-	void* (start_fn)(void* arg),
-	void* arg,
-	void* tp,
-	pid_t* tid) {
 	STUB_ENOSYS;
 }
 
