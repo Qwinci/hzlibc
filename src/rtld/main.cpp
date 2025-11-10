@@ -313,11 +313,6 @@ extern "C" [[gnu::used]] uintptr_t start(uintptr_t* sp) {
 
 	auto* exe_dynamic = reinterpret_cast<Elf_Dyn*>(exe_base + exe_dynamic_offset);
 
-	__ensure(sys_mprotect(
-		reinterpret_cast<void*>((exe_base + exe_dynamic_offset) & ~0xFFF),
-		(((exe_base + exe_dynamic_offset) & 0xFFF) + exe_dynamic_size + 0xFFF) & ~0xFFF,
-		PROT_READ | PROT_WRITE) == 0 && "failed to make executable dynamic section writable");
-
 	hz::string<Allocator> exe_name {Allocator {}};
 	exe_name = "<executable>";
 	EXE_OBJECT.initialize(
@@ -348,11 +343,6 @@ extern "C" [[gnu::used]] uintptr_t start(uintptr_t* sp) {
 	SAVED_LIBC_REL_ADDENDS = nullptr;
 
 	LIBC_OBJECT->late_relocate();
-
-	__ensure(sys_mprotect(
-		reinterpret_cast<void*>((exe_base + exe_dynamic_offset) & ~0xFFF),
-		(((exe_base + exe_dynamic_offset) & 0xFFF) + exe_dynamic_size + 0xFFF) & ~0xFFF,
-		PROT_READ) == 0 && "failed to make executable dynamic section readable");
 
 	// allocate the tls
 	OBJECT_STORAGE->total_initial_tls_size = OBJECT_STORAGE->initial_tls_size + 1024 * 4;

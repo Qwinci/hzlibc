@@ -514,7 +514,9 @@ LoadError ObjectStorage::load_dependencies(SharedObject* object, bool global, bo
 
 	for (auto obj : init_list) {
 		obj->late_relocate();
-		protect_object(obj);
+		if (!obj->executable) {
+			protect_object(obj);
+		}
 	}
 
 	return LoadError::Success;
