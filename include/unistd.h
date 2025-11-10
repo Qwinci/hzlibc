@@ -300,6 +300,8 @@ int chdir(const char* __path);
 int fchdir(int __fd);
 int setuid(uid_t __uid);
 int setgid(gid_t __gid);
+int seteuid(uid_t __euid);
+int setegid(gid_t __egid);
 pid_t setsid(void);
 int setpgid(pid_t __pid, pid_t __pgid);
 uid_t getuid(void);

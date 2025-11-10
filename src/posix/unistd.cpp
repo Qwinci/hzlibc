@@ -609,6 +609,22 @@ EXPORT int setgid(gid_t gid) {
 	return 0;
 }
 
+EXPORT int seteuid(uid_t euid) {
+	if (auto err = sys_setresuid(-1, euid, -1)) {
+		errno = err;
+		return -1;
+	}
+	return 0;
+}
+
+EXPORT int setegid(gid_t egid) {
+	if (auto err = sys_setresgid(-1, egid, -1)) {
+		errno = err;
+		return -1;
+	}
+	return 0;
+}
+
 EXPORT pid_t setsid() {
 	pid_t ret;
 	if (auto err = sys_setsid(&ret)) {
