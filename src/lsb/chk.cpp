@@ -7,9 +7,14 @@
 #include "setjmp.h"
 #include "fcntl.h"
 #include "wchar.h"
+#include "unistd.h"
 
 extern "C" EXPORT size_t __fread_chk(void* __restrict buffer, size_t, size_t size, size_t n, FILE* __restrict file) {
 	return fread(buffer, size, n, file);
+}
+
+extern "C" EXPORT ssize_t __read_chk(int fd, void* buf, size_t count, size_t) {
+	return read(fd, buf, count);
 }
 
 extern "C" EXPORT int __fprintf_chk(FILE* __restrict file, int, const char* __restrict fmt, ...) {
