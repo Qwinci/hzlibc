@@ -12,7 +12,7 @@ namespace {
 		static void* allocate(size_t size) {
 			size = (size + 0x1000 - 1) & ~(0x1000 - 1);
 			void* ret;
-			if (sys_mmap(nullptr, size, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANON, -1, 0, &ret)) {
+			if (sys_allocate_mem(size, &ret)) {
 				return nullptr;
 			}
 			return ret;
@@ -20,7 +20,7 @@ namespace {
 
 		static void deallocate(void* ptr, size_t size) {
 			size = (size + 0x1000 - 1) & ~(0x1000 - 1);
-			__ensure(sys_munmap(ptr, size) == 0);
+			__ensure(sys_free_mem(ptr, size) == 0);
 		}
 	};
 

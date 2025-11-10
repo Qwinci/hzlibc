@@ -44,6 +44,14 @@ int sys_munmap(void* addr, size_t length) {
 	return get_err(posix_syscall(SYS_POSIX_MUNMAP, addr, length));
 }
 
+int sys_allocate_mem(size_t length, void** ret) {
+	return sys_mmap(nullptr, length, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANON, -1, 0, ret);
+}
+
+int sys_free_mem(void* addr, size_t length) {
+	return sys_munmap(addr, length);
+}
+
 int sys_mprotect(void* addr, size_t length, int prot) {
 	return get_err(posix_syscall(SYS_POSIX_MPROTECT, addr, length, prot));
 }
@@ -203,7 +211,19 @@ int sys_sleep(const timespec64* duration, timespec64* rem) {
 
 // only CLOCK_REALTIME is used by timespec_get
 int sys_clock_gettime(clockid_t id, timespec* tp) {
-	STUB_ENOSYS;
+	if (id == CLOCK_MONOTONIC) {
+		uint64_t ns;
+		__ensure(syscall(SYS_GET_TIME, &ns) == 0);
+		tp->tv_sec = static_cast<time_t>(ns / (1000UL * 1000UL * 1000UL));
+		tp->tv_nsec = static_cast<time_t>(ns % (1000UL * 1000UL * 1000UL));
+	}
+	else {
+		println("sys_clock_gettime ", id, " is not implemented");
+		tp->tv_sec = 0;
+		tp->tv_nsec = 0;
+		return 0;
+	}
+	return 0;
 }
 
 // only used with ansi only, this differs in that it should set errno

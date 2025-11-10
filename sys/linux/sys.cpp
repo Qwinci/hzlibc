@@ -117,6 +117,14 @@ int sys_munmap(void* addr, size_t length) {
 	return syscall_error(syscall(SYS_munmap, addr, length));
 }
 
+int sys_allocate_mem(size_t length, void** ret) {
+	return sys_mmap(nullptr, length, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANON, -1, 0, ret);
+}
+
+int sys_free_mem(void* addr, size_t length) {
+	return sys_munmap(addr, length);
+}
+
 int sys_mremap(void* old_addr, size_t old_size, size_t new_size, int flags, void* new_addr, void** ret) {
 	auto res = syscall(SYS_mremap, old_addr, old_size, new_size, flags, new_addr);
 	if (int err = syscall_error(res)) {

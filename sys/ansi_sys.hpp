@@ -14,6 +14,8 @@ struct timespec64 {
 void sys_libc_log(hz::string_view str);
 [[noreturn]] void sys_exit(int status);
 [[noreturn]] void sys_exit_thread();
+int sys_allocate_mem(size_t length, void** ret);
+int sys_free_mem(void* addr, size_t length);
 int sys_mmap(void* addr, size_t length, int prot, int flags, int fd, off64_t offset, void** ret);
 int sys_munmap(void* addr, size_t length);
 int sys_mprotect(void* addr, size_t length, int prot);
