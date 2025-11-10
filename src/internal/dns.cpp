@@ -36,18 +36,14 @@ namespace dns {
 		uint32_t value;
 		memcpy(&value, ptr, 4);
 		ptr += 4;
-		return {.s_addr = hz::to_ne_from_be(value)};
+		return {.s_addr = value};
 	}
 
 	in6_addr Ptr::parse_ipv6() {
-		in6_addr translated {};
-		for (int j = 0; j < 8; ++j) {
-			uint16_t value;
-			memcpy(&value, ptr + j * 2, 2);
-			translated.s6_addr16[j] = hz::to_ne_from_be(value);
-		}
+		in6_addr value {};
+		memcpy(&value, ptr, 16);
 		ptr += 16;
-		return translated;
+		return value;
 	}
 
 	hz::string<Allocator> Ptr::parse_dns_name() {

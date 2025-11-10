@@ -29,6 +29,12 @@ int res_nquery(
 	int __type,
 	unsigned char* __answer,
 	int __answer_len);
+int dn_comp(
+	unsigned char* __exp_dn,
+	unsigned char* __comp_dn,
+	int __length,
+	unsigned char** __dn_ptrs,
+	unsigned char** __last_dn_ptr);
 int dn_expand(
 	const unsigned char* __msg,
 	const unsigned char* __eom_orig,

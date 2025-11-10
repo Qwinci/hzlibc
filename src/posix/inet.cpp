@@ -5,6 +5,7 @@
 #include "stdio.h"
 #include "net_utils.hpp"
 #include <hz/bit.hpp>
+#include <hz/string_utils.hpp>
 
 EXPORT uint16_t htons(uint16_t host_short) {
 	return hz::to_be(host_short);
@@ -20,6 +21,74 @@ EXPORT uint16_t ntohs(uint16_t net_short) {
 
 EXPORT uint32_t ntohl(uint32_t net_long) {
 	return hz::to_ne_from_be(net_long);
+}
+
+EXPORT int inet_aton(const char* str, struct in_addr* inp) {
+	hz::string_view ip {str};
+
+	size_t offset = 0;
+	in_addr addr {};
+	int i = 0;
+	while (true) {
+		auto segment_end = ip.find('.', offset);
+		auto segment = ip.substr_abs(offset, segment_end);
+
+		if (segment_end == hz::string_view::npos) {
+			if (i == 0) {
+				size_t count;
+				auto num = hz::to_integer<uint32_t>(segment, 0, &count);
+				if (count != segment.size() || !count) {
+					return 0;
+				}
+				addr.s_addr = num;
+				*inp = addr;
+				return 1;
+			}
+			else if (i == 1) {
+				size_t count;
+				auto num = hz::to_integer<uint32_t>(segment, 0, &count);
+				if (count != segment.size() || !count || (num & ~0xFFFFFF)) {
+					return 0;
+				}
+				addr.s_addr |= (num & 0xFF) << 8;
+				addr.s_addr |= (num >> 8 & 0xFF) << 16;
+				addr.s_addr |= (num >> 16 & 0xFF) << 24;
+				*inp = addr;
+				return 1;
+			}
+			else if (i == 2) {
+				size_t count;
+				auto num = hz::to_integer<uint32_t>(segment, 0, &count);
+				if (count != segment.size() || !count || (num > 0xFFFF)) {
+					return 0;
+				}
+				addr.s_addr |= (num & 0xFF) << 16;
+				addr.s_addr |= (num >> 8) << 24;
+				*inp = addr;
+				return 1;
+			}
+		}
+
+		size_t count;
+		auto num = hz::to_integer<uint8_t>(segment, 10, &count);
+		if (count != segment.size() || !count) {
+			return 0;
+		}
+		addr.s_addr |= num << (i++ * 8);
+
+		if (segment_end == hz::string_view::npos) {
+			if (i == 4) {
+				*inp = addr;
+				return 1;
+			}
+			else {
+				return 0;
+			}
+		}
+		else {
+			offset = segment_end + 1;
+		}
+	}
 }
 
 EXPORT const char* inet_ntop(int af, const void* __restrict src, char* dest, socklen_t size) {

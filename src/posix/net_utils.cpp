@@ -70,7 +70,7 @@ hz::optional<in6_addr> parse_ipv6(hz::string_view ip) {
 		if (count != segment.size() || !count) {
 			return hz::nullopt;
 		}
-		addr.s6_addr16[i++] = hz::to_ne_from_be(num);
+		addr.s6_addr16[i++] = num;
 
 		if (segment_end == hz::string_view::npos) {
 			if (i != 8) {

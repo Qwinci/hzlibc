@@ -72,6 +72,15 @@ EXPORT int res_nquery(
 	return 0;
 }
 
+EXPORT int dn_comp(
+	unsigned char* __exp_dn,
+	unsigned char* __comp_dn,
+	int __length,
+	unsigned char** __dn_ptrs,
+	unsigned char** __last_dn_ptr) {
+	__ensure(!"dn_comp is not implemented");
+}
+
 EXPORT int dn_expand(
 	const unsigned char* msg,
 	const unsigned char* eom_orig,
