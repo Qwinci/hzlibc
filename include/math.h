@@ -16,9 +16,9 @@ typedef double double_t;
 #define NAN __builtin_nanf("")
 #define INFINITY __builtin_inff()
 
-#define HUGE_VALF __builtin_hugevalf()
+#define HUGE_VALF __builtin_huge_valf()
 #define HUGE_VAL __builtin_huge_val()
-#define HUGE_VALL __builtin_hugevall()
+#define HUGE_VALL __builtin_huge_vall()
 
 #define FP_NAN 0
 #define FP_INFINITE 1

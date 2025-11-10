@@ -29,9 +29,13 @@ namespace {
 
 template<typename T, typename U, typename C = char>
 T str_to_int(const C* __restrict ptr, C** __restrict end_ptr, int base) {
+	auto start = ptr;
+
 	while (isspace_helper(*ptr)) {
 		++ptr;
 	}
+
+	auto after_space = ptr;
 
 	bool sign = false;
 	if (*ptr == '-') {
@@ -42,20 +46,24 @@ T str_to_int(const C* __restrict ptr, C** __restrict end_ptr, int base) {
 		++ptr;
 	}
 
-	auto valid_char = [&](C c) {
+	auto valid_char = [](C c, int base) {
 		if (base <= 10) {
 			return c >= C {'0'} && c <= static_cast<C>('0' + base - 1);
 		}
 		else {
 			return (c >= C {'0'} && c <= C {'9'}) ||
-				(static_cast<C>(c | 1 << 5) >= C {'a'} &&
-				static_cast<C>(c | 1 << 5) <= static_cast<C>('a' + (base - 10)));
+				(tolower_helper(c) >= C {'a'} &&
+				tolower_helper(c) <= static_cast<C>('a' + (base - 10 - 1)));
 		}
 	};
 
 	if (base == 0) {
-		if (ptr[0] == '0' && tolower_helper(ptr[1]) == 'x' && (valid_char(ptr[2]))) {
+		if (ptr[0] == '0' && tolower_helper(ptr[1]) == 'x' && valid_char(ptr[2], 16)) {
 			base = 16;
+			ptr += 2;
+		}
+		else if (ptr[0] == '0' && tolower_helper(ptr[1]) == 'b' && valid_char(ptr[2], 2)) {
+			base = 2;
 			ptr += 2;
 		}
 		else if (ptr[0] == '0') {
@@ -98,7 +106,7 @@ T str_to_int(const C* __restrict ptr, C** __restrict end_ptr, int base) {
 	U value = 0;
 	bool overflow = false;
 	if (base <= 36) {
-		for (; valid_char(*ptr); ++ptr) {
+		for (; valid_char(*ptr, base); ++ptr) {
 			auto old = value;
 			value *= base;
 			if (value / base != old || value > max_value) {
@@ -113,7 +121,12 @@ T str_to_int(const C* __restrict ptr, C** __restrict end_ptr, int base) {
 	}
 
 	if (end_ptr) {
-		*end_ptr = const_cast<C*>(ptr);
+		if (after_space != ptr) {
+			*end_ptr = const_cast<C*>(ptr);
+		}
+		else {
+			*end_ptr = const_cast<C*>(start);
+		}
 	}
 
 	if (overflow) {

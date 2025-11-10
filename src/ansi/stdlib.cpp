@@ -323,6 +323,10 @@ namespace {
 }
 
 EXPORT int atoi(const char* str) {
+	while (isspace(*str)) {
+		++str;
+	}
+
 	bool sign = false;
 	if (*str == '-') {
 		++str;
@@ -346,6 +350,10 @@ EXPORT int atoi(const char* str) {
 }
 
 EXPORT long atol(const char* str) {
+	while (isspace(*str)) {
+		++str;
+	}
+
 	bool sign = false;
 	if (*str == '-') {
 		++str;
@@ -369,6 +377,10 @@ EXPORT long atol(const char* str) {
 }
 
 EXPORT long long atoll(const char* str) {
+	while (isspace(*str)) {
+		++str;
+	}
+
 	bool sign = false;
 	if (*str == '-') {
 		++str;

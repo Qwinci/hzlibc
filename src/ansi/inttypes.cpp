@@ -59,19 +59,35 @@ EXPORT uintmax_t strtoumax(const char* __restrict ptr, char** __restrict end_ptr
 	}
 
 	uintmax_t value = 0;
-	if (base <= 36) {
-		for (; *ptr >= '0' && tolower(*ptr) <= CHARS[base - 1]; ++ptr) {
+	if (base <= 10) {
+		for (; *ptr >= '0' && *ptr <= '0' + (base - 1); ++ptr) {
 			auto old = value;
 			value *= base;
 			if (value / base != old) {
 				errno = ERANGE;
-				return UINTMAX_MAX;
+				return UINTPTR_MAX;
+			}
+			old = value;
+			value += *ptr - '0';
+			if (value < old) {
+				errno = ERANGE;
+				return UINTPTR_MAX;
+			}
+		}
+	}
+	else if (base <= 36) {
+		for (; isdigit(*ptr) || (tolower(*ptr) >= 'a' && tolower(*ptr) <= CHARS[base - 1]); ++ptr) {
+			auto old = value;
+			value *= base;
+			if (value / base != old) {
+				errno = ERANGE;
+				return UINTPTR_MAX;
 			}
 			old = value;
 			value += *ptr <= '9' ? (*ptr - '0') : (tolower(*ptr) - 'a' + 10);
 			if (value < old) {
 				errno = ERANGE;
-				return UINTMAX_MAX;
+				return UINTPTR_MAX;
 			}
 		}
 	}
@@ -142,19 +158,35 @@ EXPORT intmax_t strtoimax(const char* __restrict ptr, char** __restrict end_ptr,
 	}
 
 	uintmax_t value = 0;
-	if (base <= 36) {
-		for (; *ptr >= '0' && tolower(*ptr) <= CHARS[base - 1]; ++ptr) {
+	if (base <= 10) {
+		for (; *ptr >= '0' && *ptr <= '0' + (base - 1); ++ptr) {
 			auto old = value;
 			value *= base;
 			if (value / base != old) {
 				errno = ERANGE;
-				return INTMAX_MAX;
+				return UINTPTR_MAX;
+			}
+			old = value;
+			value += *ptr - '0';
+			if (value < old) {
+				errno = ERANGE;
+				return UINTPTR_MAX;
+			}
+		}
+	}
+	else if (base <= 36) {
+		for (; isdigit(*ptr) || (tolower(*ptr) >= 'a' && tolower(*ptr) <= CHARS[base - 1]); ++ptr) {
+			auto old = value;
+			value *= base;
+			if (value / base != old) {
+				errno = ERANGE;
+				return UINTPTR_MAX;
 			}
 			old = value;
 			value += *ptr <= '9' ? (*ptr - '0') : (tolower(*ptr) - 'a' + 10);
 			if (value < old) {
 				errno = ERANGE;
-				return INTMAX_MAX;
+				return UINTPTR_MAX;
 			}
 		}
 	}

@@ -32,6 +32,10 @@ imaxdiv_t imaxdiv(intmax_t __x, intmax_t __y);
 #define PRIx16 "x"
 #define PRIx32 "x"
 
+#define PRIX8 "X"
+#define PRIX16 "X"
+#define PRIX32 "X"
+
 #define PRIo8 "o"
 #define PRIo16 "o"
 #define PRIo32 "o"
@@ -64,6 +68,7 @@ imaxdiv_t imaxdiv(intmax_t __x, intmax_t __y);
 #define PRIdMAX "ld"
 #define PRIuMAX "lu"
 #define PRIxMAX "lx"
+#define PRIXMAX "lX"
 #define PRIoMAX "lo"
 
 #define SCNd64 "ld"
@@ -86,6 +91,7 @@ imaxdiv_t imaxdiv(intmax_t __x, intmax_t __y);
 #define PRIdMAX "lld"
 #define PRIuMAX "llu"
 #define PRIxMAX "llx"
+#define PRIXMAX "llX"
 #define PRIoMAX "llo"
 
 #define SCNd64 "lld"

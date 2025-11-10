@@ -337,6 +337,10 @@ EXPORT int vfprintf(FILE* __restrict file, const char* __restrict fmt, va_list a
 
 		++fmt;
 
+		if (isdigit(*fmt) && fmt[1] == '$') {
+			panic("printf positional arguments aren't supported");
+		}
+
 		int flags = 0;
 		while (true) {
 			auto c = *fmt;
@@ -364,6 +368,9 @@ EXPORT int vfprintf(FILE* __restrict file, const char* __restrict fmt, va_list a
 					flags |= flags::ZERO;
 				}
 			}
+			else if (c == '\'') {
+				panic("' printf format flag is unimplemented");
+			}
 			else {
 				break;
 			}
@@ -379,6 +386,11 @@ EXPORT int vfprintf(FILE* __restrict file, const char* __restrict fmt, va_list a
 		}
 		else if (*fmt == '*') {
 			++fmt;
+
+			if (isdigit(*fmt) && fmt[1] == '$') {
+				panic("printf positional width is not supported");
+			}
+
 			width = va_arg(ap, int);
 			has_width = true;
 
@@ -401,6 +413,11 @@ EXPORT int vfprintf(FILE* __restrict file, const char* __restrict fmt, va_list a
 			}
 			else if (*fmt == '*') {
 				++fmt;
+
+				if (isdigit(*fmt) && fmt[1] == '$') {
+					panic("printf positional precision is not supported");
+				}
+
 				precision = va_arg(ap, int);
 
 				if (precision >= 0) {
